@@ -2,6 +2,8 @@
 
 This document contains JSDoc-style documentation for the functions implemented in **Project Inventario** (including [code.js](file:///c:/Users/Marco%20Villafuerte/Desktop/Project_Inventario/code.js) and [indeX.html](file:///c:/Users/Marco%20Villafuerte/Desktop/Project_Inventario/indeX.html)).
 
+
+
 ---
 
 ## 🖥️ Backend Functions (`code.js` / Google Apps Script)
@@ -12,6 +14,8 @@ These functions execute on Google's servers and interface directly with the Goog
 #### `doGet()`
 * **Description:** Serves the web app UI using Google's HTML Service.
 * **Returns:** `HtmlService.HtmlOutput` - The rendered page from `index.html` with title and X-Frame Options configured.
+
+
 
 ---
 
@@ -39,6 +43,8 @@ These functions execute on Google's servers and interface directly with the Goog
   * `texto` `{string}` - The search query text.
 * **Returns:** `Array<Array>` - List of matching rows sorted alphabetically by name. Each row contains: `[codigo, nombre, unidad, grupo, stockMin, stockActual]`.
 
+
+
 ---
 
 ### 📈 Stock & Transactions
@@ -63,6 +69,8 @@ These functions execute on Google's servers and interface directly with the Goog
 * **Description:** Retrieves all registered products along with their real-time calculated stock.
 * **Returns:** `Array<Object>` - Array of products sorted by name, containing: `codigo`, `nombre`, `unidad`, `grupo`, `stockMin`, and `cantidad` (current stock).
 
+
+
 ---
 
 ### 📊 Reports & Analysis
@@ -84,6 +92,8 @@ These functions execute on Google's servers and interface directly with the Goog
   * `.stockBajo` `{number}` - Count of items below their minimum stock threshold.
   * `.valorTotalInventario` `{number}` - Aggregate sum of stock quantities.
   * `.movimientosUltimoMes` `{number}` - Count of actions in the past 30 days.
+
+
 
 ---
 
@@ -115,6 +125,8 @@ These functions execute on Google's servers and interface directly with the Goog
 * **Parameters:**
   * `fecha` `{Date|string|number}` - Date to format.
 * **Returns:** `string` - Formatted date string.
+
+
 
 ---
 
