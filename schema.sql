@@ -74,3 +74,16 @@ INSERT INTO grupos (nombre) VALUES
 ('Empaques'), ('Químicos')
 ON CONFLICT (nombre) DO NOTHING;
 
+-- 8. Enable Row Level Security (RLS)
+ALTER TABLE unidades ENABLE ROW LEVEL SECURITY;
+ALTER TABLE grupos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE productos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE movimientos ENABLE ROW LEVEL SECURITY;
+
+-- 9. Create Permissive Policies for the Anon Role (so client-side CRUD works)
+CREATE POLICY "Allow anonymous access on unidades" ON unidades FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "Allow anonymous access on grupos" ON grupos FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "Allow anonymous access on productos" ON productos FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "Allow anonymous access on movimientos" ON movimientos FOR ALL TO anon USING (true) WITH CHECK (true);
+
+
