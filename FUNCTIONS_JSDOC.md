@@ -59,7 +59,7 @@ These functions execute on Google's servers and interface directly with the Goog
   * `mov.observaciones` `{string}` - (Optional) Additional notes.
 * **Returns:** `string` - Status message indicating success or the reason for failure (e.g. "Stock insuficiente").
 
-#### `calcularStock(codigo)`
+#### `(codigo)`
 * **Description:** Aggregates all transactions in the ledger for a specific product code to calculate its current stock.
 * **Parameters:**
   * `codigo` `{string}` - The unique product code.

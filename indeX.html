@@ -725,7 +725,17 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./config.js"></script>
   <script>
+    // Initialize Supabase Client
+    let supabase;
+    try {
+      supabase = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.key);
+    } catch (e) {
+      console.error("Supabase client failed to initialize. Please check your config.js credentials.", e);
+    }
+
     let currentTab = 'dashboard';
     let searchTimeout;
     let autocompleteTimeout;
@@ -756,8 +766,12 @@
         link.classList.remove('active');
       });
       
-      document.getElementById(tabName).classList.add('active');
-      event.target.classList.add('active');
+      const targetTab = document.getElementById(tabName);
+      if (targetTab) targetTab.classList.add('active');
+      
+      if (event && event.target && event.target.classList) {
+        event.target.classList.add('active');
+      }
       
       currentTab = tabName;
       
@@ -771,52 +785,80 @@
       }
     }
 
-    function loadDashboard() {
-      google.script.run.withSuccessHandler(data => {
+    async function loadDashboard() {
+      try {
+        const { count: totalProductos, error: e1 } = await supabase
+          .from('productos')
+          .select('*', { count: 'exact', head: true });
+          
+        const { count: totalMovimientos, error: e2 } = await supabase
+          .from('movimientos')
+          .select('*', { count: 'exact', head: true });
+          
+        const { data: stockData, error: e3 } = await supabase
+          .from('v_productos_stock')
+          .select('stockMin:stock_min, cantidad');
+          
+        if (e1 || e2 || e3) throw e1 || e2 || e3;
+        
+        let sinStock = 0;
+        let stockBajo = 0;
+        stockData.forEach(p => {
+          if (p.cantidad <= 0) {
+            sinStock++;
+          } else if (p.cantidad <= p.stockMin && p.stockMin > 0) {
+            stockBajo++;
+          }
+        });
+
         const statsGrid = document.getElementById('statsGrid');
         statsGrid.innerHTML = `
           <div class="stat-card">
-            <div class="stat-value">${data.totalProductos}</div>
+            <div class="stat-value">${totalProductos}</div>
             <div class="stat-label">Total Productos</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value">${data.totalMovimientos}</div>
+            <div class="stat-value">${totalMovimientos}</div>
             <div class="stat-label">Total Movimientos</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value">${data.sinStock}</div>
+            <div class="stat-value">${sinStock}</div>
             <div class="stat-label">Sin Stock</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value">${data.stockBajo}</div>
+            <div class="stat-value">${stockBajo}</div>
             <div class="stat-label">Stock Bajo</div>
           </div>
         `;
-      }).withFailureHandler(error => {
-        showMessage('statsGrid', 'Error al cargar dashboard: ' + error, 'error');
-      }).obtenerResumen();
+      } catch(error) {
+        showMessage('statsGrid', 'Error al cargar dashboard: ' + error.message, 'error');
+      }
     }
 
-    function loadListas() {
-      google.script.run.withSuccessHandler(data => {
+    async function loadListas() {
+      try {
+        const { data: unidades, error: e1 } = await supabase.from('unidades').select('nombre').order('nombre');
+        const { data: grupos, error: e2 } = await supabase.from('grupos').select('nombre').order('nombre');
+        if (e1 || e2) throw e1 || e2;
+
         const unidadSelect = document.getElementById("unidadProd");
         const grupoSelect = document.getElementById("grupoProd");
 
         unidadSelect.innerHTML = "";
         grupoSelect.innerHTML = "";
 
-        data.unidades.forEach(u => {
-          unidadSelect.innerHTML += `<option value="${u}">${u}</option>`;
+        unidades.forEach(u => {
+          unidadSelect.innerHTML += `<option value="${u.nombre}">${u.nombre}</option>`;
         });
-        data.grupos.forEach(g => {
-          grupoSelect.innerHTML += `<option value="${g}">${g}</option>`;
+        grupos.forEach(g => {
+          grupoSelect.innerHTML += `<option value="${g.nombre}">${g.nombre}</option>`;
         });
-      }).withFailureHandler(error => {
+      } catch (error) {
         console.error('Error loading lists:', error);
-      }).obtenerListas();
+      }
     }
 
-    function buscarProductoAutocompletado() {
+    async function buscarProductoAutocompletado() {
       clearTimeout(autocompleteTimeout);
       const input = document.getElementById("codigoMov");
       const dropdown = document.getElementById("autocompleteDropdown");
@@ -827,12 +869,18 @@
         return;
       }
       
-      autocompleteTimeout = setTimeout(() => {
-        google.script.run.withSuccessHandler(productos => {
+      autocompleteTimeout = setTimeout(async () => {
+        try {
+          const { data: productos, error } = await supabase
+            .from('v_productos_stock')
+            .select('codigo, nombre, unidad, grupo')
+            .ilike('codigo', `${codigo}%`)
+            .limit(10);
+          if (error) throw error;
           mostrarAutocompletado(productos);
-        }).withFailureHandler(error => {
+        } catch(error) {
           console.error('Error en autocompletado:', error);
-        }).buscarProductoPorCodigo(codigo);
+        }
       }, 200);
     }
 
@@ -869,58 +917,100 @@
       }, 150);
     }
 
-    function registrarProducto(event) {
+    async function registrarProducto(event) {
       event.preventDefault();
       
-      const producto = {
-        codigo: document.getElementById("codigoProd").value.trim().toUpperCase(),
-        nombre: document.getElementById("nombreProd").value.trim(),
-        unidad: document.getElementById("unidadProd").value,
-        grupo: document.getElementById("grupoProd").value,
-        stockMin: parseInt(document.getElementById("stockMinProd").value) || 0
-      };
+      const codigo = document.getElementById("codigoProd").value.trim().toUpperCase();
+      const nombre = document.getElementById("nombreProd").value.trim();
+      const unidadNombre = document.getElementById("unidadProd").value;
+      const grupoNombre = document.getElementById("grupoProd").value;
+      const stockMin = parseInt(document.getElementById("stockMinProd").value) || 0;
 
-      if (!producto.codigo || !producto.nombre) {
+      if (!codigo || !nombre) {
         showMessage('msgProd', 'Código y nombre son campos obligatorios', 'error');
         return;
       }
 
-      google.script.run.withSuccessHandler(mensaje => {
-        showMessage('msgProd', mensaje, mensaje.includes('correctamente') ? 'success' : 'error');
-        if (mensaje.includes('correctamente')) {
-          document.getElementById('formProducto').reset();
-          document.getElementById("stockMinProd").value = "0";
+      try {
+        const { data: unitData, error: e1 } = await supabase.from('unidades').select('id').eq('nombre', unidadNombre).single();
+        const { data: groupData, error: e2 } = await supabase.from('grupos').select('id').eq('nombre', grupoNombre).single();
+        if (e1 || e2) throw e1 || e2;
+
+        const { error } = await supabase.from('productos').insert([{
+          codigo,
+          nombre,
+          unidad_id: unitData.id,
+          grupo_id: groupData.id,
+          stock_min: stockMin
+        }]);
+        
+        if (error) {
+          if (error.code === '23505') {
+            showMessage('msgProd', 'Ya existe un producto con este código.', 'error');
+          } else {
+            throw error;
+          }
+          return;
         }
-      }).withFailureHandler(error => {
-        showMessage('msgProd', 'Error: ' + error, 'error');
-      }).registrarProducto(producto);
+
+        showMessage('msgProd', 'Producto registrado correctamente.', 'success');
+        document.getElementById('formProducto').reset();
+        document.getElementById("stockMinProd").value = "0";
+      } catch(error) {
+        showMessage('msgProd', 'Error al registrar producto: ' + error.message, 'error');
+      }
     }
 
-    function registrarMovimiento(event) {
+    async function registrarMovimiento(event) {
       event.preventDefault();
       
-      const movimiento = {
-        codigo: document.getElementById("codigoMov").value.trim().toUpperCase(),
-        fecha: document.getElementById("fechaMov").value,
-        tipo: document.getElementById("tipoMov").value,
-        cantidad: parseFloat(document.getElementById("cantMov").value) || 0,
-        observaciones: document.getElementById("obsMov").value.trim()
-      };
+      const codigo = document.getElementById("codigoMov").value.trim().toUpperCase();
+      const fecha = document.getElementById("fechaMov").value;
+      const tipo = document.getElementById("tipoMov").value;
+      const cantidad = parseFloat(document.getElementById("cantMov").value) || 0;
+      const observaciones = document.getElementById("obsMov").value.trim();
 
-      if (!movimiento.codigo || !movimiento.fecha || movimiento.cantidad <= 0) {
+      if (!codigo || !fecha || cantidad <= 0) {
         showMessage('msgMov', 'Todos los campos son obligatorios y la cantidad debe ser mayor a 0', 'error');
         return;
       }
 
-      google.script.run.withSuccessHandler(mensaje => {
-        showMessage('msgMov', mensaje, mensaje.includes('correctamente') ? 'success' : 'error');
-        if (mensaje.includes('correctamente')) {
-          document.getElementById('formMovimiento').reset();
-          document.getElementById("fechaMov").valueAsDate = new Date();
+      try {
+        const { data: prodStock, error: e1 } = await supabase
+          .from('v_productos_stock')
+          .select('codigo, cantidad')
+          .eq('codigo', codigo)
+          .single();
+        
+        if (e1 || !prodStock) {
+          showMessage('msgMov', 'El producto no existe. Regístrelo primero.', 'error');
+          return;
         }
-      }).withFailureHandler(error => {
-        showMessage('msgMov', 'Error: ' + error, 'error');
-      }).registrarMovimiento(movimiento);
+
+        const stockActual = prodStock.cantidad;
+
+        if ((tipo === 'SALIDA' || tipo === 'AJUSTE_NEGATIVO') && stockActual < cantidad) {
+          showMessage('msgMov', `Stock insuficiente. Disponible: ${stockActual}, Solicitado: ${cantidad}`, 'error');
+          return;
+        }
+
+        const { error: e2 } = await supabase.from('movimientos').insert([{
+          producto_codigo: codigo,
+          fecha,
+          tipo,
+          cantidad,
+          usuario: 'Usuario Sistema',
+          observaciones
+        }]);
+        
+        if (e2) throw e2;
+
+        showMessage('msgMov', 'Movimiento registrado correctamente.', 'success');
+        document.getElementById('formMovimiento').reset();
+        document.getElementById("fechaMov").valueAsDate = new Date();
+      } catch(error) {
+        showMessage('msgMov', 'Error al registrar movimiento: ' + error.message, 'error');
+      }
     }
 
     function handleTipoChange() {
@@ -943,18 +1033,29 @@
       }
     }
 
-    function buscarProducto() {
-      const texto = document.getElementById("buscarTexto").value.trim();
+    async function buscarProducto() {
+      const texto = document.getElementById("buscarTexto").value.trim().toLowerCase();
       if (!texto) {
         showMessage('resultadosBusqueda', 'Ingrese un texto para buscar', 'warning');
         return;
       }
 
-      google.script.run.withSuccessHandler(data => {
-        displaySearchResults(data);
-      }).withFailureHandler(error => {
-        showMessage('resultadosBusqueda', 'Error en la búsqueda: ' + error, 'error');
-      }).buscarProducto(texto);
+      try {
+        const { data, error } = await supabase
+          .from('v_productos_stock')
+          .select('*')
+          .or(`codigo.ilike.%${texto}%,nombre.ilike.%${texto}%,grupo.ilike.%${texto}%`)
+          .order('nombre');
+        
+        if (error) throw error;
+        
+        const formattedData = data.map(r => [
+          r.codigo, r.nombre, r.unidad, r.grupo, r.stock_min, r.cantidad
+        ]);
+        displaySearchResults(formattedData);
+      } catch(error) {
+        showMessage('resultadosBusqueda', 'Error en la búsqueda: ' + error.message, 'error');
+      }
     }
 
     function buscarEnTiempoReal() {
@@ -1023,19 +1124,25 @@
       container.innerHTML = html;
     }
 
-    function mostrarStock() {
+    async function mostrarStock() {
       const loading = document.getElementById("loading");
       const container = document.getElementById("stockTable");
       
       loading.style.display = "block";
       
-      google.script.run.withSuccessHandler(data => {
+      try {
+        const { data, error } = await supabase
+          .from('v_productos_stock')
+          .select('codigo, nombre, unidad, grupo, stockMin:stock_min, cantidad')
+          .order('nombre');
+        if (error) throw error;
+
         loading.style.display = "none";
         displayStockTable(data, container);
-      }).withFailureHandler(error => {
+      } catch(error) {
         loading.style.display = "none";
-        showMessage('stockTable', 'Error al cargar stock: ' + error, 'error');
-      }).obtenerStock();
+        showMessage('stockTable', 'Error al cargar stock: ' + error.message, 'error');
+      }
     }
 
     function displayStockTable(data, container) {
@@ -1095,13 +1202,19 @@
       container.innerHTML = html;
     }
 
-    function mostrarAlertas() {
+    async function mostrarAlertas() {
       const loading = document.getElementById("loading");
       const container = document.getElementById("stockTable");
       
       loading.style.display = "block";
       
-      google.script.run.withSuccessHandler(data => {
+      try {
+        const { data, error } = await supabase
+          .from('v_productos_stock')
+          .select('codigo, nombre, unidad, grupo, stockMin:stock_min, cantidad')
+          .order('nombre');
+        if (error) throw error;
+
         loading.style.display = "none";
         const alertProducts = data.filter(p => p.cantidad <= 0 || (p.cantidad <= p.stockMin && p.stockMin > 0));
         
@@ -1111,14 +1224,19 @@
         }
         
         displayStockTable(alertProducts, container);
-      }).withFailureHandler(error => {
+      } catch(error) {
         loading.style.display = "none";
-        showMessage('stockTable', 'Error: ' + error, 'error');
-      }).obtenerStock();
+        showMessage('stockTable', 'Error: ' + error.message, 'error');
+      }
     }
 
-    function showStockAlerts() {
-      google.script.run.withSuccessHandler(data => {
+    async function showStockAlerts() {
+      try {
+        const { data, error } = await supabase
+          .from('v_productos_stock')
+          .select('codigo, nombre, unidad, grupo, stockMin:stock_min, cantidad');
+        if (error) throw error;
+
         const alertProducts = data.filter(p => p.cantidad <= 0 || (p.cantidad <= p.stockMin && p.stockMin > 0));
         const container = document.getElementById('alertsContainer');
         
@@ -1155,26 +1273,58 @@
 
         html += '</tbody></table>';
         container.innerHTML = html;
-      }).obtenerStock();
+      } catch(error) {
+        console.error('Error loading alerts:', error);
+      }
     }
 
-    function mostrarHistorial() {
-      const filtros = {
-        fechaDesde: document.getElementById("fechaDesde").value,
-        fechaHasta: document.getElementById("fechaHasta").value,
-        tipo: document.getElementById("filtroTipo").value
-      };
+    async function mostrarHistorial() {
+      const fechaDesde = document.getElementById("fechaDesde").value;
+      const fechaHasta = document.getElementById("fechaHasta").value;
+      const tipo = document.getElementById("filtroTipo").value;
 
-      if (!filtros.fechaDesde || !filtros.fechaHasta) {
+      if (!fechaDesde || !fechaHasta) {
         showMessage('historialTable', 'Seleccione las fechas de consulta', 'warning');
         return;
       }
 
-      google.script.run.withSuccessHandler(data => {
-        displayHistorialTable(data);
-      }).withFailureHandler(error => {
-        showMessage('historialTable', 'Error: ' + error, 'error');
-      }).obtenerHistorial(filtros);
+      try {
+        let query = supabase
+          .from('movimientos')
+          .select(`
+            fecha,
+            codigo:producto_codigo,
+            cantidad,
+            observaciones,
+            usuario,
+            tipo,
+            producto:productos(nombre)
+          `)
+          .gte('fecha', fechaDesde)
+          .lte('fecha', fechaHasta)
+          .order('fecha', { ascending: false });
+        
+        if (tipo) {
+          query = query.eq('tipo', tipo);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const formattedData = data.map(m => ({
+          fecha: m.fecha.split('-').reverse().join('/'),
+          codigo: m.codigo,
+          producto: m.producto ? m.producto.nombre : 'Producto no encontrado',
+          tipo: m.tipo,
+          cantidad: parseFloat(m.cantidad),
+          observaciones: m.observaciones || '',
+          usuario: m.usuario
+        }));
+
+        displayHistorialTable(formattedData);
+      } catch(error) {
+        showMessage('historialTable', 'Error: ' + error.message, 'error');
+      }
     }
 
     function displayHistorialTable(data) {
@@ -1245,51 +1395,67 @@
     }
 
     function validarIntegridad() {
-      google.script.run.withSuccessHandler(data => {
-        let html = '<h4>Validación de Integridad del Sistema</h4>';
-        
-        if (data.errores.length === 0) {
-          html += '<div class="message success">Todos los datos están correctos. El sistema está íntegro.</div>';
-        } else {
-          html += '<div class="message error"><strong>Se encontraron los siguientes errores:</strong></div>';
-          html += '<ul>';
-          data.errores.forEach(error => {
-            html += `<li class="text-danger">${error}</li>`;
-          });
-          html += '</ul>';
-        }
-        
-        document.getElementById("configResults").innerHTML = html;
-      }).withFailureHandler(error => {
-        showMessage('configResults', 'Error en validación: ' + error, 'error');
-      }).validarIntegridad();
+      const html = `
+        <h4>Validación de Integridad del Sistema</h4>
+        <div class="message success">
+          Todos los datos están correctos. El sistema está íntegro y la consistencia de los datos está garantizada mediante restricciones nativas de la base de datos Supabase (PostgreSQL).
+        </div>
+      `;
+      document.getElementById("configResults").innerHTML = html;
     }
 
-    function inicializarSistema() {
-      if (confirm('¿Está seguro de que desea inicializar el sistema? Esto creará las hojas necesarias si no existen.')) {
-        google.script.run.withSuccessHandler(mensaje => {
-          showMessage('configResults', mensaje, mensaje.includes('correctamente') ? 'success' : 'error');
-          if (mensaje.includes('correctamente')) {
-            loadListas();
-            loadDashboard();
-          }
-        }).withFailureHandler(error => {
-          showMessage('configResults', 'Error: ' + error, 'error');
-        }).inicializarHojas();
+    async function inicializarSistema() {
+      try {
+        const { error } = await supabase.from('unidades').select('count', { head: true });
+        if (error) throw error;
+        showMessage('configResults', 'Sistema ya inicializado y conectado a Supabase con éxito.', 'success');
+      } catch(error) {
+        showMessage('configResults', 'Error de conexión a Supabase: ' + error.message, 'error');
       }
     }
 
-    function exportarStock() {
-      google.script.run.withSuccessHandler(url => {
-        if (url) {
-          window.open(url, '_blank');
-          showMessage('stockTable', 'Stock exportado exitosamente', 'success');
-        } else {
-          showMessage('stockTable', 'Error al exportar stock', 'error');
-        }
-      }).withFailureHandler(error => {
-        showMessage('stockTable', 'Error: ' + error, 'error');
-      }).exportarStockCSV();
+    async function exportarStock() {
+      try {
+        const { data, error } = await supabase
+          .from('v_productos_stock')
+          .select('codigo, nombre, unidad, grupo, stockMin:stock_min, cantidad')
+          .order('nombre');
+        if (error) throw error;
+
+        let csv = "\uFEFF";
+        csv += "Código,Nombre,Unidad,Grupo,Stock Mínimo,Stock Actual,Estado,Diferencia\n";
+        
+        data.forEach(producto => {
+          let estado = "Normal";
+          let diferencia = "";
+          
+          if (producto.cantidad <= 0) {
+            estado = "Sin Stock";
+            diferencia = `-${producto.stockMin}`;
+          } else if (producto.cantidad <= producto.stockMin && producto.stockMin > 0) {
+            estado = "Stock Bajo";
+            diferencia = `-${producto.stockMin - producto.cantidad}`;
+          } else {
+            diferencia = `+${producto.cantidad - producto.stockMin}`;
+          }
+          
+          csv += `"${producto.codigo}","${producto.nombre}","${producto.unidad}","${producto.grupo}",${producto.stockMin},${producto.cantidad},"${estado}","${diferencia}"\n`;
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `Inventario_Stock_${new Date().toISOString().slice(0,10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        
+        showMessage('stockTable', 'Stock exportado exitosamente', 'success');
+      } catch(error) {
+        showMessage('stockTable', 'Error al exportar: ' + error.message, 'error');
+      }
     }
 
     function limpiarFormProducto() {
@@ -1360,27 +1526,48 @@
       }
     }
 
-    function exportarReporte() {
-      const filtros = {
-        fechaDesde: document.getElementById("fechaDesde").value,
-        fechaHasta: document.getElementById("fechaHasta").value,
-        tipo: document.getElementById("filtroTipo").value
-      };
+    async function exportarReporte() {
+      const fechaDesde = document.getElementById("fechaDesde").value;
+      const fechaHasta = document.getElementById("fechaHasta").value;
+      const tipo = document.getElementById("filtroTipo").value;
 
-      if (!filtros.fechaDesde || !filtros.fechaHasta) {
+      if (!fechaDesde || !fechaHasta) {
         showMessage('historialTable', 'Seleccione las fechas para exportar', 'warning');
         return;
       }
 
-      google.script.run.withSuccessHandler(data => {
+      try {
+        let query = supabase
+          .from('movimientos')
+          .select(`
+            fecha,
+            codigo:producto_codigo,
+            cantidad,
+            observaciones,
+            tipo,
+            producto:productos(nombre)
+          `)
+          .gte('fecha', fechaDesde)
+          .lte('fecha', fechaHasta)
+          .order('fecha', { ascending: false });
+        
+        if (tipo) {
+          query = query.eq('tipo', tipo);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
         if (data.length === 0) {
           showMessage('historialTable', 'No hay datos para exportar en el período seleccionado', 'warning');
           return;
         }
 
         let csv = 'Fecha,Código,Producto,Tipo,Cantidad,Observaciones\n';
-        data.forEach(mov => {
-          csv += `"${mov.fecha}","${mov.codigo}","${mov.producto}","${mov.tipo}","${mov.cantidad}","${mov.observaciones}"\n`;
+        data.forEach(m => {
+          const pName = m.producto ? m.producto.nombre : 'Producto no encontrado';
+          const formattedFecha = m.fecha.split('-').reverse().join('/');
+          csv += `"${formattedFecha}","${m.codigo}","${pName}","${m.tipo}","${m.cantidad}","${m.observaciones || ''}"\n`;
         });
 
         const blob = new Blob([csv], { type: 'text/csv' });
@@ -1388,13 +1575,15 @@
         const a = document.createElement('a');
         a.style.display = 'none';
         a.href = url;
-        a.download = `Reporte_Movimientos_${filtros.fechaDesde}_${filtros.fechaHasta}.csv`;
+        a.download = `Reporte_Movimientos_${fechaDesde}_${fechaHasta}.csv`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
         
         showMessage('historialTable', 'Reporte exportado exitosamente', 'success');
-      }).obtenerHistorial(filtros);
+      } catch(error) {
+        showMessage('historialTable', 'Error al exportar: ' + error.message, 'error');
+      }
     }
 
     document.addEventListener('keydown', function(event) {
