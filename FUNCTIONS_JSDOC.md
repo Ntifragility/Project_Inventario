@@ -143,6 +143,7 @@ These functions run inside the user's web browser, managing DOM rendering and in
 * `registrarProducto(event)` - Collects product form inputs, sends them to the backend, alerts users of results, and resets inputs on success.
 * `importarCSV(event)` - Asynchronous function that reads an uploaded CSV file, auto-detects delimiter, maps units/groups with defaults, checks existing codes, and performs a bulk insert of new products into Supabase.
 * `registrarMovimiento(event)` - Handles transaction creation and updates client forms on success.
+* `importarMovimientosCSV(event)` - Asynchronous function that parses an uploaded CSV file containing stock movements, validates product code existence, checks numbers and dates, and bulk-inserts them into the Supabase database.
 * `handleTipoChange()` - Dynamic placeholder helper that shifts instructions on input bounds depending on whether user selects entry/exit.
 
 ### 🔍 Auto-Complete Search

@@ -24,6 +24,7 @@ function initializeApp() {
   } else {
     showMessage('statsGrid', 'Error: No se pudo conectar a Supabase. Verifique las credenciales en config.js.', 'error');
   }
+  handleTipoChange();
   showTab('dashboard');
 }
 
@@ -202,9 +203,37 @@ async function buscarProductoAutocompletado() {
         .ilike('codigo', `${codigo}%`)
         .limit(10);
       if (error) throw error;
+      
       mostrarAutocompletado(productos);
     } catch(error) {
       console.error('Error en autocompletado:', error);
+    }
+  }, 200);
+}
+
+async function buscarProductoPorNombreAutocompletado() {
+  clearTimeout(autocompleteTimeout);
+  const input = document.getElementById("nombreMov");
+  const dropdown = document.getElementById("autocompleteDropdownNombre");
+  const nombre = input.value.trim();
+  
+  if (nombre.length === 0) {
+    dropdown.style.display = "none";
+    return;
+  }
+  
+  autocompleteTimeout = setTimeout(async () => {
+    try {
+      const { data: productos, error } = await supabaseClient
+        .from('v_productos_stock')
+        .select('codigo, nombre, unidad, grupo')
+        .ilike('nombre', `%${nombre}%`)
+        .limit(10);
+      if (error) throw error;
+      
+      mostrarAutocompletadoNombre(productos);
+    } catch(error) {
+      console.error('Error en autocompletado por nombre:', error);
     }
   }, 200);
 }
@@ -231,14 +260,98 @@ function mostrarAutocompletado(productos = []) {
   dropdown.style.display = "block";
 }
 
+function mostrarAutocompletadoNombre(productos = []) {
+  const dropdown = document.getElementById("autocompleteDropdownNombre");
+  
+  if (productos.length === 0) {
+    dropdown.style.display = "none";
+    return;
+  }
+  
+  let html = "";
+  productos.forEach(producto => {
+    html += `
+      <div class="autocomplete-item" onmousedown="seleccionarProducto('${producto.codigo}', '${producto.nombre}')">
+        <div class="autocomplete-name">${producto.nombre}</div>
+        <div class="autocomplete-code">${producto.codigo} - ${producto.grupo}</div>
+      </div>
+    `;
+  });
+  
+  dropdown.innerHTML = html;
+  dropdown.style.display = "block";
+}
+
 function seleccionarProducto(codigo, nombre) {
-  document.getElementById("codigoMov").value = codigo;
-  document.getElementById("autocompleteDropdown").style.display = "none";
+  const codigoField = document.getElementById("codigoMov");
+  const nombreField = document.getElementById("nombreMov");
+  
+  if (codigoField) {
+    codigoField.disabled = false;
+    codigoField.readOnly = false;
+    codigoField.value = codigo;
+  }
+  
+  if (nombreField) {
+    nombreField.disabled = false;
+    nombreField.readOnly = false;
+    nombreField.value = nombre;
+  }
+  
+  const d1 = document.getElementById("autocompleteDropdown");
+  const d2 = document.getElementById("autocompleteDropdownNombre");
+  if (d1) d1.style.display = "none";
+  if (d2) d2.style.display = "none";
+}
+
+function focusCodigoMov() {
+  const codigoField = document.getElementById("codigoMov");
+  const nombreField = document.getElementById("nombreMov");
+  
+  if (codigoField) {
+    codigoField.disabled = false;
+    codigoField.readOnly = false;
+    if (codigoField.value !== "" && nombreField && nombreField.value !== "") {
+      codigoField.value = "";
+    }
+  }
+  
+  if (nombreField) {
+    nombreField.disabled = false;
+    nombreField.readOnly = true;
+    nombreField.value = "";
+  }
+  
+  buscarProductoAutocompletado();
+}
+
+function focusNombreMov() {
+  const codigoField = document.getElementById("codigoMov");
+  const nombreField = document.getElementById("nombreMov");
+  
+  if (nombreField) {
+    nombreField.disabled = false;
+    nombreField.readOnly = false;
+    if (nombreField.value !== "" && codigoField && codigoField.value !== "") {
+      nombreField.value = "";
+    }
+  }
+  
+  if (codigoField) {
+    codigoField.disabled = false;
+    codigoField.readOnly = true;
+    codigoField.value = "";
+  }
+  
+  buscarProductoPorNombreAutocompletado();
 }
 
 function ocultarAutocompletado() {
   setTimeout(() => {
-    document.getElementById("autocompleteDropdown").style.display = "none";
+    const d1 = document.getElementById("autocompleteDropdown");
+    const d2 = document.getElementById("autocompleteDropdownNombre");
+    if (d1) d1.style.display = "none";
+    if (d2) d2.style.display = "none";
   }, 150);
 }
 
@@ -287,6 +400,34 @@ async function registrarProducto(event) {
   }
 }
 
+function generateDispatchKey() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const randStr = (length) => {
+    let result = '';
+    for (let i = 0; i < length; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  };
+  return `${randStr(10)}-${randStr(3)}-${randStr(2)}`;
+}
+
+async function generateUniqueMovementKey() {
+  const maxAttempts = 15;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const key = generateDispatchKey();
+    const { data, error } = await supabaseClient
+      .from('movimientos')
+      .select('id')
+      .eq('key', key);
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      return key;
+    }
+  }
+  throw new Error('No se pudo generar una clave única después de varios intentos.');
+}
+
 async function registrarMovimiento(event) {
   event.preventDefault();
   
@@ -320,20 +461,43 @@ async function registrarMovimiento(event) {
       return;
     }
 
+    let movementKey = document.getElementById("keyMov").value.trim();
+
+    if (movementKey && movementKey !== 'Automatico') {
+      const { data: existingMov, error: keyErr } = await supabaseClient
+        .from('movimientos')
+        .select('id')
+        .eq('key', movementKey);
+      
+      if (keyErr) throw keyErr;
+
+      if (existingMov && existingMov.length > 0) {
+        showMessage('msgMov', 'Esta clave (Transaction Key) ya ha sido registrada.', 'error');
+        return;
+      }
+    } else {
+      try {
+        movementKey = await generateUniqueMovementKey();
+      } catch (keyGenErr) {
+        throw new Error('Error al generar clave única: ' + keyGenErr.message);
+      }
+    }
+
     const { error: e2 } = await supabaseClient.from('movimientos').insert([{
       producto_codigo: codigo,
       fecha,
       tipo,
       cantidad,
       usuario: 'Usuario Sistema',
-      observaciones
+      observaciones,
+      key: movementKey
     }]);
     
     if (e2) throw e2;
 
     showMessage('msgMov', 'Movimiento registrado correctamente.', 'success');
-    document.getElementById('formMovimiento').reset();
-    document.getElementById("fechaMov").valueAsDate = new Date();
+    limpiarFormMovimiento();
+    handleTipoChange();
   } catch(error) {
     showMessage('msgMov', 'Error al registrar movimiento: ' + error.message, 'error');
   }
@@ -342,7 +506,24 @@ async function registrarMovimiento(event) {
 function handleTipoChange() {
   const tipo = document.getElementById("tipoMov").value;
   const cantField = document.getElementById("cantMov");
-  
+  const keyGroup = document.getElementById("keyMovGroup");
+  const keyField = document.getElementById("keyMov");
+
+  if (tipo === 'INGRESO' || tipo === 'SALIDA') {
+    if (keyGroup) keyGroup.style.display = 'flex';
+    if (keyField) {
+      keyField.required = false;
+      keyField.placeholder = 'Ingrese clave o deje en blanco para auto-generar';
+      keyField.disabled = false;
+    }
+  } else {
+    if (keyGroup) keyGroup.style.display = 'none';
+    if (keyField) {
+      keyField.required = false;
+      keyField.value = '';
+    }
+  }
+
   switch(tipo) {
     case 'INGRESO':
       cantField.placeholder = 'Cantidad a ingresar';
@@ -481,8 +662,9 @@ function displayStockTable(data, container) {
     <table>
       <thead>
         <tr>
-          <th>Código</th>
-          <th>Nombre</th>
+          <th>ID Producto</th>
+          <th>Producto</th>
+          <th>Cantidad</th>
           <th>Unidad</th>
           <th>Grupo</th>
           <th>Stock Mín.</th>
@@ -510,6 +692,7 @@ function displayStockTable(data, container) {
       <tr class="${statusClass}">
         <td>${producto.codigo}</td>
         <td>${producto.nombre}</td>
+        <td>${producto.cantidad}</td>
         <td>${producto.unidad}</td>
         <td>${producto.grupo}</td>
         <td>${producto.stockMin}</td>
@@ -624,7 +807,8 @@ async function mostrarHistorial() {
         observaciones,
         usuario,
         tipo,
-        producto:productos(nombre)
+        key,
+        producto:productos(nombre, unidades(nombre))
       `)
       .gte('fecha', fechaDesde)
       .lte('fecha', fechaHasta)
@@ -639,8 +823,10 @@ async function mostrarHistorial() {
 
     const formattedData = data.map(m => ({
       fecha: m.fecha.split('-').reverse().join('/'),
+      productKey: m.key || '',
       codigo: m.codigo,
       producto: m.producto ? m.producto.nombre : 'Producto no encontrado',
+      unidad: m.producto && m.producto.unidades ? m.producto.unidades.nombre : '',
       tipo: m.tipo,
       cantidad: parseFloat(m.cantidad),
       observaciones: m.observaciones || '',
@@ -666,11 +852,13 @@ function displayHistorialTable(data) {
     <table>
       <thead>
         <tr>
-          <th>Fecha</th>
-          <th>Código</th>
+          <th>Fecha de mov.</th>
+          <th>Transaction Key</th>
+          <th>ID Producto</th>
           <th>Producto</th>
-          <th>Tipo</th>
+          <th>Unidad</th>
           <th>Cantidad</th>
+          <th>Tipo</th>
           <th>Observaciones</th>
         </tr>
       </thead>
@@ -707,10 +895,12 @@ function displayHistorialTable(data) {
     html += `
       <tr>
         <td>${mov.fecha}</td>
+        <td>${mov.productKey}</td>
         <td>${mov.codigo}</td>
         <td>${mov.producto}</td>
-        <td class="${tipoClass}">${tipoText}</td>
+        <td>${mov.unidad}</td>
         <td>${mov.cantidad}</td>
+        <td class="${tipoClass}">${tipoText}</td>
         <td>${mov.observaciones}</td>
       </tr>
     `;
@@ -749,7 +939,7 @@ async function exportarStock() {
     if (error) throw error;
 
     let csv = "\uFEFF";
-    csv += "Código,Nombre,Unidad,Grupo,Stock Mínimo,Stock Actual,Estado,Diferencia\n";
+    csv += "ID Producto,Producto,Cantidad,Unidad,Grupo,Stock Mín.,Stock Actual,Estado,Diferencia\n";
     
     data.forEach(producto => {
       let estado = "Normal";
@@ -765,7 +955,7 @@ async function exportarStock() {
         diferencia = `+${producto.cantidad - producto.stockMin}`;
       }
       
-      csv += `"${producto.codigo}","${producto.nombre}","${producto.unidad}","${producto.grupo}",${producto.stockMin},${producto.cantidad},"${estado}","${diferencia}"\n`;
+      csv += `"${producto.codigo}","${producto.nombre}",${producto.cantidad},"${producto.unidad}","${producto.grupo}",${producto.stockMin},${producto.cantidad},"${estado}","${diferencia}"\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1021,11 +1211,195 @@ async function listarProductosEnGestion() {
   }
 }
 
+async function importarMovimientosCSV(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  showMessage('msgMovCsv', 'Procesando archivo CSV de movimientos...', 'info');
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    const text = e.target.result;
+    const lines = text.split(/\r?\n/);
+    
+    if (lines.length < 2) {
+      showMessage('msgMovCsv', 'El archivo CSV está vacío o no contiene suficientes filas.', 'error');
+      event.target.value = '';
+      return;
+    }
+
+    const headerLine = lines[0];
+    let delimiter = ',';
+    if (headerLine.includes(';')) {
+      delimiter = ';';
+    }
+
+    const headers = headerLine.split(delimiter).map(h => h.trim().toLowerCase());
+    const colCodigo = headers.findIndex(h => h === 'id producto' || h === 'código' || h === 'codigo' || h === 'cód' || (!h.includes('key') && h.includes('cod')));
+    const colCantidad = headers.findIndex(h => h === 'cantidad' || h === 'cant' || h.includes('cant') || h.includes('amount') || h.includes('num'));
+    const colKey = headers.findIndex(h => h === 'transaction key' || h === 'product key' || h === 'key' || h === 'clave' || h === 'clav');
+    const colFecha = headers.findIndex(h => h === 'fecha de mov.' || h === 'fecha de mov' || h === 'fecha' || h.includes('fech') || h.includes('date'));
+    const colObservaciones = headers.findIndex(h => h === 'observaciones' || h === 'obs' || h.includes('obs') || h.includes('comment'));
+
+    if (colCodigo === -1 || colCantidad === -1 || colKey === -1) {
+      showMessage('msgMovCsv', 'Formato CSV incorrecto. El archivo debe contener al menos las columnas "Transaction Key", "ID Producto" y "Cantidad".', 'error');
+      event.target.value = '';
+      return;
+    }
+
+    try {
+      if (!supabaseClient) {
+        throw new Error('Supabase client is not initialized.');
+      }
+
+      // Fetch existing products and movement keys in parallel
+      const [resProductos, resMovimientos] = await Promise.all([
+        supabaseClient.from('productos').select('codigo'),
+        supabaseClient.from('movimientos').select('key')
+      ]);
+
+      if (resProductos.error) throw resProductos.error;
+      if (resMovimientos.error) throw resMovimientos.error;
+      
+      const existingCodes = new Set(resProductos.data.map(p => p.codigo.trim().toUpperCase()));
+      const existingKeys = new Set(resMovimientos.data.filter(m => m.key).map(m => m.key.trim().toUpperCase()));
+      const defaultDate = document.getElementById("fechaMov").value || new Date().toISOString().slice(0, 10);
+
+      const movementsToInsert = [];
+      let skippedInvalidProduct = 0;
+      let skippedInvalidAmount = 0;
+      let skippedDuplicateKey = 0;
+      let emptyCount = 0;
+      const seenKeysInCsv = new Set();
+
+      const splitRegex = new RegExp(`${delimiter}(?=(?:(?:[^"]*"){2})*[^"]*$)`);
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        const cols = line.split(splitRegex).map(c => c.trim().replace(/^"|"$/g, ''));
+
+        if (cols.length <= Math.max(colCodigo, colCantidad, colKey)) {
+          emptyCount++;
+          continue;
+        }
+
+        const codigo = cols[colCodigo]?.trim().toUpperCase();
+        const cantidadStr = cols[colCantidad]?.trim();
+        const key = cols[colKey]?.trim();
+
+        if (!codigo || !cantidadStr || !key) {
+          emptyCount++;
+          continue;
+        }
+
+        const upperKey = key.toUpperCase();
+
+        // Validate product code exists
+        if (!existingCodes.has(codigo)) {
+          skippedInvalidProduct++;
+          continue;
+        }
+
+        // Validate unique key constraint
+        if (existingKeys.has(upperKey) || seenKeysInCsv.has(upperKey)) {
+          skippedDuplicateKey++;
+          continue;
+        }
+        seenKeysInCsv.add(upperKey);
+
+        // Validate quantity
+        const cantidad = parseFloat(cantidadStr);
+        if (isNaN(cantidad) || cantidad <= 0) {
+          skippedInvalidAmount++;
+          continue;
+        }
+
+        // Map Date (fallback to selected UI date)
+        let fecha = defaultDate;
+        if (colFecha !== -1 && cols[colFecha]) {
+          const rawFecha = cols[colFecha].trim();
+          const parsedDate = new Date(rawFecha);
+          if (!isNaN(parsedDate.getTime())) {
+            const year = parsedDate.getFullYear();
+            const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+            const day = String(parsedDate.getDate()).padStart(2, '0');
+            fecha = `${year}-${month}-${day}`;
+          }
+        }
+
+        // Map Observaciones
+        let observaciones = '';
+        if (colObservaciones !== -1 && cols[colObservaciones]) {
+          observaciones = cols[colObservaciones].trim();
+        }
+
+        movementsToInsert.push({
+          producto_codigo: codigo,
+          fecha,
+          tipo: 'INGRESO',
+          cantidad,
+          usuario: 'Usuario Sistema',
+          observaciones,
+          key: key
+        });
+      }
+
+      if (movementsToInsert.length === 0) {
+        let msg = 'No se importó ningún movimiento nuevo.';
+        if (skippedInvalidProduct > 0 || skippedInvalidAmount > 0 || skippedDuplicateKey > 0) {
+          msg += ` (${skippedInvalidProduct} omitidos por producto inexistente, ${skippedDuplicateKey} por clave duplicada, ${skippedInvalidAmount} por cantidad no válida).`;
+        }
+        showMessage('msgMovCsv', msg, 'warning');
+        event.target.value = '';
+        return;
+      }
+
+      const { error: insertErr } = await supabaseClient.from('movimientos').insert(movementsToInsert);
+      if (insertErr) throw insertErr;
+
+      showMessage('msgMovCsv', `Importación exitosa: se registraron ${movementsToInsert.length} movimientos de tipo INGRESO. ` +
+        `(${skippedInvalidProduct} omitidos por producto inexistente, ${skippedDuplicateKey} por clave (KEY) duplicada, ${skippedInvalidAmount} por cantidad no válida, ${emptyCount} filas vacías/sin clave).`, 'success');
+
+      event.target.value = '';
+      
+      // Refresh UI statistics and views
+      loadDashboard();
+      if (currentTab === 'inventario') {
+        mostrarStock();
+      }
+      listarProductosEnGestion();
+    } catch (error) {
+      console.error('Error al importar movimientos CSV:', error);
+      showMessage('msgMovCsv', 'Error al procesar la importación: ' + error.message, 'error');
+      event.target.value = '';
+    }
+  };
+
+  reader.readAsText(file, 'UTF-8');
+}
+
 function limpiarFormMovimiento() {
   document.getElementById('formMovimiento').reset();
   document.getElementById("fechaMov").valueAsDate = new Date();
   document.getElementById('msgMov').innerHTML = '';
-  document.getElementById("autocompleteDropdown").style.display = "none";
+  
+  const d1 = document.getElementById("autocompleteDropdown");
+  const d2 = document.getElementById("autocompleteDropdownNombre");
+  if (d1) d1.style.display = "none";
+  if (d2) d2.style.display = "none";
+  
+  const codigoField = document.getElementById("codigoMov");
+  const nombreField = document.getElementById("nombreMov");
+  if (codigoField) {
+    codigoField.disabled = false;
+    codigoField.readOnly = false;
+  }
+  if (nombreField) {
+    nombreField.disabled = false;
+    nombreField.readOnly = false;
+  }
 }
 
 function limpiarBusqueda() {
@@ -1157,7 +1531,8 @@ async function exportarReporte() {
         cantidad,
         observaciones,
         tipo,
-        producto:productos(nombre)
+        key,
+        producto:productos(nombre, unidades(nombre))
       `)
       .gte('fecha', fechaDesde)
       .lte('fecha', fechaHasta)
@@ -1175,11 +1550,12 @@ async function exportarReporte() {
       return;
     }
 
-    let csv = 'Fecha,Código,Producto,Tipo,Cantidad,Observaciones\n';
+    let csv = 'Fecha de mov.,Transaction Key,ID Producto,Producto,Unidad,Cantidad,Tipo,Observaciones\n';
     data.forEach(m => {
       const pName = m.producto ? m.producto.nombre : 'Producto no encontrado';
+      const uName = m.producto && m.producto.unidades ? m.producto.unidades.nombre : '';
       const formattedFecha = m.fecha.split('-').reverse().join('/');
-      csv += `"${formattedFecha}","${m.codigo}","${pName}","${m.tipo}","${m.cantidad}","${m.observaciones || ''}"\n`;
+      csv += `"${formattedFecha}","${m.key || ''}","${m.codigo}","${pName}","${uName}","${m.cantidad}","${m.tipo}","${m.observaciones || ''}"\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv' });

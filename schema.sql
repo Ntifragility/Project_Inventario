@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS movimientos (
     cantidad NUMERIC(10, 2) CHECK (cantidad > 0),
     usuario VARCHAR(255) NOT NULL,
     observaciones TEXT,
+    key VARCHAR(50) UNIQUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 

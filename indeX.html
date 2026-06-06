@@ -193,18 +193,36 @@
               <form id="formMovimiento" onsubmit="registrarMovimiento(event)">
                 <div class="form-grid">
                   <div class="form-group">
-                    <label for="codigoMov">Código del Producto *</label>
+                    <label for="fechaMov">Fecha de mov. *</label>
+                    <input id="fechaMov" type="date" required>
+                  </div>
+                  <div class="form-group" id="keyMovGroup">
+                    <label for="keyMov">Transaction Key</label>
+                    <input id="keyMov" type="text" value="Automatico" readonly disabled>
+                  </div>
+                  <div class="form-group">
+                    <label for="codigoMov">ID Producto *</label>
                     <div class="autocomplete-container">
                       <input id="codigoMov" type="text" placeholder="Código del producto" required 
                              onkeyup="buscarProductoAutocompletado()" 
                              onblur="ocultarAutocompletado()" 
-                             onfocus="mostrarAutocompletado()">
+                             onfocus="focusCodigoMov()">
                       <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
                     </div>
                   </div>
                   <div class="form-group">
-                    <label for="fechaMov">Fecha *</label>
-                    <input id="fechaMov" type="date" required>
+                    <label for="nombreMov">Producto</label>
+                    <div class="autocomplete-container">
+                      <input id="nombreMov" type="text" placeholder="Nombre del producto" 
+                             onkeyup="buscarProductoPorNombreAutocompletado()" 
+                             onblur="ocultarAutocompletado()" 
+                             onfocus="focusNombreMov()">
+                      <div id="autocompleteDropdownNombre" class="autocomplete-dropdown"></div>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="cantMov">Cantidad *</label>
+                    <input id="cantMov" type="number" min="0.01" step="0.01" placeholder="Cantidad" required>
                   </div>
                   <div class="form-group">
                     <label for="tipoMov">Tipo de Movimiento *</label>
@@ -214,10 +232,6 @@
                       <option value="AJUSTE_POSITIVO">Ajuste Positivo</option>
                       <option value="AJUSTE_NEGATIVO">Ajuste Negativo</option>
                     </select>
-                  </div>
-                  <div class="form-group">
-                    <label for="cantMov">Cantidad *</label>
-                    <input id="cantMov" type="number" min="0.01" step="0.01" placeholder="Cantidad" required>
                   </div>
                   <div class="form-group">
                     <label for="obsMov">Observaciones</label>
@@ -234,6 +248,23 @@
                 </div>
               </form>
               <div id="msgMov"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">Importar Ingresos desde CSV</div>
+            <div class="card-body">
+              <p style="margin-bottom: 15px; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.4;">
+                Seleccione un archivo CSV para registrar múltiples movimientos de tipo <strong>Ingreso</strong> en lote. 
+                El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>ID Producto</strong>, <strong>Producto</strong> y <strong>Cantidad</strong>.
+              </p>
+              <div class="actions">
+                <input type="file" id="csvMovFileInput" accept=".csv" style="display: none;" onchange="importarMovimientosCSV(event)">
+                <button class="btn btn-primary" onclick="document.getElementById('csvMovFileInput').click()">
+                  Seleccionar Archivo CSV
+                </button>
+              </div>
+              <div id="msgMovCsv"></div>
             </div>
           </div>
         </div>
