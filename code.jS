@@ -1,17 +1,11 @@
-// Supabase Configuration
-const SUPABASE_CONFIG = {
-  url: "https://icubqvgsqkcjnnlsikxk.supabase.co",
-  key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImljdWJxdmdzcWtjam5ubHNpa3hrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2ODk5NDgsImV4cCI6MjA5NjI2NTk0OH0.5TEcWTyoyzC4tQ8zy1AYgx83F3qbs9wl0ZggiAi3t9w"
-};
-
 // Initialize Supabase Client safely using a custom variable name
 // to avoid conflicts with the global 'supabase' object defined by the CDN.
 let supabaseClient;
 try {
-  if (typeof window.supabase !== 'undefined') {
+  if (typeof window.supabase !== 'undefined' && typeof SUPABASE_CONFIG !== 'undefined') {
     supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.key);
   } else {
-    console.error("Supabase SDK is not loaded. Check your internet connection or CDN link.");
+    console.error("Supabase SDK or SUPABASE_CONFIG is not loaded. Check your internet connection or config.js link.");
   }
 } catch (e) {
   console.error("Supabase client failed to initialize.", e);
