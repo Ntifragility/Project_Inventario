@@ -2,6 +2,29 @@
 <html>
 <head>
   <base target="_top">
+  <script>
+    window.addEventListener('error', function(e) {
+      var errorBanner = document.getElementById('error-banner');
+      if (!errorBanner) {
+        errorBanner = document.createElement('div');
+        errorBanner.id = 'error-banner';
+        errorBanner.style.position = 'fixed';
+        errorBanner.style.top = '0';
+        errorBanner.style.left = '0';
+        errorBanner.style.width = '100%';
+        errorBanner.style.background = '#f8d7da';
+        errorBanner.style.color = '#721c24';
+        errorBanner.style.border = '1px solid #f5c6cb';
+        errorBanner.style.padding = '20px';
+        errorBanner.style.zIndex = '999999';
+        errorBanner.style.fontFamily = 'monospace';
+        errorBanner.style.boxSizing = 'border-box';
+        errorBanner.innerHTML = '<h3>⚠️ JavaScript Error Encountered</h3>';
+        document.body.prepend(errorBanner);
+      }
+      errorBanner.innerHTML += '<p style="margin-top: 10px;"><strong>Error:</strong> ' + e.message + ' at ' + e.filename + ':' + e.lineno + '</p>';
+    });
+  </script>
   <style>
     * {
       margin: 0;
