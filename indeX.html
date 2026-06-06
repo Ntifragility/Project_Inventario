@@ -154,6 +154,31 @@
               <div id="msgProd"></div>
             </div>
           </div>
+
+          <div class="card">
+            <div class="card-header">Importar Productos desde CSV</div>
+            <div class="card-body">
+              <p style="margin-bottom: 15px; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.4;">
+                Seleccione un archivo CSV para registrar múltiples productos en lote. El archivo debe incluir las cabeceras: 
+                <strong>Código</strong>, <strong>Nombre</strong>, <strong>Unidad</strong>, <strong>Grupo</strong>, y <strong>Stock Mínimo</strong>.
+              </p>
+              <div class="actions">
+                <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="importarCSV(event)">
+                <button class="btn btn-primary" onclick="document.getElementById('csvFileInput').click()">
+                  Seleccionar Archivo CSV
+                </button>
+              </div>
+              <div id="msgCsv"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">Productos Registrados</div>
+            <div class="card-body">
+              <div id="loadingProductos" class="loading" style="display: block;">Cargando lista de productos...</div>
+              <div id="tablaProductosContainer"></div>
+            </div>
+          </div>
         </div>
       </div>
 

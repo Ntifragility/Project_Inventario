@@ -141,6 +141,7 @@ These functions run inside the user's web browser, managing DOM rendering and in
 
 ### 📦 Forms & Actions
 * `registrarProducto(event)` - Collects product form inputs, sends them to the backend, alerts users of results, and resets inputs on success.
+* `importarCSV(event)` - Asynchronous function that reads an uploaded CSV file, auto-detects delimiter, maps units/groups with defaults, checks existing codes, and performs a bulk insert of new products into Supabase.
 * `registrarMovimiento(event)` - Handles transaction creation and updates client forms on success.
 * `handleTipoChange()` - Dynamic placeholder helper that shifts instructions on input bounds depending on whether user selects entry/exit.
 
@@ -161,6 +162,7 @@ These functions run inside the user's web browser, managing DOM rendering and in
 * `showStockAlerts()` - Renders details of items requiring immediate attention onto the main dashboard.
 * `mostrarHistorial()` - Generates transactional ledger history.
 * `displayHistorialTable(data)` - Table builder displaying transactions and color-coding positive/negative ledger adjustments.
+* `listarProductosEnGestion()` - Asynchronous function that fetches products and stock levels from Supabase, rendering them inside the products management section.
 
 ### ⚙️ Utilities & Exports
 * `validarIntegridad()` - Contacts administrative validator and appends structural warnings into the config tab.

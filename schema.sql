@@ -81,16 +81,9 @@ ALTER TABLE productos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE movimientos ENABLE ROW LEVEL SECURITY;
 
 -- 9. Create Permissive Policies for the Anon Role (so client-side CRUD works)
-DROP POLICY IF EXISTS "Allow anonymous access on unidades" ON unidades;
 CREATE POLICY "Allow anonymous access on unidades" ON unidades FOR ALL TO anon USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Allow anonymous access on grupos" ON grupos;
 CREATE POLICY "Allow anonymous access on grupos" ON grupos FOR ALL TO anon USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Allow anonymous access on productos" ON productos;
 CREATE POLICY "Allow anonymous access on productos" ON productos FOR ALL TO anon USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Allow anonymous access on movimientos" ON movimientos;
 CREATE POLICY "Allow anonymous access on movimientos" ON movimientos FOR ALL TO anon USING (true) WITH CHECK (true);
 
 -- 10. Create Resets Log Table
@@ -104,5 +97,4 @@ CREATE TABLE IF NOT EXISTS historial_resets (
 ALTER TABLE historial_resets ENABLE ROW LEVEL SECURITY;
 
 -- 12. Create Permissive Policy for Anon Role to write/read reset history
-DROP POLICY IF EXISTS "Allow anonymous access on historial_resets" ON historial_resets;
 CREATE POLICY "Allow anonymous access on historial_resets" ON historial_resets FOR ALL TO anon USING (true) WITH CHECK (true);

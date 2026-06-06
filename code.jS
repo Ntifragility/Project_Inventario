@@ -104,6 +104,9 @@ function showTab(tabName) {
     case 'inventario':
       if (supabaseClient) mostrarStock();
       break;
+    case 'productos':
+      if (supabaseClient) listarProductosEnGestion();
+      break;
   }
 }
 
@@ -278,6 +281,7 @@ async function registrarProducto(event) {
     showMessage('msgProd', 'Producto registrado correctamente.', 'success');
     document.getElementById('formProducto').reset();
     document.getElementById("stockMinProd").value = "0";
+    listarProductosEnGestion();
   } catch(error) {
     showMessage('msgProd', 'Error al registrar producto: ' + error.message, 'error');
   }
@@ -784,6 +788,237 @@ function limpiarFormProducto() {
   document.getElementById('formProducto').reset();
   document.getElementById("stockMinProd").value = "0";
   document.getElementById('msgProd').innerHTML = '';
+}
+
+async function importarCSV(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  showMessage('msgCsv', 'Procesando archivo CSV...', 'info');
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    const text = e.target.result;
+    const lines = text.split(/\r?\n/);
+    
+    if (lines.length < 2) {
+      showMessage('msgCsv', 'El archivo CSV está vacío o no contiene suficientes filas.', 'error');
+      event.target.value = '';
+      return;
+    }
+
+    const headerLine = lines[0];
+    let delimiter = ',';
+    if (headerLine.includes(';')) {
+      delimiter = ';';
+    }
+
+    const headers = headerLine.split(delimiter).map(h => h.trim().toLowerCase());
+    const colCodigo = headers.findIndex(h => h.includes('cod') || h.includes('cód'));
+    const colNombre = headers.findIndex(h => h.includes('nom'));
+    const colUnidad = headers.findIndex(h => h.includes('uni'));
+    const colGrupo = headers.findIndex(h => h.includes('gru'));
+    const colStockMin = headers.findIndex(h => h.includes('stock_min') || h.includes('min') || h.includes('mín'));
+
+    if (colCodigo === -1 || colNombre === -1) {
+      showMessage('msgCsv', 'Formato CSV incorrecto. El archivo debe contener al menos las columnas "Código" y "Nombre".', 'error');
+      event.target.value = '';
+      return;
+    }
+
+    try {
+      if (!supabaseClient) {
+        throw new Error('Supabase client is not initialized.');
+      }
+
+      // Fetch lookups and existing products in parallel
+      const [resUnidades, resGrupos, resProductos] = await Promise.all([
+        supabaseClient.from('unidades').select('id, nombre'),
+        supabaseClient.from('grupos').select('id, nombre'),
+        supabaseClient.from('productos').select('codigo')
+      ]);
+
+      if (resUnidades.error) throw resUnidades.error;
+      if (resGrupos.error) throw resGrupos.error;
+      if (resProductos.error) throw resProductos.error;
+
+      const unidadesMap = new Map(resUnidades.data.map(u => [u.nombre.trim().toLowerCase(), u.id]));
+      const gruposMap = new Map(resGrupos.data.map(g => [g.nombre.trim().toLowerCase(), g.id]));
+      const existingCodes = new Set(resProductos.data.map(p => p.codigo.trim().toUpperCase()));
+
+      const defaultUnidadId = unidadesMap.get('unidades') || (resUnidades.data[0] ? resUnidades.data[0].id : null);
+      const defaultGrupoId = gruposMap.get('general') || (resGrupos.data[0] ? resGrupos.data[0].id : null);
+
+      const productsToInsert = [];
+      let skippedCount = 0;
+      let emptyCount = 0;
+
+      // Split line using regex to respect quoted fields
+      const splitRegex = new RegExp(`${delimiter}(?=(?:(?:[^"]*"){2})*[^"]*$)`);
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        const cols = line.split(splitRegex).map(c => c.trim().replace(/^"|"$/g, ''));
+
+        if (cols.length <= Math.max(colCodigo, colNombre)) {
+          emptyCount++;
+          continue;
+        }
+
+        const codigo = cols[colCodigo]?.trim().toUpperCase();
+        const nombre = cols[colNombre]?.trim();
+
+        if (!codigo || !nombre) {
+          emptyCount++;
+          continue;
+        }
+
+        // Check if product code already exists to ignore it
+        if (existingCodes.has(codigo)) {
+          skippedCount++;
+          continue;
+        }
+
+        // Map Unit (fallback to default)
+        let unidadId = defaultUnidadId;
+        if (colUnidad !== -1 && cols[colUnidad]) {
+          const uName = cols[colUnidad].trim().toLowerCase();
+          if (unidadesMap.has(uName)) {
+            unidadId = unidadesMap.get(uName);
+          }
+        }
+
+        // Map Group (fallback to default)
+        let grupoId = defaultGrupoId;
+        if (colGrupo !== -1 && cols[colGrupo]) {
+          const gName = cols[colGrupo].trim().toLowerCase();
+          if (gruposMap.has(gName)) {
+            grupoId = gruposMap.get(gName);
+          }
+        }
+
+        // Map Stock Min
+        let stockMin = 0;
+        if (colStockMin !== -1 && cols[colStockMin]) {
+          const parsedStock = parseInt(cols[colStockMin]);
+          if (!isNaN(parsedStock) && parsedStock >= 0) {
+            stockMin = parsedStock;
+          }
+        }
+
+        productsToInsert.push({
+          codigo,
+          nombre,
+          unidad_id: unidadId,
+          grupo_id: grupoId,
+          stock_min: stockMin
+        });
+      }
+
+      if (productsToInsert.length === 0) {
+        let msg = 'No se importó ningún producto nuevo.';
+        if (skippedCount > 0) {
+          msg += ` (${skippedCount} productos ya existían en la base de datos).`;
+        }
+        showMessage('msgCsv', msg, 'warning');
+        event.target.value = '';
+        return;
+      }
+
+      const { error: insertErr } = await supabaseClient.from('productos').insert(productsToInsert);
+      if (insertErr) throw insertErr;
+
+      showMessage('msgCsv', `Importación exitosa: se registraron ${productsToInsert.length} productos. ` +
+        `(${skippedCount} omitidos por estar duplicados, ${emptyCount} filas vacías/inválidas).`, 'success');
+
+      event.target.value = '';
+      
+      // Refresh statistics and views
+      loadDashboard();
+      listarProductosEnGestion();
+      if (currentTab === 'inventario') {
+        mostrarStock();
+      }
+    } catch (error) {
+      console.error('Error al importar CSV:', error);
+      showMessage('msgCsv', 'Error al procesar la importación: ' + error.message, 'error');
+      event.target.value = '';
+    }
+  };
+
+  reader.readAsText(file, 'UTF-8');
+}
+
+async function listarProductosEnGestion() {
+  const loading = document.getElementById("loadingProductos");
+  const container = document.getElementById("tablaProductosContainer");
+  if (!loading || !container) return;
+
+  loading.style.display = "block";
+  container.innerHTML = "";
+
+  try {
+    if (!supabaseClient) throw new Error('Supabase client is not initialized.');
+
+    const { data, error } = await supabaseClient
+      .from('v_productos_stock')
+      .select('codigo, nombre, unidad, grupo, stockMin:stock_min, cantidad')
+      .order('nombre');
+
+    if (error) throw error;
+
+    loading.style.display = "none";
+
+    if (data.length === 0) {
+      container.innerHTML = '<div class="message warning">No hay productos registrados</div>';
+      return;
+    }
+
+    let html = `
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Nombre</th>
+              <th>Unidad</th>
+              <th>Grupo</th>
+              <th>Stock Mín.</th>
+              <th>Stock Actual</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    data.forEach(p => {
+      let statusClass = 'status-normal';
+      if (p.cantidad <= 0) {
+        statusClass = 'status-zero';
+      } else if (p.cantidad <= p.stockMin && p.stockMin > 0) {
+        statusClass = 'status-low';
+      }
+
+      html += `
+        <tr class="${statusClass}">
+          <td><strong>${p.codigo}</strong></td>
+          <td>${p.nombre}</td>
+          <td>${p.unidad}</td>
+          <td>${p.grupo}</td>
+          <td>${p.stockMin}</td>
+          <td>${p.cantidad}</td>
+        </tr>
+      `;
+    });
+
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+  } catch (error) {
+    console.error('Error listing products in management:', error);
+    loading.style.display = "none";
+    showMessage('tablaProductosContainer', 'Error al cargar productos: ' + error.message, 'error');
+  }
 }
 
 function limpiarFormMovimiento() {
