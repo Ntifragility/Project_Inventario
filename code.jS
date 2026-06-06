@@ -840,11 +840,66 @@ function verDetalleProducto(codigo) {
   alert(`Funcionalidad de detalle para producto: ${codigo}\nEsta función se implementará próximamente.`);
 }
 
-function confirmarReset() {
-  if (confirm('ADVERTENCIA: Esta acción eliminará TODOS los datos del sistema.\n\n¿Está completamente seguro de que desea continuar?')) {
-    if (confirm('Esta es su última oportunidad para cancelar.\n\n¿Proceder con el reset completo?')) {
-      alert('Funcionalidad de reset no implementada por seguridad.\nContacte al administrador del sistema.');
+async function confirmarReset() {
+  try {
+    if (!confirm('ADVERTENCIA: Esta acción eliminará TODOS los datos del sistema (productos y movimientos) y quedará registrada.\n\n¿Está completamente seguro de que desea continuar?')) {
+      return;
     }
+
+    const dni = prompt('Por favor, ingrese su DNI para autorizar y registrar esta operación:');
+    if (dni === null) return; // User clicked Cancel
+
+    const cleanDni = dni.trim();
+    const authorizedDnis = ['48204199', '70429841'];
+    if (!authorizedDnis.includes(cleanDni)) {
+      alert('Operación cancelada: El DNI ingresado no está autorizado para realizar esta acción.');
+      return;
+    }
+
+    if (!confirm(`Se registrará el reset a nombre del DNI: ${cleanDni}.\n\n¿Proceder con el reset completo e irreversible?`)) {
+      return;
+    }
+
+    if (!supabaseClient) {
+      throw new Error('Supabase client is not initialized.');
+    }
+
+    // 1. Insert log of the reset
+    const { error: logError } = await supabaseClient
+      .from('historial_resets')
+      .insert([{ dni: cleanDni }]);
+    
+    if (logError) throw logError;
+
+    // 2. Delete all movements
+    const { error: delMovError } = await supabaseClient
+      .from('movimientos')
+      .delete()
+      .gt('id', 0);
+    
+    if (delMovError) throw delMovError;
+
+    // 3. Delete all products (this also cascades to movements just in case, but we cleared it already)
+    const { error: delProdError } = await supabaseClient
+      .from('productos')
+      .delete()
+      .neq('codigo', '');
+    
+    if (delProdError) throw delProdError;
+
+    // Clear all forms and search results
+    limpiarTodosFormularios();
+
+    // Show success message
+    showMessage('configResults', 'El sistema ha sido restablecido a su estado inicial con éxito.', 'success');
+    alert('Sistema restablecido exitosamente.');
+
+    // Reload dashboard stats
+    loadDashboard();
+    
+  } catch (error) {
+    console.error('Error during system reset:', error);
+    showMessage('configResults', 'Error al restablecer el sistema: ' + error.message, 'error');
   }
 }
 

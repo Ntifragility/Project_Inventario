@@ -169,5 +169,5 @@ These functions run inside the user's web browser, managing DOM rendering and in
 * `exportarReporte()` - Compiles historical transaction records client-side into a downloadable CSV blob directly from browser memory.
 * `showMessage(containerId, message, type)` - Renders colored toast notifications (`success`, `error`, `warning`, `info`) with auto-dismiss (5 seconds for success).
 * `verDetalleProducto(codigo)` - Placeholder detail view handler.
-* `confirmarReset()` - Security check double-dialog confirmation for system reset operations.
+* `confirmarReset()` - Asynchronous security-checked system reset operation that requires entering a valid 8-digit numeric DNI, logs the user's authorization to Supabase, and clears the movements and products tables.
 * `limpiarFormProducto()` / `limpiarFormMovimiento()` / `limpiarBusqueda()` / `limpiarTodosFormularios()` - Forms and status cleaning helpers.
