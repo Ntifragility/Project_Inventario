@@ -16,6 +16,7 @@ let searchTimeout;
 let autocompleteTimeout;
 
 function initializeApp() {
+  initTheme();
   setDefaultDates();
   if (supabaseClient) {
     loadListas();
@@ -24,6 +25,45 @@ function initializeApp() {
     showMessage('statsGrid', 'Error: No se pudo conectar a Supabase. Verifique las credenciales en config.js.', 'error');
   }
   showTab('dashboard');
+}
+
+function initTheme() {
+  try {
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const isDark = savedTheme === 'dark' || (!savedTheme && prefersDark);
+    
+    if (isDark) {
+      document.body.classList.add('dark-theme');
+    } else {
+      document.body.classList.remove('dark-theme');
+    }
+    updateThemeUI(isDark);
+  } catch (e) {
+    console.error("Failed to initialize theme preferences", e);
+  }
+}
+
+function toggleTheme() {
+  try {
+    const isDark = document.body.classList.toggle('dark-theme');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    updateThemeUI(isDark);
+  } catch (e) {
+    console.error("Failed to toggle theme preference", e);
+  }
+}
+
+function updateThemeUI(isDark) {
+  const icon = document.getElementById('themeToggleIcon');
+  const text = document.getElementById('themeToggleText');
+  if (isDark) {
+    if (icon) icon.textContent = '☀️';
+    if (text) text.textContent = 'Modo Claro';
+  } else {
+    if (icon) icon.textContent = '🌙';
+    if (text) text.textContent = 'Modo Oscuro';
+  }
 }
 
 function setDefaultDates() {
