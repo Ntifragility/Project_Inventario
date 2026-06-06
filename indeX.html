@@ -728,12 +728,16 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
   <script>
-    // Initialize Supabase Client
+    // Initialize Supabase Client safely
     let supabase;
     try {
-      supabase = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.key);
+      if (typeof SUPABASE_CONFIG !== 'undefined') {
+        supabase = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.key);
+      } else {
+        console.error("SUPABASE_CONFIG is not defined. Make sure config.js is loaded and configured.");
+      }
     } catch (e) {
-      console.error("Supabase client failed to initialize. Please check your config.js credentials.", e);
+      console.error("Supabase client failed to initialize.", e);
     }
 
     let currentTab = 'dashboard';
@@ -742,8 +746,12 @@
 
     function initializeApp() {
       setDefaultDates();
-      loadListas();
-      loadDashboard();
+      if (supabase) {
+        loadListas();
+        loadDashboard();
+      } else {
+        showMessage('statsGrid', 'Error: No se pudo conectar a Supabase. Verifique las credenciales en config.js.', 'error');
+      }
       showTab('dashboard');
     }
 
@@ -758,29 +766,32 @@
     }
 
     function showTab(tabName) {
+      // 1. Hide all tab contents
       document.querySelectorAll('.tab-content').forEach(tab => {
         tab.classList.remove('active');
       });
       
+      // 2. Remove active class from all links and add to the matching tab link
       document.querySelectorAll('.nav-link').forEach(link => {
         link.classList.remove('active');
+        const onclickAttr = link.getAttribute('onclick') || '';
+        if (onclickAttr.includes(`'${tabName}'`)) {
+          link.classList.add('active');
+        }
       });
       
+      // 3. Show target tab
       const targetTab = document.getElementById(tabName);
       if (targetTab) targetTab.classList.add('active');
-      
-      if (event && event.target && event.target.classList) {
-        event.target.classList.add('active');
-      }
       
       currentTab = tabName;
       
       switch(tabName) {
         case 'dashboard':
-          loadDashboard();
+          if (supabase) loadDashboard();
           break;
         case 'inventario':
-          mostrarStock();
+          if (supabase) mostrarStock();
           break;
       }
     }
