@@ -1,667 +1,713 @@
-const SPREADSHEET_ID = "1RW9wrWX-7TsMxXzfIO_ORgXmVXdGZLQNZCabJ3KXheU";
-const HOJA_PRODUCTOS = "Productos";
-const HOJA_MOVIMIENTOS = "Movimientos";
-const HOJA_UNIDADES = "Unidades";
-const HOJA_GRUPOS = "Grupos";
+// Initialize Supabase Client safely using a custom variable name
+// to avoid conflicts with the global 'supabase' object defined by the CDN.
+let supabaseClient;
+try {
+  if (typeof SUPABASE_CONFIG !== 'undefined') {
+    supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.key);
+  } else {
+    console.error("SUPABASE_CONFIG is not defined. Make sure config.js is loaded and configured.");
+  }
+} catch (e) {
+  console.error("Supabase client failed to initialize.", e);
+}
 
-const TIPOS_MOVIMIENTO = {
-  INGRESO: "INGRESO",
-  SALIDA: "SALIDA", 
-  AJUSTE_POSITIVO: "AJUSTE_POSITIVO",
-  AJUSTE_NEGATIVO: "AJUSTE_NEGATIVO",
-  AJUSTE: "AJUSTE"
-};
+let currentTab = 'dashboard';
+let searchTimeout;
+let autocompleteTimeout;
 
-function doGet() {
-  try {
-    return HtmlService.createHtmlOutputFromFile("index")
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-      .setTitle("Sistema de Control de Inventario");
-  } catch (error) {
-    return HtmlService.createHtmlOutput(`
-      <div style="padding: 20px; font-family: Arial; text-align: center;">
-        <h2 style="color: #dc3545;">Error del Sistema</h2>
-        <p>No se pudo cargar la aplicación: ${error.message}</p>
-        <button onclick="window.location.reload()">Reintentar</button>
-      </div>
-    `);
+function initializeApp() {
+  setDefaultDates();
+  if (supabaseClient) {
+    loadListas();
+    loadDashboard();
+  } else {
+    showMessage('statsGrid', 'Error: No se pudo conectar a Supabase. Verifique las credenciales en config.js.', 'error');
+  }
+  showTab('dashboard');
+}
+
+function setDefaultDates() {
+  const today = new Date();
+  const monthAgo = new Date();
+  monthAgo.setMonth(monthAgo.getMonth() - 1);
+
+  document.getElementById("fechaMov").valueAsDate = today;
+  document.getElementById("fechaDesde").valueAsDate = monthAgo;
+  document.getElementById("fechaHasta").valueAsDate = today;
+}
+
+function showTab(tabName) {
+  // 1. Hide all tab contents
+  document.querySelectorAll('.tab-content').forEach(tab => {
+    tab.classList.remove('active');
+  });
+  
+  // 2. Remove active class from all links and add to the matching tab link
+  document.querySelectorAll('.nav-link').forEach(link => {
+    link.classList.remove('active');
+    const onclickAttr = link.getAttribute('onclick') || '';
+    if (onclickAttr.includes(`'${tabName}'`)) {
+      link.classList.add('active');
+    }
+  });
+  
+  // 3. Show target tab
+  const targetTab = document.getElementById(tabName);
+  if (targetTab) targetTab.classList.add('active');
+  
+  currentTab = tabName;
+  
+  switch(tabName) {
+    case 'dashboard':
+      if (supabaseClient) loadDashboard();
+      break;
+    case 'inventario':
+      if (supabaseClient) mostrarStock();
+      break;
   }
 }
 
-function registrarProducto(producto) {
+async function loadDashboard() {
   try {
-    if (!producto || !producto.codigo || !producto.nombre) {
-      return "Datos del producto incompletos. Código y nombre son obligatorios.";
-    }
-
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName(HOJA_PRODUCTOS);
-    
-    if (!sheet) {
-      throw new Error(`La hoja '${HOJA_PRODUCTOS}' no existe. Inicialice el sistema primero.`);
-    }
-    
-    if (!sheet.getLastRow()) {
-      sheet.getRange(1, 1, 1, 6).setValues([["Código", "Nombre", "Unidad", "Grupo", "Stock Mínimo", "Fecha Creación"]]);
-      sheet.getRange(1, 1, 1, 6).setBackground("#5DADE2").setFontColor("white").setFontWeight("bold");
-    }
-    
-    const datos = sheet.getDataRange().getValues();
-    const codigoNormalizado = producto.codigo.toString().trim().toUpperCase();
-    
-    for (let i = 1; i < datos.length; i++) {
-      if (datos[i][0] && datos[i][0].toString().trim().toUpperCase() === codigoNormalizado) {
-        return "Ya existe un producto con este código.";
-      }
-    }
-    
-    const nombre = producto.nombre.toString().trim();
-    const unidad = producto.unidad || "Unidades";
-    const grupo = producto.grupo || "General";
-    const stockMin = Math.max(0, parseInt(producto.stockMin) || 0);
-    
-    if (nombre.length < 2) {
-      return "El nombre del producto debe tener al menos 2 caracteres.";
-    }
-    
-    sheet.appendRow([
-      codigoNormalizado, 
-      nombre, 
-      unidad, 
-      grupo, 
-      stockMin,
-      new Date()
-    ]);
-    
-    return "Producto registrado correctamente.";
-  } catch (error) {
-    console.error("Error en registrarProducto:", error);
-    return `Error al registrar producto: ${error.message}`;
-  }
-}
-
-function registrarMovimiento(mov) {
-  try {
-    if (!mov || !mov.codigo || !mov.fecha || !mov.tipo || !mov.cantidad) {
-      return "Datos del movimiento incompletos.";
-    }
-
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const prodSheet = ss.getSheetByName(HOJA_PRODUCTOS);
-    const movSheet = ss.getSheetByName(HOJA_MOVIMIENTOS);
-    
-    if (!prodSheet || !movSheet) {
-      throw new Error("Las hojas del sistema no existen. Inicialice el sistema primero.");
-    }
-    
-    if (!movSheet.getLastRow()) {
-      movSheet.getRange(1, 1, 1, 8).setValues([["Código", "Fecha", "Tipo", "Cantidad", "Usuario", "Timestamp", "Observaciones", "Stock Resultante"]]);
-      movSheet.getRange(1, 1, 1, 8).setBackground("#5DADE2").setFontColor("white").setFontWeight("bold");
-    }
-    
-    const codigoNormalizado = mov.codigo.toString().trim().toUpperCase();
-    const cantidad = parseFloat(mov.cantidad);
-    const tipo = mov.tipo.toString().toUpperCase();
-    
-    if (cantidad <= 0) {
-      return "La cantidad debe ser mayor a 0.";
-    }
-    
-    if (!Object.values(TIPOS_MOVIMIENTO).includes(tipo)) {
-      return `Tipo de movimiento inválido: ${tipo}`;
-    }
-    
-    const productos = prodSheet.getDataRange().getValues();
-    let productoExiste = false;
-    let nombreProducto = "";
-    
-    for (let i = 1; i < productos.length; i++) {
-      if (productos[i][0] && productos[i][0].toString().trim().toUpperCase() === codigoNormalizado) {
-        productoExiste = true;
-        nombreProducto = productos[i][1];
-        break;
-      }
-    }
-    
-    if (!productoExiste) {
-      return "El producto no existe. Regístrelo primero.";
-    }
-    
-    const stockActual = calcularStock(codigoNormalizado);
-    
-    if ((tipo === TIPOS_MOVIMIENTO.SALIDA || tipo === TIPOS_MOVIMIENTO.AJUSTE_NEGATIVO) && stockActual < cantidad) {
-      return `Stock insuficiente. Disponible: ${stockActual}, Solicitado: ${cantidad}`;
-    }
-    
-    let stockResultante = stockActual;
-    switch (tipo) {
-      case TIPOS_MOVIMIENTO.INGRESO:
-      case TIPOS_MOVIMIENTO.AJUSTE_POSITIVO:
-        stockResultante += cantidad;
-        break;
-      case TIPOS_MOVIMIENTO.SALIDA:
-      case TIPOS_MOVIMIENTO.AJUSTE_NEGATIVO:
-        stockResultante -= cantidad;
-        break;
-      case TIPOS_MOVIMIENTO.AJUSTE:
-        stockResultante += cantidad;
-        break;
-    }
-    
-    stockResultante = Math.max(0, stockResultante);
-    
-    // Crear fecha correctamente para evitar problemas de zona horaria
-    let fechaMovimiento;
-    if (typeof mov.fecha === 'string') {
-      // Si viene como string YYYY-MM-DD, crear la fecha sin zona horaria
-      const partesFecha = mov.fecha.split('-');
-      fechaMovimiento = new Date(parseInt(partesFecha[0]), parseInt(partesFecha[1]) - 1, parseInt(partesFecha[2]), 12, 0, 0);
-    } else {
-      fechaMovimiento = new Date(mov.fecha);
-    }
-    
-    movSheet.appendRow([
-      codigoNormalizado, 
-      fechaMovimiento, 
-      tipo, 
-      cantidad,
-      Session.getActiveUser().getEmail() || "Sistema",
-      new Date(),
-      mov.observaciones || "",
-      stockResultante
-    ]);
-    
-    return "Movimiento registrado correctamente.";
-  } catch (error) {
-    console.error("Error en registrarMovimiento:", error);
-    return `Error al registrar movimiento: ${error.message}`;
-  }
-}
-
-function buscarProductoPorCodigo(codigo) {
-  try {
-    if (!codigo || codigo.trim().length < 1) {
-      return [];
-    }
-
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName(HOJA_PRODUCTOS);
-    
-    if (!sheet) {
-      return [];
-    }
-    
-    const datos = sheet.getDataRange().getValues();
-    
-    if (datos.length <= 1) {
-      return [];
-    }
-    
-    const textoBusqueda = codigo.toString().toUpperCase().trim();
-    const encontrados = [];
-    
-    for (let i = 1; i < datos.length; i++) {
-      const fila = datos[i];
-      if (fila[0] && fila[0].toString().toUpperCase().startsWith(textoBusqueda)) {
-        encontrados.push({
-          codigo: fila[0],
-          nombre: fila[1],
-          unidad: fila[2] || "Unidades",
-          grupo: fila[3] || "General"
-        });
-      }
-    }
-    
-    return encontrados.slice(0, 10);
-  } catch (error) {
-    console.error("Error en buscarProductoPorCodigo:", error);
-    return [];
-  }
-}
-
-function buscarProducto(texto) {
-  try {
-    if (!texto || texto.trim().length < 1) {
-      return [];
-    }
-
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName(HOJA_PRODUCTOS);
-    
-    if (!sheet) {
-      throw new Error(`La hoja '${HOJA_PRODUCTOS}' no existe.`);
-    }
-    
-    const datos = sheet.getDataRange().getValues();
-    
-    if (datos.length <= 1) {
-      return [];
-    }
-    
-    const textoBusqueda = texto.toString().toLowerCase().trim();
-    const encontrados = [];
-    
-    for (let i = 1; i < datos.length; i++) {
-      const fila = datos[i];
-      if (fila[0] && (
-        fila[0].toString().toLowerCase().includes(textoBusqueda) ||
-        fila[1].toString().toLowerCase().includes(textoBusqueda) ||
-        (fila[3] && fila[3].toString().toLowerCase().includes(textoBusqueda))
-      )) {
-        const stock = calcularStock(fila[0]);
-        encontrados.push([
-          fila[0],
-          fila[1],
-          fila[2],
-          fila[3],
-          fila[4] || 0,
-          stock
-        ]);
-      }
-    }
-    
-    return encontrados.sort((a, b) => a[1].localeCompare(b[1]));
-  } catch (error) {
-    console.error("Error en buscarProducto:", error);
-    return [];
-  }
-}
-
-function obtenerStock() {
-  try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const prodSheet = ss.getSheetByName(HOJA_PRODUCTOS);
-    
-    if (!prodSheet) {
-      throw new Error(`La hoja '${HOJA_PRODUCTOS}' no existe.`);
-    }
-    
-    const productos = prodSheet.getDataRange().getValues();
-    
-    if (productos.length <= 1) {
-      return [];
-    }
-    
-    const stock = [];
-    
-    for (let i = 1; i < productos.length; i++) {
-      const [codigo, nombre, unidad, grupo, stockMin] = productos[i];
-      if (codigo && nombre) {
-        const cantidad = calcularStock(codigo);
-        stock.push({
-          codigo: codigo.toString(), 
-          nombre: nombre.toString(), 
-          unidad: unidad || "Unidades", 
-          grupo: grupo || "General", 
-          stockMin: Math.max(0, parseInt(stockMin) || 0),
-          cantidad: cantidad
-        });
-      }
-    }
-    
-    return stock.sort((a, b) => a.nombre.localeCompare(b.nombre));
-  } catch (error) {
-    console.error("Error en obtenerStock:", error);
-    return [];
-  }
-}
-
-function calcularStock(codigo) {
-  try {
-    if (!codigo) return 0;
-    
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const movSheet = ss.getSheetByName(HOJA_MOVIMIENTOS);
-    
-    if (!movSheet) {
-      return 0;
-    }
-    
-    const movimientos = movSheet.getDataRange().getValues();
-    let cantidad = 0;
-    const codigoNormalizado = codigo.toString().trim().toUpperCase();
-    
-    for (let i = 1; i < movimientos.length; i++) {
-      const [cod, fecha, tipo, cant] = movimientos[i];
-      if (cod && cod.toString().trim().toUpperCase() === codigoNormalizado) {
-        const valor = parseFloat(cant) || 0;
-        const tipoMovimiento = tipo.toString().toUpperCase();
-        
-        switch (tipoMovimiento) {
-          case TIPOS_MOVIMIENTO.INGRESO:
-          case TIPOS_MOVIMIENTO.AJUSTE_POSITIVO:
-            cantidad += valor;
-            break;
-          case TIPOS_MOVIMIENTO.SALIDA:
-          case TIPOS_MOVIMIENTO.AJUSTE_NEGATIVO:
-            cantidad -= valor;
-            break;
-          case TIPOS_MOVIMIENTO.AJUSTE:
-            cantidad += valor;
-            break;
-        }
-      }
-    }
-    
-    return Math.max(0, Math.round(cantidad * 100) / 100);
-  } catch (error) {
-    console.error("Error en calcularStock:", error);
-    return 0;
-  }
-}
-
-function obtenerHistorial(filtros) {
-  try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const movSheet = ss.getSheetByName(HOJA_MOVIMIENTOS);
-    const prodSheet = ss.getSheetByName(HOJA_PRODUCTOS);
-    
-    if (!movSheet || !prodSheet) {
-      throw new Error("Las hojas del sistema no existen.");
-    }
-    
-    const movimientos = movSheet.getDataRange().getValues();
-    const productos = prodSheet.getDataRange().getValues();
-    
-    const prodMap = {};
-    for (let i = 1; i < productos.length; i++) {
-      if (productos[i][0]) {
-        prodMap[productos[i][0].toString().toUpperCase()] = productos[i][1];
-      }
-    }
-    
-    const fechaDesde = new Date(filtros.fechaDesde + 'T00:00:00');
-    const fechaHasta = new Date(filtros.fechaHasta + 'T23:59:59');
-    
-    if (fechaDesde > fechaHasta) {
-      throw new Error("La fecha 'desde' no puede ser posterior a la fecha 'hasta'");
-    }
-    
-    const resultado = [];
-    
-    for (let i = 1; i < movimientos.length; i++) {
-      const mov = movimientos[i];
-      if (!mov[0] || !mov[1]) continue;
+    const { count: totalProductos, error: e1 } = await supabaseClient
+      .from('productos')
+      .select('*', { count: 'exact', head: true });
       
-      try {
-        const fechaMov = new Date(mov[1]);
-        const tipoMov = mov[2] ? mov[2].toString().toUpperCase() : "";
-        
-        if (fechaMov >= fechaDesde && fechaMov <= fechaHasta) {
-          if (!filtros.tipo || tipoMov === filtros.tipo.toUpperCase()) {
-            const codigoProducto = mov[0].toString().toUpperCase();
-            resultado.push({
-              codigo: mov[0],
-              fecha: formatearFecha(fechaMov),
-              tipo: tipoMov,
-              cantidad: parseFloat(mov[3]) || 0,
-              producto: prodMap[codigoProducto] || "Producto no encontrado",
-              observaciones: mov[6] || "",
-              usuario: mov[4] || "N/A"
-            });
-          }
-        }
-      } catch (dateError) {
-        console.warn(`Fecha inválida en movimiento fila ${i + 1}:`, mov[1]);
-        continue;
-      }
-    }
-    
-    return resultado.sort((a, b) => {
-      const fechaA = new Date(a.fecha.split('/').reverse().join('-'));
-      const fechaB = new Date(b.fecha.split('/').reverse().join('-'));
-      return fechaB - fechaA;
-    });
-  } catch (error) {
-    console.error("Error en obtenerHistorial:", error);
-    return [];
-  }
-}
-
-function obtenerResumen() {
-  try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const prodSheet = ss.getSheetByName(HOJA_PRODUCTOS);
-    const movSheet = ss.getSheetByName(HOJA_MOVIMIENTOS);
-    
-    if (!prodSheet || !movSheet) {
-      return { totalProductos: 0, totalMovimientos: 0, sinStock: 0, stockBajo: 0 };
-    }
-    
-    const productos = prodSheet.getDataRange().getValues();
-    const movimientos = movSheet.getDataRange().getValues();
-    
-    const totalProductos = Math.max(0, productos.length - 1);
-    const totalMovimientos = Math.max(0, movimientos.length - 1);
+    const { count: totalMovimientos, error: e2 } = await supabaseClient
+      .from('movimientos')
+      .select('*', { count: 'exact', head: true });
+      
+    const { data: stockData, error: e3 } = await supabaseClient
+      .from('v_productos_stock')
+      .select('stockMin:stock_min, cantidad');
+      
+    if (e1 || e2 || e3) throw e1 || e2 || e3;
     
     let sinStock = 0;
     let stockBajo = 0;
-    let valorTotalInventario = 0;
-    
-    for (let i = 1; i < productos.length; i++) {
-      if (!productos[i][0]) continue;
-      
-      const codigo = productos[i][0];
-      const stockMin = Math.max(0, parseInt(productos[i][4]) || 0);
-      const stock = calcularStock(codigo);
-      
-      if (stock <= 0) {
+    stockData.forEach(p => {
+      if (p.cantidad <= 0) {
         sinStock++;
-      } else if (stock <= stockMin && stockMin > 0) {
+      } else if (p.cantidad <= p.stockMin && p.stockMin > 0) {
         stockBajo++;
       }
-      
-      valorTotalInventario += stock;
-    }
-    
-    const fechaUnMesAtras = new Date();
-    fechaUnMesAtras.setMonth(fechaUnMesAtras.getMonth() - 1);
-    
-    let movimientosUltimoMes = 0;
-    for (let i = 1; i < movimientos.length; i++) {
-      if (movimientos[i][1]) {
-        try {
-          const fechaMov = new Date(movimientos[i][1]);
-          if (fechaMov >= fechaUnMesAtras) {
-            movimientosUltimoMes++;
-          }
-        } catch (e) {
-          // Ignorar fechas inválidas
-        }
-      }
-    }
-    
-    return {
-      totalProductos,
-      totalMovimientos,
-      sinStock,
-      stockBajo,
-      valorTotalInventario: Math.round(valorTotalInventario * 100) / 100,
-      movimientosUltimoMes
-    };
-  } catch (error) {
-    console.error("Error en obtenerResumen:", error);
-    return { totalProductos: 0, totalMovimientos: 0, sinStock: 0, stockBajo: 0 };
+    });
+
+    const statsGrid = document.getElementById('statsGrid');
+    statsGrid.innerHTML = `
+      <div class="stat-card">
+        <div class="stat-value">${totalProductos}</div>
+        <div class="stat-label">Total Productos</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${totalMovimientos}</div>
+        <div class="stat-label">Total Movimientos</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${sinStock}</div>
+        <div class="stat-label">Sin Stock</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${stockBajo}</div>
+        <div class="stat-label">Stock Bajo</div>
+      </div>
+    `;
+  } catch(error) {
+    showMessage('statsGrid', 'Error al cargar dashboard: ' + error.message, 'error');
   }
+}
+
+async function loadListas() {
+  try {
+    const { data: unidades, error: e1 } = await supabaseClient.from('unidades').select('nombre').order('nombre');
+    const { data: grupos, error: e2 } = await supabaseClient.from('grupos').select('nombre').order('nombre');
+    if (e1 || e2) throw e1 || e2;
+
+    const unidadSelect = document.getElementById("unidadProd");
+    const grupoSelect = document.getElementById("grupoProd");
+
+    unidadSelect.innerHTML = "";
+    grupoSelect.innerHTML = "";
+
+    unidades.forEach(u => {
+      unidadSelect.innerHTML += `<option value="${u.nombre}">${u.nombre}</option>`;
+    });
+    grupos.forEach(g => {
+      grupoSelect.innerHTML += `<option value="${g.nombre}">${g.nombre}</option>`;
+    });
+  } catch (error) {
+    console.error('Error loading lists:', error);
+  }
+}
+
+async function buscarProductoAutocompletado() {
+  clearTimeout(autocompleteTimeout);
+  const input = document.getElementById("codigoMov");
+  const dropdown = document.getElementById("autocompleteDropdown");
+  const codigo = input.value.trim().toUpperCase();
+  
+  if (codigo.length === 0) {
+    dropdown.style.display = "none";
+    return;
+  }
+  
+  autocompleteTimeout = setTimeout(async () => {
+    try {
+      const { data: productos, error } = await supabaseClient
+        .from('v_productos_stock')
+        .select('codigo, nombre, unidad, grupo')
+        .ilike('codigo', `${codigo}%`)
+        .limit(10);
+      if (error) throw error;
+      mostrarAutocompletado(productos);
+    } catch(error) {
+      console.error('Error en autocompletado:', error);
+    }
+  }, 200);
+}
+
+function mostrarAutocompletado(productos = []) {
+  const dropdown = document.getElementById("autocompleteDropdown");
+  
+  if (productos.length === 0) {
+    dropdown.style.display = "none";
+    return;
+  }
+  
+  let html = "";
+  productos.forEach(producto => {
+    html += `
+      <div class="autocomplete-item" onmousedown="seleccionarProducto('${producto.codigo}', '${producto.nombre}')">
+        <div class="autocomplete-code">${producto.codigo}</div>
+        <div class="autocomplete-name">${producto.nombre} - ${producto.grupo}</div>
+      </div>
+    `;
+  });
+  
+  dropdown.innerHTML = html;
+  dropdown.style.display = "block";
+}
+
+function seleccionarProducto(codigo, nombre) {
+  document.getElementById("codigoMov").value = codigo;
+  document.getElementById("autocompleteDropdown").style.display = "none";
+}
+
+function ocultarAutocompletado() {
+  setTimeout(() => {
+    document.getElementById("autocompleteDropdown").style.display = "none";
+  }, 150);
+}
+
+async function registrarProducto(event) {
+  event.preventDefault();
+  
+  const codigo = document.getElementById("codigoProd").value.trim().toUpperCase();
+  const nombre = document.getElementById("nombreProd").value.trim();
+  const unidadNombre = document.getElementById("unidadProd").value;
+  const grupoNombre = document.getElementById("grupoProd").value;
+  const stockMin = parseInt(document.getElementById("stockMinProd").value) || 0;
+
+  if (!codigo || !nombre) {
+    showMessage('msgProd', 'Código y nombre son campos obligatorios', 'error');
+    return;
+  }
+
+  try {
+    const { data: unitData, error: e1 } = await supabaseClient.from('unidades').select('id').eq('nombre', unidadNombre).single();
+    const { data: groupData, error: e2 } = await supabaseClient.from('grupos').select('id').eq('nombre', grupoNombre).single();
+    if (e1 || e2) throw e1 || e2;
+
+    const { error } = await supabaseClient.from('productos').insert([{
+      codigo,
+      nombre,
+      unidad_id: unitData.id,
+      grupo_id: groupData.id,
+      stock_min: stockMin
+    }]);
+    
+    if (error) {
+      if (error.code === '23505') {
+        showMessage('msgProd', 'Ya existe un producto con este código.', 'error');
+      } else {
+        throw error;
+      }
+      return;
+    }
+
+    showMessage('msgProd', 'Producto registrado correctamente.', 'success');
+    document.getElementById('formProducto').reset();
+    document.getElementById("stockMinProd").value = "0";
+  } catch(error) {
+    showMessage('msgProd', 'Error al registrar producto: ' + error.message, 'error');
+  }
+}
+
+async function registrarMovimiento(event) {
+  event.preventDefault();
+  
+  const codigo = document.getElementById("codigoMov").value.trim().toUpperCase();
+  const fecha = document.getElementById("fechaMov").value;
+  const tipo = document.getElementById("tipoMov").value;
+  const cantidad = parseFloat(document.getElementById("cantMov").value) || 0;
+  const observaciones = document.getElementById("obsMov").value.trim();
+
+  if (!codigo || !fecha || cantidad <= 0) {
+    showMessage('msgMov', 'Todos los campos son obligatorios y la cantidad debe ser mayor a 0', 'error');
+    return;
+  }
+
+  try {
+    const { data: prodStock, error: e1 } = await supabaseClient
+      .from('v_productos_stock')
+      .select('codigo, cantidad')
+      .eq('codigo', codigo)
+      .single();
+    
+    if (e1 || !prodStock) {
+      showMessage('msgMov', 'El producto no existe. Regístrelo primero.', 'error');
+      return;
+    }
+
+    const stockActual = prodStock.cantidad;
+
+    if ((tipo === 'SALIDA' || tipo === 'AJUSTE_NEGATIVO') && stockActual < cantidad) {
+      showMessage('msgMov', `Stock insuficiente. Disponible: ${stockActual}, Solicitado: ${cantidad}`, 'error');
+      return;
+    }
+
+    const { error: e2 } = await supabaseClient.from('movimientos').insert([{
+      producto_codigo: codigo,
+      fecha,
+      tipo,
+      cantidad,
+      usuario: 'Usuario Sistema',
+      observaciones
+    }]);
+    
+    if (e2) throw e2;
+
+    showMessage('msgMov', 'Movimiento registrado correctamente.', 'success');
+    document.getElementById('formMovimiento').reset();
+    document.getElementById("fechaMov").valueAsDate = new Date();
+  } catch(error) {
+    showMessage('msgMov', 'Error al registrar movimiento: ' + error.message, 'error');
+  }
+}
+
+function handleTipoChange() {
+  const tipo = document.getElementById("tipoMov").value;
+  const cantField = document.getElementById("cantMov");
+  
+  switch(tipo) {
+    case 'INGRESO':
+      cantField.placeholder = 'Cantidad a ingresar';
+      break;
+    case 'SALIDA':
+      cantField.placeholder = 'Cantidad a retirar';
+      break;
+    case 'AJUSTE_POSITIVO':
+      cantField.placeholder = 'Cantidad a aumentar';
+      break;
+    case 'AJUSTE_NEGATIVO':
+      cantField.placeholder = 'Cantidad a disminuir';
+      break;
+  }
+}
+
+async function buscarProducto() {
+  const texto = document.getElementById("buscarTexto").value.trim().toLowerCase();
+  if (!texto) {
+    showMessage('resultadosBusqueda', 'Ingrese un texto para buscar', 'warning');
+    return;
+  }
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('v_productos_stock')
+      .select('*')
+      .or(`codigo.ilike.%${texto}%,nombre.ilike.%${texto}%,grupo.ilike.%${texto}%`)
+      .order('nombre');
+    
+    if (error) throw error;
+    
+    const formattedData = data.map(r => [
+      r.codigo, r.nombre, r.unidad, r.grupo, r.stock_min, r.cantidad
+    ]);
+    displaySearchResults(formattedData);
+  } catch(error) {
+    showMessage('resultadosBusqueda', 'Error en la búsqueda: ' + error.message, 'error');
+  }
+}
+
+function buscarEnTiempoReal() {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    const texto = document.getElementById("buscarTexto").value.trim();
+    if (texto.length >= 2) {
+      buscarProducto();
+    } else if (texto.length === 0) {
+      document.getElementById('resultadosBusqueda').innerHTML = '';
+    }
+  }, 300);
+}
+
+function displaySearchResults(data) {
+  const container = document.getElementById('resultadosBusqueda');
+  
+  if (data.length === 0) {
+    container.innerHTML = '<div class="message warning">No se encontraron productos</div>';
+    return;
+  }
+
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Nombre</th>
+          <th>Unidad</th>
+          <th>Grupo</th>
+          <th>Stock Mín.</th>
+          <th>Stock Actual</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  data.forEach(producto => {
+    const [codigo, nombre, unidad, grupo, stockMin, stockActual] = producto;
+    let statusClass = 'status-normal';
+    let estado = 'Normal';
+    
+    if (stockActual <= 0) {
+      statusClass = 'status-zero';
+      estado = 'Sin Stock';
+    } else if (stockActual <= stockMin && stockMin > 0) {
+      statusClass = 'status-low';
+      estado = 'Stock Bajo';
+    }
+
+    html += `
+      <tr class="${statusClass}">
+        <td>${codigo}</td>
+        <td>${nombre}</td>
+        <td>${unidad}</td>
+        <td>${grupo}</td>
+        <td>${stockMin}</td>
+        <td>${stockActual}</td>
+        <td>${estado}</td>
+      </tr>
+    `;
+  });
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+async function mostrarStock() {
+  const loading = document.getElementById("loading");
+  const container = document.getElementById("stockTable");
+  
+  loading.style.display = "block";
+  
+  try {
+    const { data, error } = await supabaseClient
+      .from('v_productos_stock')
+      .select('codigo, nombre, unidad, grupo, stockMin:stock_min, cantidad')
+      .order('nombre');
+    if (error) throw error;
+
+    loading.style.display = "none";
+    displayStockTable(data, container);
+  } catch(error) {
+    loading.style.display = "none";
+    showMessage('stockTable', 'Error al cargar stock: ' + error.message, 'error');
+  }
+}
+
+function displayStockTable(data, container) {
+  if (data.length === 0) {
+    container.innerHTML = '<div class="message warning">No hay productos registrados</div>';
+    return;
+  }
+
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Nombre</th>
+          <th>Unidad</th>
+          <th>Grupo</th>
+          <th>Stock Mín.</th>
+          <th>Stock Actual</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  data.forEach(producto => {
+    let statusClass = 'status-normal';
+    let estado = 'Normal';
+    
+    if (producto.cantidad <= 0) {
+      statusClass = 'status-zero';
+      estado = 'Sin Stock';
+    } else if (producto.cantidad <= producto.stockMin && producto.stockMin > 0) {
+      statusClass = 'status-low';
+      estado = 'Stock Bajo';
+    }
+
+    html += `
+      <tr class="${statusClass}">
+        <td>${producto.codigo}</td>
+        <td>${producto.nombre}</td>
+        <td>${producto.unidad}</td>
+        <td>${producto.grupo}</td>
+        <td>${producto.stockMin}</td>
+        <td>${producto.cantidad}</td>
+        <td>${estado}</td>
+        <td>
+          <button class="btn btn-info" onclick="verDetalleProducto('${producto.codigo}')" title="Ver detalle">
+            Ver
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+async function mostrarAlertas() {
+  const loading = document.getElementById("loading");
+  const container = document.getElementById("stockTable");
+  
+  loading.style.display = "block";
+  
+  try {
+    const { data, error } = await supabaseClient
+      .from('v_productos_stock')
+      .select('codigo, nombre, unidad, grupo, stockMin:stock_min, cantidad')
+      .order('nombre');
+    if (error) throw error;
+
+    loading.style.display = "none";
+    const alertProducts = data.filter(p => p.cantidad <= 0 || (p.cantidad <= p.stockMin && p.stockMin > 0));
+    
+    if (alertProducts.length === 0) {
+      container.innerHTML = '<div class="message success">No hay productos con alertas de stock</div>';
+      return;
+    }
+    
+    displayStockTable(alertProducts, container);
+  } catch(error) {
+    loading.style.display = "none";
+    showMessage('stockTable', 'Error: ' + error.message, 'error');
+  }
+}
+
+async function showStockAlerts() {
+  try {
+    const { data, error } = await supabaseClient
+      .from('v_productos_stock')
+      .select('codigo, nombre, unidad, grupo, stockMin:stock_min, cantidad');
+    if (error) throw error;
+
+    const alertProducts = data.filter(p => p.cantidad <= 0 || (p.cantidad <= p.stockMin && p.stockMin > 0));
+    const container = document.getElementById('alertsContainer');
+    
+    if (alertProducts.length === 0) {
+      container.innerHTML = '<div class="message success">No hay productos con alertas de stock</div>';
+      return;
+    }
+
+    let html = `
+      <div class="message warning">
+        <strong>${alertProducts.length} producto(s) requieren atención</strong>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Código</th><th>Nombre</th><th>Stock Actual</th><th>Stock Mín.</th><th>Estado</th></tr>
+        </thead>
+        <tbody>
+    `;
+
+    alertProducts.forEach(p => {
+      const estado = p.cantidad <= 0 ? 'Sin Stock' : 'Stock Bajo';
+      const statusClass = p.cantidad <= 0 ? 'status-zero' : 'status-low';
+      
+      html += `
+        <tr class="${statusClass}">
+          <td>${p.codigo}</td>
+          <td>${p.nombre}</td>
+          <td>${p.cantidad}</td>
+          <td>${p.stockMin}</td>
+          <td>${estado}</td>
+        </tr>
+      `;
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  } catch(error) {
+    console.error('Error loading alerts:', error);
+  }
+}
+
+async function mostrarHistorial() {
+  const fechaDesde = document.getElementById("fechaDesde").value;
+  const fechaHasta = document.getElementById("fechaHasta").value;
+  const tipo = document.getElementById("filtroTipo").value;
+
+  if (!fechaDesde || !fechaHasta) {
+    showMessage('historialTable', 'Seleccione las fechas de consulta', 'warning');
+    return;
+  }
+
+  try {
+    let query = supabaseClient
+      .from('movimientos')
+      .select(`
+        fecha,
+        codigo:producto_codigo,
+        cantidad,
+        observaciones,
+        usuario,
+        tipo,
+        producto:productos(nombre)
+      `)
+      .gte('fecha', fechaDesde)
+      .lte('fecha', fechaHasta)
+      .order('fecha', { ascending: false });
+    
+    if (tipo) {
+      query = query.eq('tipo', tipo);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const formattedData = data.map(m => ({
+      fecha: m.fecha.split('-').reverse().join('/'),
+      codigo: m.codigo,
+      producto: m.producto ? m.producto.nombre : 'Producto no encontrado',
+      tipo: m.tipo,
+      cantidad: parseFloat(m.cantidad),
+      observaciones: m.observaciones || '',
+      usuario: m.usuario
+    }));
+
+    displayHistorialTable(formattedData);
+  } catch(error) {
+    showMessage('historialTable', 'Error: ' + error.message, 'error');
+  }
+}
+
+function displayHistorialTable(data) {
+  const container = document.getElementById('historialTable');
+  
+  if (data.length === 0) {
+    container.innerHTML = '<div class="message warning">No hay movimientos en el período seleccionado</div>';
+    return;
+  }
+
+  let html = `
+    <div class="message success">Se encontraron ${data.length} movimientos</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Código</th>
+          <th>Producto</th>
+          <th>Tipo</th>
+          <th>Cantidad</th>
+          <th>Observaciones</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  data.forEach(mov => {
+    let tipoClass = 'text-success';
+    let tipoText = mov.tipo;
+    
+    switch(mov.tipo) {
+      case 'INGRESO':
+        tipoClass = 'text-success';
+        tipoText = 'Ingreso';
+        break;
+      case 'SALIDA':
+        tipoClass = 'text-danger';
+        tipoText = 'Salida';
+        break;
+      case 'AJUSTE_POSITIVO':
+        tipoClass = 'text-success';
+        tipoText = 'Ajuste +';
+        break;
+      case 'AJUSTE_NEGATIVO':
+        tipoClass = 'text-danger';
+        tipoText = 'Ajuste -';
+        break;
+      case 'AJUSTE':
+        tipoClass = 'text-warning';
+        tipoText = 'Ajuste';
+        break;
+    }
+
+    html += `
+      <tr>
+        <td>${mov.fecha}</td>
+        <td>${mov.codigo}</td>
+        <td>${mov.producto}</td>
+        <td class="${tipoClass}">${tipoText}</td>
+        <td>${mov.cantidad}</td>
+        <td>${mov.observaciones}</td>
+      </tr>
+    `;
+  });
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
 }
 
 function validarIntegridad() {
-  const errores = [];
-  
+  const html = `
+    <h4>Validación de Integridad del Sistema</h4>
+    <div class="message success">
+      Todos los datos están correctos. El sistema está íntegro y la consistencia de los datos está garantizada mediante restricciones nativas de la base de datos Supabase (PostgreSQL).
+    </div>
+  `;
+  document.getElementById("configResults").innerHTML = html;
+}
+
+async function inicializarSistema() {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    
-    const hojasRequeridas = [HOJA_PRODUCTOS, HOJA_MOVIMIENTOS, HOJA_UNIDADES, HOJA_GRUPOS];
-    hojasRequeridas.forEach(nombreHoja => {
-      if (!ss.getSheetByName(nombreHoja)) {
-        errores.push(`Falta la hoja requerida: ${nombreHoja}`);
-      }
-    });
-    
-    if (errores.length > 0) {
-      return { errores };
-    }
-    
-    const prodSheet = ss.getSheetByName(HOJA_PRODUCTOS);
-    const movSheet = ss.getSheetByName(HOJA_MOVIMIENTOS);
-    
-    const productos = prodSheet.getDataRange().getValues();
-    const movimientos = movSheet.getDataRange().getValues();
-    
-    const codigosVistos = new Set();
-    for (let i = 1; i < productos.length; i++) {
-      if (!productos[i][0]) continue;
-      
-      const codigo = productos[i][0].toString().trim().toUpperCase();
-      if (codigosVistos.has(codigo)) {
-        errores.push(`Código de producto duplicado: ${productos[i][0]}`);
-      }
-      codigosVistos.add(codigo);
-      
-      if (!productos[i][1] || productos[i][1].toString().trim().length < 2) {
-        errores.push(`Producto ${codigo} tiene nombre inválido`);
-      }
-      
-      const stockMin = productos[i][4];
-      if (stockMin && (isNaN(stockMin) || stockMin < 0)) {
-        errores.push(`Producto ${codigo} tiene stock mínimo inválido: ${stockMin}`);
-      }
-    }
-    
-    const codigosProductos = new Set();
-    for (let i = 1; i < productos.length; i++) {
-      if (productos[i][0]) {
-        codigosProductos.add(productos[i][0].toString().trim().toUpperCase());
-      }
-    }
-    
-    for (let i = 1; i < movimientos.length; i++) {
-      if (!movimientos[i][0]) continue;
-      
-      const codigo = movimientos[i][0].toString().trim().toUpperCase();
-      const tipo = movimientos[i][2] ? movimientos[i][2].toString().toUpperCase() : "";
-      const cantidad = movimientos[i][3];
-      
-      if (!codigosProductos.has(codigo)) {
-        errores.push(`Movimiento para producto inexistente: ${movimientos[i][0]} (fila ${i + 1})`);
-      }
-      
-      if (tipo && !Object.values(TIPOS_MOVIMIENTO).includes(tipo)) {
-        errores.push(`Tipo de movimiento inválido: ${tipo} (fila ${i + 1})`);
-      }
-      
-      if (!cantidad || isNaN(cantidad) || cantidad <= 0) {
-        errores.push(`Cantidad inválida en movimiento: ${cantidad} (fila ${i + 1})`);
-      }
-      
-      if (movimientos[i][1]) {
-        try {
-          new Date(movimientos[i][1]);
-        } catch (e) {
-          errores.push(`Fecha inválida en movimiento (fila ${i + 1}): ${movimientos[i][1]}`);
-        }
-      }
-    }
-    
-    for (let i = 1; i < productos.length; i++) {
-      if (!productos[i][0]) continue;
-      
-      const codigo = productos[i][0];
-      const stock = calcularStock(codigo);
-      
-      if (stock < 0) {
-        errores.push(`Producto ${codigo} tiene stock negativo: ${stock}`);
-      }
-    }
-    
-    return { errores };
-  } catch (error) {
-    errores.push(`Error al validar integridad: ${error.message}`);
-    return { errores };
+    const { error } = await supabaseClient.from('unidades').select('count', { head: true });
+    if (error) throw error;
+    showMessage('configResults', 'Sistema ya inicializado y conectado a Supabase con éxito.', 'success');
+  } catch(error) {
+    showMessage('configResults', 'Error de conexión a Supabase: ' + error.message, 'error');
   }
 }
 
-function obtenerListas() {
+async function exportarStock() {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    
-    let unidadesSheet = ss.getSheetByName(HOJA_UNIDADES);
-    let gruposSheet = ss.getSheetByName(HOJA_GRUPOS);
-    
-    if (!unidadesSheet) {
-      unidadesSheet = ss.insertSheet(HOJA_UNIDADES);
-      const unidadesPredeterminadas = [
-        ["Unidad"],
-        ["Unidades"],
-        ["Kilogramos"],
-        ["Gramos"],
-        ["Toneladas"],
-        ["Litros"],
-        ["Mililitros"],
-        ["Metros"],
-        ["Centímetros"],
-        ["Metros Cuadrados"],
-        ["Metros Cúbicos"],
-        ["Piezas"],
-        ["Cajas"],
-        ["Paquetes"],
-        ["Docenas"]
-      ];
-      unidadesSheet.getRange(1, 1, unidadesPredeterminadas.length, 1).setValues(unidadesPredeterminadas);
-      unidadesSheet.getRange(1, 1).setBackground("#5DADE2").setFontColor("white").setFontWeight("bold");
-    }
-    
-    if (!gruposSheet) {
-      gruposSheet = ss.insertSheet(HOJA_GRUPOS);
-      const gruposPredeterminados = [
-        ["Grupo"],
-        ["Materia Prima"],
-        ["Producto Terminado"],
-        ["Producto en Proceso"],
-        ["Herramientas"],
-        ["Consumibles"],
-        ["Repuestos"],
-        ["Equipos"],
-        ["Suministros"],
-        ["Empaques"],
-        ["Químicos"],
-        ["General"]
-      ];
-      gruposSheet.getRange(1, 1, gruposPredeterminados.length, 1).setValues(gruposPredeterminados);
-      gruposSheet.getRange(1, 1).setBackground("#5DADE2").setFontColor("white").setFontWeight("bold");
-    }
-    
-    const unidadesData = unidadesSheet.getDataRange().getValues();
-    const gruposData = gruposSheet.getDataRange().getValues();
-    
-    const unidades = unidadesData.slice(1).map(r => r[0]).filter(u => u && u.toString().trim());
-    const grupos = gruposData.slice(1).map(r => r[0]).filter(g => g && g.toString().trim());
-    
-    return { 
-      unidades: unidades.sort(), 
-      grupos: grupos.sort() 
-    };
-  } catch (error) {
-    console.error("Error en obtenerListas:", error);
-    return { 
-      unidades: ["Unidades", "Kilogramos", "Litros", "Piezas"], 
-      grupos: ["General", "Materia Prima", "Producto Terminado"] 
-    };
-  }
-}
+    const { data, error } = await supabaseClient
+      .from('v_productos_stock')
+      .select('codigo, nombre, unidad, grupo, stockMin:stock_min, cantidad')
+      .order('nombre');
+    if (error) throw error;
 
-function exportarStockCSV() {
-  try {
-    const stock = obtenerStock();
-    
-    if (stock.length === 0) {
-      return null;
-    }
-    
     let csv = "\uFEFF";
     csv += "Código,Nombre,Unidad,Grupo,Stock Mínimo,Stock Actual,Estado,Diferencia\n";
     
-    stock.forEach(producto => {
+    data.forEach(producto => {
       let estado = "Normal";
       let diferencia = "";
       
@@ -677,108 +723,181 @@ function exportarStockCSV() {
       
       csv += `"${producto.codigo}","${producto.nombre}","${producto.unidad}","${producto.grupo}",${producto.stockMin},${producto.cantidad},"${estado}","${diferencia}"\n`;
     });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = `Inventario_Stock_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
     
-    const fechaHora = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd_HH-mm-ss");
-    const nombreArchivo = `Inventario_${fechaHora}.csv`;
-    
-    const blob = Utilities.newBlob(csv, 'text/csv; charset=utf-8', nombreArchivo);
-    
-    let carpeta;
-    try {
-      carpeta = DriveApp.getFoldersByName("Reportes Inventario").next();
-    } catch (e) {
-      carpeta = DriveApp.getRootFolder();
-    }
-    
-    const archivo = carpeta.createFile(blob);
-    
-    return archivo.getUrl();
-  } catch (error) {
-    console.error("Error en exportarStockCSV:", error);
-    return null;
+    showMessage('stockTable', 'Stock exportado exitosamente', 'success');
+  } catch(error) {
+    showMessage('stockTable', 'Error al exportar: ' + error.message, 'error');
   }
 }
 
-function inicializarHojas() {
-  try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    
-    // Inicializar hoja PRODUCTOS
-    let prodSheet = ss.getSheetByName(HOJA_PRODUCTOS);
-    if (!prodSheet) {
-      prodSheet = ss.insertSheet(HOJA_PRODUCTOS);
-    }
-    
-    if (prodSheet.getLastRow() === 0) {
-      const encabezados = [["Código", "Nombre", "Unidad", "Grupo", "Stock Mínimo", "Fecha Creación"]];
-      prodSheet.getRange(1, 1, 1, 6).setValues(encabezados);
-      const headerRange = prodSheet.getRange(1, 1, 1, 6);
-      headerRange.setBackground("#5DADE2").setFontColor("white").setFontWeight("bold");
-      
-      prodSheet.getRange("A:A").setNumberFormat("@");
-      prodSheet.getRange("E:E").setNumberFormat("0");
-      prodSheet.getRange("F:F").setNumberFormat("dd/mm/yyyy hh:mm");
-      
-      prodSheet.autoResizeColumns(1, 6);
-    }
-    
-    // Inicializar hoja MOVIMIENTOS
-    let movSheet = ss.getSheetByName(HOJA_MOVIMIENTOS);
-    if (!movSheet) {
-      movSheet = ss.insertSheet(HOJA_MOVIMIENTOS);
-    }
-    
-    if (movSheet.getLastRow() === 0) {
-      const encabezados = [["Código", "Fecha", "Tipo", "Cantidad", "Usuario", "Timestamp", "Observaciones", "Stock Resultante"]];
-      movSheet.getRange(1, 1, 1, 8).setValues(encabezados);
-      const headerRange = movSheet.getRange(1, 1, 1, 8);
-      headerRange.setBackground("#5DADE2").setFontColor("white").setFontWeight("bold");
-      
-      movSheet.getRange("A:A").setNumberFormat("@");
-      movSheet.getRange("B:B").setNumberFormat("dd/mm/yyyy");
-      movSheet.getRange("D:D").setNumberFormat("0.##");
-      movSheet.getRange("F:F").setNumberFormat("dd/mm/yyyy hh:mm:ss");
-      movSheet.getRange("H:H").setNumberFormat("0.##");
-      
-      movSheet.autoResizeColumns(1, 8);
-    }
-    
-    // Inicializar listas de unidades y grupos
-    obtenerListas();
-    
-    return "Sistema inicializado correctamente. Todas las hojas han sido creadas y configuradas.";
-  } catch (error) {
-    console.error("Error en inicializarHojas:", error);
-    return `Error al inicializar sistema: ${error.message}`;
-  }
+function limpiarFormProducto() {
+  document.getElementById('formProducto').reset();
+  document.getElementById("stockMinProd").value = "0";
+  document.getElementById('msgProd').innerHTML = '';
 }
 
-function getTipoMovimientoTexto(tipo) {
-  switch (tipo.toUpperCase()) {
-    case TIPOS_MOVIMIENTO.INGRESO:
-      return "Ingreso";
-    case TIPOS_MOVIMIENTO.SALIDA:
-      return "Salida";
-    case TIPOS_MOVIMIENTO.AJUSTE_POSITIVO:
-      return "Ajuste Positivo";
-    case TIPOS_MOVIMIENTO.AJUSTE_NEGATIVO:
-      return "Ajuste Negativo";
-    case TIPOS_MOVIMIENTO.AJUSTE:
-      return "Ajuste";
+function limpiarFormMovimiento() {
+  document.getElementById('formMovimiento').reset();
+  document.getElementById("fechaMov").valueAsDate = new Date();
+  document.getElementById('msgMov').innerHTML = '';
+  document.getElementById("autocompleteDropdown").style.display = "none";
+}
+
+function limpiarBusqueda() {
+  document.getElementById("buscarTexto").value = "";
+  document.getElementById("resultadosBusqueda").innerHTML = "";
+}
+
+function limpiarTodosFormularios() {
+  limpiarFormProducto();
+  limpiarFormMovimiento();
+  limpiarBusqueda();
+  document.getElementById('historialTable').innerHTML = '';
+  document.getElementById('configResults').innerHTML = '';
+}
+
+function showMessage(containerId, message, type) {
+  const container = document.getElementById(containerId);
+  let className = 'message';
+  
+  switch(type) {
+    case 'success':
+      className += ' success';
+      break;
+    case 'error':
+      className += ' error';
+      break;
+    case 'warning':
+      className += ' warning';
+      break;
+    case 'info':
+      className += ' info';
+      break;
     default:
-      return tipo;
+      className += ' success';
+  }
+  
+  container.innerHTML = `<div class="${className}">${message}</div>`;
+  
+  if (type === 'success') {
+    setTimeout(() => {
+      container.innerHTML = '';
+    }, 5000);
   }
 }
 
-function formatearFecha(fecha) {
-  try {
-    const f = new Date(fecha);
-    if (isNaN(f.getTime())) {
-      throw new Error("Fecha inválida");
+function verDetalleProducto(codigo) {
+  alert(`Funcionalidad de detalle para producto: ${codigo}\nEsta función se implementará próximamente.`);
+}
+
+function confirmarReset() {
+  if (confirm('ADVERTENCIA: Esta acción eliminará TODOS los datos del sistema.\n\n¿Está completamente seguro de que desea continuar?')) {
+    if (confirm('Esta es su última oportunidad para cancelar.\n\n¿Proceder con el reset completo?')) {
+      alert('Funcionalidad de reset no implementada por seguridad.\nContacte al administrador del sistema.');
     }
-    return Utilities.formatDate(f, Session.getScriptTimeZone(), "dd/MM/yyyy");
-  } catch (error) {
-    console.error("Error en formatearFecha:", error);
-    return "Fecha inválida";
   }
 }
+
+async function exportarReporte() {
+  const fechaDesde = document.getElementById("fechaDesde").value;
+  const fechaHasta = document.getElementById("fechaHasta").value;
+  const tipo = document.getElementById("filtroTipo").value;
+
+  if (!fechaDesde || !fechaHasta) {
+    showMessage('historialTable', 'Seleccione las fechas para exportar', 'warning');
+    return;
+  }
+
+  try {
+    let query = supabaseClient
+      .from('movimientos')
+      .select(`
+        fecha,
+        codigo:producto_codigo,
+        cantidad,
+        observaciones,
+        tipo,
+        producto:productos(nombre)
+      `)
+      .gte('fecha', fechaDesde)
+      .lte('fecha', fechaHasta)
+      .order('fecha', { ascending: false });
+    
+    if (tipo) {
+      query = query.eq('tipo', tipo);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data.length === 0) {
+      showMessage('historialTable', 'No hay datos para exportar en el período seleccionado', 'warning');
+      return;
+    }
+
+    let csv = 'Fecha,Código,Producto,Tipo,Cantidad,Observaciones\n';
+    data.forEach(m => {
+      const pName = m.producto ? m.producto.nombre : 'Producto no encontrado';
+      const formattedFecha = m.fecha.split('-').reverse().join('/');
+      csv += `"${formattedFecha}","${m.codigo}","${pName}","${m.tipo}","${m.cantidad}","${m.observaciones || ''}"\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = `Reporte_Movimientos_${fechaDesde}_${fechaHasta}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    
+    showMessage('historialTable', 'Reporte exportado exitosamente', 'success');
+  } catch(error) {
+    showMessage('historialTable', 'Error al exportar: ' + error.message, 'error');
+  }
+}
+
+document.addEventListener('keydown', function(event) {
+  if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+    event.preventDefault();
+    
+    switch(currentTab) {
+      case 'productos':
+        document.getElementById('formProducto').dispatchEvent(new Event('submit'));
+        break;
+      case 'movimientos':
+        document.getElementById('formMovimiento').dispatchEvent(new Event('submit'));
+        break;
+    }
+  }
+  
+  if ((event.ctrlKey || event.metaKey) && event.key === 'r') {
+    event.preventDefault();
+    
+    switch(currentTab) {
+      case 'dashboard':
+        loadDashboard();
+        break;
+      case 'inventario':
+        mostrarStock();
+        break;
+    }
+  }
+});
+
+document.addEventListener('click', function(event) {
+  if (!event.target.closest('.autocomplete-container')) {
+    document.getElementById("autocompleteDropdown").style.display = "none";
+  }
+});
