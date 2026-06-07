@@ -498,6 +498,36 @@ tr:hover {
   margin-bottom: 20px;
 }
 
+/* Search Filter Group in Inventario */
+.search-filter-group {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.search-filter-group input {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 2px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.search-filter-group input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px rgba(93, 173, 226, 0.25);
+}
+
+.search-filter-group .btn {
+  white-space: nowrap;
+  padding: 10px 16px;
+}
+
 @media (max-width: 768px) {
   .sidebar {
     width: 100%;

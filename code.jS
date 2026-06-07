@@ -14,6 +14,7 @@ try {
 let currentTab = 'dashboard';
 let searchTimeout;
 let autocompleteTimeout;
+let localStockData = [];
 
 function initializeApp() {
   initTheme();
@@ -540,100 +541,15 @@ function handleTipoChange() {
   }
 }
 
-async function buscarProducto() {
-  const texto = document.getElementById("buscarTexto").value.trim().toLowerCase();
-  if (!texto) {
-    showMessage('resultadosBusqueda', 'Ingrese un texto para buscar', 'warning');
-    return;
-  }
-
-  try {
-    const { data, error } = await supabaseClient
-      .from('v_productos_stock')
-      .select('*')
-      .or(`codigo.ilike.%${texto}%,nombre.ilike.%${texto}%,grupo.ilike.%${texto}%`)
-      .order('nombre');
-    
-    if (error) throw error;
-    
-    const formattedData = data.map(r => [
-      r.codigo, r.nombre, r.unidad, r.grupo, r.stock_min, r.cantidad
-    ]);
-    displaySearchResults(formattedData);
-  } catch(error) {
-    showMessage('resultadosBusqueda', 'Error en la búsqueda: ' + error.message, 'error');
-  }
-}
-
-function buscarEnTiempoReal() {
-  clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => {
-    const texto = document.getElementById("buscarTexto").value.trim();
-    if (texto.length >= 2) {
-      buscarProducto();
-    } else if (texto.length === 0) {
-      document.getElementById('resultadosBusqueda').innerHTML = '';
-    }
-  }, 300);
-}
-
-function displaySearchResults(data) {
-  const container = document.getElementById('resultadosBusqueda');
-  
-  if (data.length === 0) {
-    container.innerHTML = '<div class="message warning">No se encontraron productos</div>';
-    return;
-  }
-
-  let html = `
-    <table>
-      <thead>
-        <tr>
-          <th>Código</th>
-          <th>Nombre</th>
-          <th>Unidad</th>
-          <th>Grupo</th>
-          <th>Stock Mín.</th>
-          <th>Stock Actual</th>
-          <th>Estado</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
-
-  data.forEach(producto => {
-    const [codigo, nombre, unidad, grupo, stockMin, stockActual] = producto;
-    let statusClass = 'status-normal';
-    let estado = 'Normal';
-    
-    if (stockActual <= 0) {
-      statusClass = 'status-zero';
-      estado = 'Sin Stock';
-    } else if (stockActual <= stockMin && stockMin > 0) {
-      statusClass = 'status-low';
-      estado = 'Stock Bajo';
-    }
-
-    html += `
-      <tr class="${statusClass}">
-        <td>${codigo}</td>
-        <td>${nombre}</td>
-        <td>${unidad}</td>
-        <td>${grupo}</td>
-        <td>${stockMin}</td>
-        <td>${stockActual}</td>
-        <td>${estado}</td>
-      </tr>
-    `;
-  });
-
-  html += '</tbody></table>';
-  container.innerHTML = html;
-}
-
 async function mostrarStock() {
   const loading = document.getElementById("loading");
   const container = document.getElementById("stockTable");
+  
+  // Reset the search filter input
+  const searchInput = document.getElementById("buscarInventarioInput");
+  if (searchInput) {
+    searchInput.value = "";
+  }
   
   loading.style.display = "block";
   
@@ -644,8 +560,9 @@ async function mostrarStock() {
       .order('nombre');
     if (error) throw error;
 
+    localStockData = data || [];
     loading.style.display = "none";
-    displayStockTable(data, container);
+    displayStockTable(localStockData, container);
   } catch(error) {
     loading.style.display = "none";
     showMessage('stockTable', 'Error al cargar stock: ' + error.message, 'error');
@@ -654,7 +571,7 @@ async function mostrarStock() {
 
 function displayStockTable(data, container) {
   if (data.length === 0) {
-    container.innerHTML = '<div class="message warning">No hay productos registrados</div>';
+    container.innerHTML = '<div class="message warning">No hay productos registrados matching el filtro</div>';
     return;
   }
 
@@ -709,6 +626,40 @@ function displayStockTable(data, container) {
 
   html += '</tbody></table>';
   container.innerHTML = html;
+}
+
+function filtrarInventario() {
+  const searchInput = document.getElementById("buscarInventarioInput");
+  if (!searchInput) return;
+  
+  const query = searchInput.value.trim().toLowerCase();
+  const container = document.getElementById("stockTable");
+  if (!container) return;
+  
+  if (query === "") {
+    displayStockTable(localStockData, container);
+    return;
+  }
+  
+  const filtered = localStockData.filter(p => {
+    const codigo = (p.codigo || "").toLowerCase();
+    const nombre = (p.nombre || "").toLowerCase();
+    const grupo = (p.grupo || "").toLowerCase();
+    return codigo.includes(query) || nombre.includes(query) || grupo.includes(query);
+  });
+  
+  displayStockTable(filtered, container);
+}
+
+function limpiarBuscarInventario() {
+  const searchInput = document.getElementById("buscarInventarioInput");
+  if (searchInput) {
+    searchInput.value = "";
+  }
+  const container = document.getElementById("stockTable");
+  if (container) {
+    displayStockTable(localStockData, container);
+  }
 }
 
 async function mostrarAlertas() {
@@ -1171,8 +1122,8 @@ async function listarProductosEnGestion() {
         <table>
           <thead>
             <tr>
-              <th>Código</th>
-              <th>Nombre</th>
+              <th>ID Producto</th>
+              <th>Producto</th>
               <th>Unidad</th>
               <th>Grupo</th>
               <th>Stock Mín.</th>
@@ -1349,7 +1300,7 @@ async function importarMovimientosCSV(event) {
       if (movementsToInsert.length === 0) {
         let msg = 'No se importó ningún movimiento nuevo.';
         if (skippedInvalidProduct > 0 || skippedInvalidAmount > 0 || skippedDuplicateKey > 0) {
-          msg += ` (${skippedInvalidProduct} omitidos por producto inexistente, ${skippedDuplicateKey} por clave duplicada, ${skippedInvalidAmount} por cantidad no válida).`;
+          msg += ` (${skippedInvalidProduct} omitidos por producto inexistente [registre nuevos productos en Gestión de Productos primero], ${skippedDuplicateKey} por clave duplicada, ${skippedInvalidAmount} por cantidad no válida).`;
         }
         showMessage('msgMovCsv', msg, 'warning');
         event.target.value = '';
@@ -1360,7 +1311,7 @@ async function importarMovimientosCSV(event) {
       if (insertErr) throw insertErr;
 
       showMessage('msgMovCsv', `Importación exitosa: se registraron ${movementsToInsert.length} movimientos de tipo INGRESO. ` +
-        `(${skippedInvalidProduct} omitidos por producto inexistente, ${skippedDuplicateKey} por clave (KEY) duplicada, ${skippedInvalidAmount} por cantidad no válida, ${emptyCount} filas vacías/sin clave).`, 'success');
+        `(${skippedInvalidProduct} omitidos por producto inexistente [registre nuevos productos en Gestión de Productos primero], ${skippedDuplicateKey} por clave (KEY) duplicada, ${skippedInvalidAmount} por cantidad no válida, ${emptyCount} filas vacías/sin clave).`, 'success');
 
       event.target.value = '';
       
@@ -1402,15 +1353,10 @@ function limpiarFormMovimiento() {
   }
 }
 
-function limpiarBusqueda() {
-  document.getElementById("buscarTexto").value = "";
-  document.getElementById("resultadosBusqueda").innerHTML = "";
-}
-
 function limpiarTodosFormularios() {
   limpiarFormProducto();
   limpiarFormMovimiento();
-  limpiarBusqueda();
+  limpiarBuscarInventario();
   document.getElementById('historialTable').innerHTML = '';
   document.getElementById('configResults').innerHTML = '';
 }

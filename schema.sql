@@ -63,16 +63,12 @@ GROUP BY p.codigo, p.nombre, u.nombre, g.nombre, p.stock_min;
 
 -- 6. Insert Default Units
 INSERT INTO unidades (nombre) VALUES
-('Unidades'), ('Kilogramos'), ('Gramos'), ('Toneladas'), ('Litros'),
-('Mililitros'), ('Metros'), ('Centímetros'), ('Metros Cuadrados'),
-('Metros Cúbicos'), ('Piezas'), ('Cajas'), ('Paquetes'), ('Docenas')
+('UND'), ('m'), ('m3'), ('kg')
 ON CONFLICT (nombre) DO NOTHING;
 
 -- 7. Insert Default Groups
 INSERT INTO grupos (nombre) VALUES
-('General'), ('Materia Prima'), ('Producto Terminado'), ('Producto en Proceso'),
-('Herramientas'), ('Consumibles'), ('Repuestos'), ('Equipos'), ('Suministros'),
-('Empaques'), ('Químicos')
+('General'), ('PAT'), ('BD'), ('CANAL')
 ON CONFLICT (nombre) DO NOTHING;
 
 -- 8. Enable Row Level Security (RLS)

@@ -65,12 +65,7 @@
               Reportes
             </a>
           </li>
-          <li class="nav-item">
-            <a class="nav-link" onclick="showTab('buscar')">
-              <span class="nav-icon">🔍</span>
-              Buscar
-            </a>
-          </li>
+
           <li class="nav-item">
             <a class="nav-link" onclick="showTab('configuracion')">
               <span class="nav-icon">⚙️</span>
@@ -122,15 +117,15 @@
               <form id="formProducto" onsubmit="registrarProducto(event)">
                 <div class="form-grid">
                   <div class="form-group">
-                    <label for="codigoProd">Código *</label>
-                    <input id="codigoProd" type="text" placeholder="Código único del producto" required>
+                    <label for="codigoProd">ID Producto *</label>
+                    <input id="codigoProd" type="text" placeholder="ID único del producto" required>
                   </div>
                   <div class="form-group">
-                    <label for="nombreProd">Nombre *</label>
+                    <label for="nombreProd">Producto *</label>
                     <input id="nombreProd" type="text" placeholder="Nombre del producto" required>
                   </div>
                   <div class="form-group">
-                    <label for="unidadProd">Unidad de Medida</label>
+                    <label for="unidadProd">Unidad</label>
                     <select id="unidadProd" required></select>
                   </div>
                   <div class="form-group">
@@ -160,7 +155,7 @@
             <div class="card-body">
               <p style="margin-bottom: 15px; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.4;">
                 Seleccione un archivo CSV para registrar múltiples productos en lote. El archivo debe incluir las cabeceras: 
-                <strong>Código</strong>, <strong>Nombre</strong>, <strong>Unidad</strong>, <strong>Grupo</strong>, y <strong>Stock Mínimo</strong>.
+                <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Unidad</strong>, <strong>Grupo</strong>, y <strong>Stock Mín.</strong>
               </p>
               <div class="actions">
                 <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="importarCSV(event)">
@@ -257,6 +252,7 @@
               <p style="margin-bottom: 15px; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.4;">
                 Seleccione un archivo CSV para registrar múltiples movimientos de tipo <strong>Ingreso</strong> en lote. 
                 El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>ID Producto</strong>, <strong>Producto</strong> y <strong>Cantidad</strong>.
+                <br><strong style="color: var(--status-zero-text);">Nota importante:</strong> Los productos a importar ya deben existir en el sistema. Registre los nuevos productos manualmente en la pestaña <strong>Gestión de Productos</strong> o importando un archivo CSV de productos primero.
               </p>
               <div class="actions">
                 <input type="file" id="csvMovFileInput" accept=".csv" style="display: none;" onchange="importarMovimientosCSV(event)">
@@ -287,6 +283,12 @@
                 </button>
                 <button class="btn btn-warning" onclick="mostrarAlertas()">
                   Solo Alertas
+                </button>
+              </div>
+              <div class="search-filter-group">
+                <input type="text" id="buscarInventarioInput" placeholder="Buscar por código, nombre o grupo..." onkeyup="filtrarInventario()">
+                <button class="btn btn-secondary" onclick="limpiarBuscarInventario()">
+                  Limpiar Filtro
                 </button>
               </div>
               <div id="loading" class="loading">Cargando inventario...</div>
@@ -342,35 +344,7 @@
         </div>
       </div>
 
-      <div id="buscar" class="tab-content">
-        <div class="content-header">
-          <h2>Búsqueda de Productos</h2>
-        </div>
-        <div class="content-body">
-          <div class="card">
-            <div class="card-header">Buscar Productos</div>
-            <div class="card-body">
-              <div class="form-grid">
-                <div class="form-group">
-                  <label for="buscarTexto">Buscar por código, nombre o grupo</label>
-                  <input id="buscarTexto" type="text" placeholder="Escriba para buscar..." onkeyup="buscarEnTiempoReal()">
-                </div>
-              </div>
-              <div class="actions">
-                <button class="btn btn-primary" onclick="buscarProducto()">
-                  Buscar
-                </button>
-                <button class="btn btn-secondary" onclick="limpiarBusqueda()">
-                  Limpiar
-                </button>
-              </div>
-              <div class="table-container">
-                <div id="resultadosBusqueda"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+
 
       <div id="configuracion" class="tab-content">
         <div class="content-header">
