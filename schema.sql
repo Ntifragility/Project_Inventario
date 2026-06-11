@@ -111,10 +111,9 @@ RETURNS VOID AS $$
 DECLARE
     is_authorized BOOLEAN;
 BEGIN
-    -- Validate DNI against secure server-side list
+    -- Validate DNI against secure database table
     SELECT EXISTS(
-        SELECT 1 FROM (VALUES ('48204199'), ('70429841')) AS auth_dnis(dni)
-        WHERE dni = admin_dni
+        SELECT 1 FROM administradores WHERE dni = admin_dni
     ) INTO is_authorized;
 
     IF NOT is_authorized THEN
@@ -129,3 +128,23 @@ BEGIN
     DELETE FROM productos;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 14. Create Administrators Table (for secure DNI verification)
+CREATE TABLE IF NOT EXISTS administradores (
+    dni VARCHAR(20) PRIMARY KEY,
+    nombre VARCHAR(100),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- Enable RLS on administradores table
+ALTER TABLE administradores ENABLE ROW LEVEL SECURITY;
+
+-- Allow authenticated users to read the list of administrators
+CREATE POLICY "Allow authenticated read on administradores" ON administradores FOR SELECT TO authenticated USING (true);
+
+-- Populate default authorized admin DNIs
+INSERT INTO administradores (dni, nombre) VALUES
+('48204199', 'Administrador Principal 1'),
+('70429841', 'Administrador Principal 2')
+ON CONFLICT (dni) DO NOTHING;
+
