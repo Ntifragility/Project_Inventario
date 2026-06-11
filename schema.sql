@@ -77,11 +77,19 @@ ALTER TABLE grupos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE productos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE movimientos ENABLE ROW LEVEL SECURITY;
 
--- 9. Create Permissive Policies for the Anon Role (so client-side CRUD works)
-CREATE POLICY "Allow anonymous access on unidades" ON unidades FOR ALL TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "Allow anonymous access on grupos" ON grupos FOR ALL TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "Allow anonymous access on productos" ON productos FOR ALL TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "Allow anonymous access on movimientos" ON movimientos FOR ALL TO anon USING (true) WITH CHECK (true);
+-- 9. Create Secure Policies for Authenticated Users (blocking anonymous public CRUD)
+CREATE POLICY "Allow authenticated read on unidades" ON unidades FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Allow authenticated write on unidades" ON unidades FOR INSERT TO authenticated WITH CHECK (true);
+
+CREATE POLICY "Allow authenticated read on grupos" ON grupos FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Allow authenticated write on grupos" ON grupos FOR INSERT TO authenticated WITH CHECK (true);
+
+CREATE POLICY "Allow authenticated read on productos" ON productos FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Allow authenticated write on productos" ON productos FOR INSERT TO authenticated WITH CHECK (true);
+
+-- Movements should be insert/read only for audit trail integrity
+CREATE POLICY "Allow authenticated read on movimientos" ON movimientos FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Allow authenticated write on movimientos" ON movimientos FOR INSERT TO authenticated WITH CHECK (true);
 
 -- 10. Create Resets Log Table
 CREATE TABLE IF NOT EXISTS historial_resets (
@@ -93,5 +101,31 @@ CREATE TABLE IF NOT EXISTS historial_resets (
 -- 11. Enable Row Level Security (RLS) on Resets Log Table
 ALTER TABLE historial_resets ENABLE ROW LEVEL SECURITY;
 
--- 12. Create Permissive Policy for Anon Role to write/read reset history
-CREATE POLICY "Allow anonymous access on historial_resets" ON historial_resets FOR ALL TO anon USING (true) WITH CHECK (true);
+-- 12. Create Secure Policy for Resets Log
+CREATE POLICY "Allow authenticated write on historial_resets" ON historial_resets FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "Allow authenticated read on historial_resets" ON historial_resets FOR SELECT TO authenticated USING (true);
+
+-- 13. Create Secure Reset Stored Function (SECURITY DEFINER allows bypassing direct table deletes)
+CREATE OR REPLACE FUNCTION reset_sistema_autorizado(admin_dni TEXT)
+RETURNS VOID AS $$
+DECLARE
+    is_authorized BOOLEAN;
+BEGIN
+    -- Validate DNI against secure server-side list
+    SELECT EXISTS(
+        SELECT 1 FROM (VALUES ('48204199'), ('70429841')) AS auth_dnis(dni)
+        WHERE dni = admin_dni
+    ) INTO is_authorized;
+
+    IF NOT is_authorized THEN
+        RAISE EXCEPTION 'Operación cancelada: El DNI ingresado no está autorizado.';
+    END IF;
+
+    -- Insert into reset log
+    INSERT INTO historial_resets (dni) VALUES (admin_dni);
+
+    -- Delete movements and products safely
+    DELETE FROM movimientos;
+    DELETE FROM productos;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

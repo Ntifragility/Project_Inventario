@@ -20,13 +20,70 @@ function initializeApp() {
   initTheme();
   setDefaultDates();
   if (supabaseClient) {
-    loadListas();
-    loadDashboard();
+    // Escuchar cambios de estado de autenticación (login, logout)
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      handleAuthStateChange(event, session);
+    });
   } else {
     showMessage('statsGrid', 'Error: No se pudo conectar a Supabase. Verifique las credenciales en config.js.', 'error');
   }
   handleTipoChange();
-  showTab('dashboard');
+}
+
+function handleAuthStateChange(event, session) {
+  const appContainer = document.querySelector('.app-container');
+  const loginContainer = document.getElementById('login-container');
+  const userProfileCard = document.getElementById('userProfileCard');
+  const userEmailSpan = document.getElementById('userEmailSpan');
+
+  if (session) {
+    // Usuario autenticado
+    if (loginContainer) loginContainer.style.display = 'none';
+    if (appContainer) appContainer.style.display = 'flex';
+    if (userProfileCard) userProfileCard.style.display = 'flex';
+    if (userEmailSpan) userEmailSpan.textContent = session.user.email;
+
+    loadListas();
+    loadDashboard();
+    showTab('dashboard');
+  } else {
+    // Usuario no autenticado
+    if (appContainer) appContainer.style.display = 'none';
+    if (userProfileCard) userProfileCard.style.display = 'none';
+    if (loginContainer) loginContainer.style.display = 'flex';
+  }
+}
+
+async function loginUsuario(event) {
+  event.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const loginMsg = document.getElementById('loginMsg');
+
+  if (loginMsg) {
+    loginMsg.innerHTML = '<div class="message info">Ingresando...</div>';
+  }
+
+  try {
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    if (loginMsg) loginMsg.innerHTML = '';
+  } catch (err) {
+    console.error('Error al iniciar sesión:', err);
+    if (loginMsg) {
+      loginMsg.innerHTML = `<div class="message error">Error: ${err.message || 'Credenciales incorrectas'}</div>`;
+    }
+  }
+}
+
+async function logoutUsuario() {
+  try {
+    const { error } = await supabaseClient.auth.signOut();
+    if (error) throw error;
+    limpiarTodosFormularios();
+  } catch (err) {
+    console.error('Error al cerrar sesión:', err);
+  }
 }
 
 function initTheme() {
@@ -484,12 +541,15 @@ async function registrarMovimiento(event) {
       }
     }
 
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    const activeUserEmail = user ? user.email : 'Usuario Sistema';
+
     const { error: e2 } = await supabaseClient.from('movimientos').insert([{
       producto_codigo: codigo,
       fecha,
       tipo,
       cantidad,
-      usuario: 'Usuario Sistema',
+      usuario: activeUserEmail,
       observaciones,
       key: movementKey
     }]);
@@ -1405,11 +1465,6 @@ async function confirmarReset() {
     if (dni === null) return; // User clicked Cancel
 
     const cleanDni = dni.trim();
-    const authorizedDnis = ['48204199', '70429841'];
-    if (!authorizedDnis.includes(cleanDni)) {
-      alert('Operación cancelada: El DNI ingresado no está autorizado para realizar esta acción.');
-      return;
-    }
 
     if (!confirm(`Se registrará el reset a nombre del DNI: ${cleanDni}.\n\n¿Proceder con el reset completo e irreversible?`)) {
       return;
@@ -1419,28 +1474,12 @@ async function confirmarReset() {
       throw new Error('Supabase client is not initialized.');
     }
 
-    // 1. Insert log of the reset
-    const { error: logError } = await supabaseClient
-      .from('historial_resets')
-      .insert([{ dni: cleanDni }]);
+    // Llamada segura a la función almacenada en la base de datos (RPC)
+    const { error: resetError } = await supabaseClient.rpc('reset_sistema_autorizado', {
+      admin_dni: cleanDni
+    });
     
-    if (logError) throw logError;
-
-    // 2. Delete all movements
-    const { error: delMovError } = await supabaseClient
-      .from('movimientos')
-      .delete()
-      .gt('id', 0);
-    
-    if (delMovError) throw delMovError;
-
-    // 3. Delete all products (this also cascades to movements just in case, but we cleared it already)
-    const { error: delProdError } = await supabaseClient
-      .from('productos')
-      .delete()
-      .neq('codigo', '');
-    
-    if (delProdError) throw delProdError;
+    if (resetError) throw resetError;
 
     // Clear all forms and search results
     limpiarTodosFormularios();

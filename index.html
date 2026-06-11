@@ -36,6 +36,13 @@
         <div class="sidebar-header">
           <h1>CCP - Materiales OT E&I</h1>
         </div>
+        <div class="user-profile-card" id="userProfileCard" style="display: none;">
+          <div class="user-info">
+            <span class="user-avatar">👤</span>
+            <span class="user-email" id="userEmailSpan">Cargando...</span>
+          </div>
+          <button type="button" class="btn-logout" onclick="logoutUsuario()" title="Cerrar Sesión">➔</button>
+        </div>
         <ul class="nav-menu">
           <li class="nav-item">
             <a class="nav-link active" onclick="showTab('dashboard')">
@@ -380,6 +387,27 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div id="login-container" class="login-overlay" style="display: none;">
+    <div class="login-card">
+      <div class="login-header">
+        <h2>Ingreso al Sistema</h2>
+        <p>CCP - Materiales OT E&I</p>
+      </div>
+      <form id="formLogin" onsubmit="loginUsuario(event)">
+        <div class="form-group">
+          <label for="loginEmail">Correo Electrónico</label>
+          <input type="email" id="loginEmail" placeholder="correo@ejemplo.com" required>
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Contraseña</label>
+          <input type="password" id="loginPassword" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Ingresar</button>
+      </form>
+      <div id="loginMsg"></div>
     </div>
   </div>
 
