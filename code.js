@@ -1015,14 +1015,14 @@ async function importarCSV(event) {
     }
 
     const headers = headerLine.split(delimiter).map(h => h.trim().toLowerCase());
-    const colCodigo = headers.findIndex(h => h.includes('cod') || h.includes('cód'));
-    const colNombre = headers.findIndex(h => h.includes('nom'));
-    const colUnidad = headers.findIndex(h => h.includes('uni'));
-    const colGrupo = headers.findIndex(h => h.includes('gru'));
-    const colStockMin = headers.findIndex(h => h.includes('stock_min') || h.includes('min') || h.includes('mín'));
+    const colCodigo = headers.indexOf('id producto');
+    const colNombre = headers.indexOf('producto');
+    const colUnidad = headers.indexOf('unidad');
+    const colGrupo = headers.indexOf('grupo');
+    const colStockMin = headers.findIndex(h => h === 'stock mín.' || h === 'stock min.' || h === 'stock min' || h === 'stock mín');
 
-    if (colCodigo === -1 || colNombre === -1) {
-      showMessage('msgCsv', 'Formato CSV incorrecto. El archivo debe contener al menos las columnas "Código" y "Nombre".', 'error');
+    if (colCodigo === -1 || colNombre === -1 || colUnidad === -1 || colGrupo === -1 || colStockMin === -1) {
+      showMessage('msgCsv', 'Formato CSV incorrecto. El archivo debe incluir exactamente las cabeceras: "ID Producto", "Producto", "Unidad", "Grupo", y "Stock Mín.".', 'error');
       event.target.value = '';
       return;
     }
@@ -1455,45 +1455,86 @@ function verDetalleProducto(codigo) {
   alert(`Funcionalidad de detalle para producto: ${codigo}\nEsta función se implementará próximamente.`);
 }
 
-async function confirmarReset() {
+function confirmarReset() {
+  document.getElementById("resetDniInput").value = "";
+  document.getElementById("resetDniMsg").innerHTML = "";
+  const errorContainer = document.getElementById("resetErrorContainer");
+  if (errorContainer) errorContainer.style.display = "none";
+  
+  document.getElementById("resetStep1").style.display = "block";
+  document.getElementById("resetStep2").style.display = "none";
+  document.getElementById("resetStepSuccess").style.display = "none";
+  
+  document.getElementById("resetModal").style.display = "flex";
+}
+
+function closeResetModal() {
+  document.getElementById("resetModal").style.display = "none";
+}
+
+function goToResetStep1() {
+  document.getElementById("resetStep1").style.display = "block";
+  document.getElementById("resetStep2").style.display = "none";
+}
+
+function goToResetStep2() {
+  const dniInput = document.getElementById("resetDniInput");
+  const dni = dniInput.value.trim();
+  const dniMsg = document.getElementById("resetDniMsg");
+  
+  if (!dni) {
+    dniMsg.innerHTML = '<span style="color: var(--status-zero-text); font-weight: 600;">El DNI es obligatorio.</span>';
+    return;
+  }
+  
+  if (!/^\d+$/.test(dni)) {
+    dniMsg.innerHTML = '<span style="color: var(--status-zero-text); font-weight: 600;">El DNI debe contener solo números.</span>';
+    return;
+  }
+  
+  dniMsg.innerHTML = "";
+  document.getElementById("resetConfirmDniLabel").textContent = dni;
+  
+  document.getElementById("resetStep1").style.display = "none";
+  document.getElementById("resetStep2").style.display = "block";
+}
+
+async function executeSystemReset() {
+  const dni = document.getElementById("resetDniInput").value.trim();
+  const progressContainer = document.getElementById("resetProgressContainer");
+  const actionButtons = document.getElementById("resetActionButtons");
+  const errorContainer = document.getElementById("resetErrorContainer");
+  
+  if (errorContainer) errorContainer.style.display = "none";
+  if (progressContainer) progressContainer.style.display = "block";
+  if (actionButtons) actionButtons.style.display = "none";
+
   try {
-    if (!confirm('ADVERTENCIA: Esta acción eliminará TODOS los datos del sistema (productos y movimientos) y quedará registrada.\n\n¿Está completamente seguro de que desea continuar?')) {
-      return;
-    }
-
-    const dni = prompt('Por favor, ingrese su DNI para autorizar y registrar esta operación:');
-    if (dni === null) return; // User clicked Cancel
-
-    const cleanDni = dni.trim();
-
-    if (!confirm(`Se registrará el reset a nombre del DNI: ${cleanDni}.\n\n¿Proceder con el reset completo e irreversible?`)) {
-      return;
-    }
-
     if (!supabaseClient) {
-      throw new Error('Supabase client is not initialized.');
+      throw new Error('El cliente Supabase no está inicializado.');
     }
 
-    // Llamada segura a la función almacenada en la base de datos (RPC)
     const { error: resetError } = await supabaseClient.rpc('reset_sistema_autorizado', {
-      admin_dni: cleanDni
+      admin_dni: dni
     });
     
     if (resetError) throw resetError;
 
-    // Clear all forms and search results
     limpiarTodosFormularios();
-
-    // Show success message
-    showMessage('configResults', 'El sistema ha sido restablecido a su estado inicial con éxito.', 'success');
-    alert('Sistema restablecido exitosamente.');
-
-    // Reload dashboard stats
-    loadDashboard();
     
+    document.getElementById("resetStep2").style.display = "none";
+    document.getElementById("resetStepSuccess").style.display = "block";
+
+    loadDashboard();
   } catch (error) {
     console.error('Error during system reset:', error);
-    showMessage('configResults', 'Error al restablecer el sistema: ' + error.message, 'error');
+    if (progressContainer) progressContainer.style.display = "none";
+    if (actionButtons) actionButtons.style.display = "flex";
+    
+    if (errorContainer) {
+      errorContainer.innerHTML = `<strong>Error:</strong> ${error.message || 'Error desconocido'}`;
+      errorContainer.style.display = "block";
+    }
   }
 }
 
