@@ -1,15 +1,10 @@
-// Initialize Supabase Client safely using a custom variable name
-// to avoid conflicts with the global 'supabase' object defined by the CDN.
-let supabaseClient;
-try {
-  if (typeof window.supabase !== 'undefined' && typeof SUPABASE_CONFIG !== 'undefined') {
-    supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.key);
-  } else {
-    console.error("Supabase SDK or SUPABASE_CONFIG is not loaded. Check your internet connection or config.js link.");
-  }
-} catch (e) {
-  console.error("Supabase client failed to initialize.", e);
-}
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase Client using environment variables
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+export const supabaseClient = createClient(supabaseUrl, supabaseKey);
 
 let currentTab = 'dashboard';
 let searchTimeout;
@@ -25,7 +20,7 @@ function initializeApp() {
       handleAuthStateChange(event, session);
     });
   } else {
-    showMessage('statsGrid', 'Error: No se pudo conectar a Supabase. Verifique las credenciales en config.js.', 'error');
+    showMessage('statsGrid', 'Error: No se pudo conectar a Supabase. Verifique las credenciales en .env.', 'error');
   }
   handleTipoChange();
 }
@@ -1633,3 +1628,41 @@ document.addEventListener('click', function(event) {
     document.getElementById("autocompleteDropdown").style.display = "none";
   }
 });
+
+// Bind all UI interaction functions to the window object so inline HTML event handlers continue working (Option 1)
+window.initializeApp = initializeApp;
+window.loginUsuario = loginUsuario;
+window.logoutUsuario = logoutUsuario;
+window.toggleTheme = toggleTheme;
+window.showTab = showTab;
+window.loadDashboard = loadDashboard;
+window.buscarProductoAutocompletado = buscarProductoAutocompletado;
+window.buscarProductoPorNombreAutocompletado = buscarProductoPorNombreAutocompletado;
+window.seleccionarProducto = seleccionarProducto;
+window.focusCodigoMov = focusCodigoMov;
+window.focusNombreMov = focusNombreMov;
+window.ocultarAutocompletado = ocultarAutocompletado;
+window.registrarProducto = registrarProducto;
+window.limpiarFormProducto = limpiarFormProducto;
+window.importarCSV = importarCSV;
+window.registrarMovimiento = registrarMovimiento;
+window.limpiarFormMovimiento = limpiarFormMovimiento;
+window.importarMovimientosCSV = importarMovimientosCSV;
+window.handleTipoChange = handleTipoChange;
+window.mostrarStock = mostrarStock;
+window.exportarStock = exportarStock;
+window.mostrarAlertas = mostrarAlertas;
+window.filtrarInventario = filtrarInventario;
+window.limpiarBuscarInventario = limpiarBuscarInventario;
+window.mostrarHistorial = mostrarHistorial;
+window.exportarReporte = exportarReporte;
+window.validarIntegridad = validarIntegridad;
+window.inicializarSistema = inicializarSistema;
+window.limpiarTodosFormularios = limpiarTodosFormularios;
+window.confirmarReset = confirmarReset;
+window.showStockAlerts = showStockAlerts;
+window.closeResetModal = closeResetModal;
+window.goToResetStep1 = goToResetStep1;
+window.goToResetStep2 = goToResetStep2;
+window.executeSystemReset = executeSystemReset;
+window.verDetalleProducto = verDetalleProducto;
