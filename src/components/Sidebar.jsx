@@ -1,0 +1,93 @@
+import React from 'react';
+import { 
+  BarChart2, 
+  PlusCircle, 
+  FileInput, 
+  Layers, 
+  FileText, 
+  Settings, 
+  User, 
+  LogOut, 
+  Sun, 
+  Moon,
+  Package
+} from 'lucide-react';
+
+export default function Sidebar({ activeTab, setActiveTab, user, onLogout, isDark, toggleTheme }) {
+  const menuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: BarChart2 },
+    { id: 'productos', label: 'Nuevo producto', icon: PlusCircle },
+    { id: 'movimientos', label: 'Movimientos', icon: FileInput },
+    { id: 'inventario', label: 'Inventario', icon: Layers },
+    { id: 'reportes', label: 'Reportes', icon: FileText },
+    { id: 'configuracion', label: 'Configuración', icon: Settings },
+  ];
+
+  return (
+    <nav className="sidebar">
+      <div className="nav-menu-container">
+        <div className="sidebar-header">
+          <h1>
+            <Package size={20} className="text-primary" style={{ color: '#3b82f6' }} />
+            <span>CCP - Materiales</span>
+          </h1>
+        </div>
+
+        {user && (
+          <div className="user-profile-card">
+            <div className="user-info">
+              <span className="user-avatar">
+                <User size={18} />
+              </span>
+              <span className="user-email" title={user.email}>
+                {user.email}
+              </span>
+            </div>
+            <button 
+              type="button" 
+              className="btn-logout" 
+              onClick={onLogout} 
+              title="Cerrar Sesión"
+            >
+              <LogOut size={14} />
+            </button>
+          </div>
+        )}
+
+        <ul className="nav-menu">
+          {menuItems.map((item) => {
+            const IconComponent = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <li className="nav-item" key={item.id}>
+                <a 
+                  className={`nav-link ${isActive ? 'active' : ''}`}
+                  onClick={() => setActiveTab(item.id)}
+                >
+                  <IconComponent size={18} />
+                  <span>{item.label}</span>
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <div className="sidebar-footer">
+        <button onClick={toggleTheme} className="theme-btn">
+          {isDark ? (
+            <>
+              <Sun size={16} />
+              <span>Modo Claro</span>
+            </>
+          ) : (
+            <>
+              <Moon size={16} />
+              <span>Modo Oscuro</span>
+            </>
+          )}
+        </button>
+      </div>
+    </nav>
+  );
+}
