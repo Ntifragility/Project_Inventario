@@ -932,7 +932,7 @@ export default function Movements({ user }) {
         <div className="card-body">
           <p style={{ marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
             Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo <strong>Ingreso</strong> en lote.
-            El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Fecha</strong>, <strong>Cant. Recepcionada</strong>, y <strong>UM</strong>.
+            El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>Fecha</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Cant. Recepcionada</strong>, y <strong>Unidad</strong>.
             <br />
             <strong style={{ color: 'var(--danger)' }}>Nota importante:</strong> Los productos a importar ya deben existir en el sistema.
           </p>
@@ -968,7 +968,7 @@ export default function Movements({ user }) {
         <div className="card-body">
           <p style={{ marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
             Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo <strong>Salida</strong> en lote.
-            El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Fecha</strong>, <strong>Cant. Entregada</strong>, <strong>UM</strong>, y <strong>Cód.Almacenero</strong>.
+            El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>Fecha</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Cant. Entregada</strong>, <strong>Unidad</strong>, y <strong>Cód.Almacenero</strong>.
             <br />
             <strong style={{ color: 'var(--danger)' }}>Nota importante:</strong> El sistema verificará que exista stock suficiente para cada salida. De lo contrario, se omitirán esas filas.
           </p>
