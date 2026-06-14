@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase';
 import { Save, Upload, AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export default function Movements({ user }) {
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
@@ -24,6 +25,7 @@ export default function Movements({ user }) {
   // Messages and submitting
   const [formMsg, setFormMsg] = useState({ text: '', type: '' });
   const [csvMsg, setCsvMsg] = useState({ text: '', type: '' });
+  const [excelMsg, setExcelMsg] = useState({ text: '', type: '' });
   const [submitting, setSubmitting] = useState(false);
 
   const autocompleteTimeout = useRef(null);
@@ -235,47 +237,174 @@ export default function Movements({ user }) {
     }
   };
 
-  // CSV Import handler
-  const handleImportMovimientosCSV = async (event) => {
+  // Helper to parse dates supporting Excel serial numbers and standard strings
+  const parseDateValue = (val, defaultDate) => {
+    if (val === undefined || val === null) return defaultDate;
+    const strVal = String(val).trim();
+    if (!strVal) return defaultDate;
+
+    // 1. Excel serial number format: e.g. "45123"
+    if (/^\d+(\.\d+)?$/.test(strVal)) {
+      const num = parseFloat(strVal);
+      // Excel date epoch: 1899-12-30
+      const date = new Date(Math.round((num - 25569) * 86400 * 1000));
+      if (!isNaN(date.getTime())) {
+        const year = date.getUTCFullYear();
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+    }
+
+    // 2. Parse manually if it is a common Spanish/standard format to avoid timezone shifts
+    // Check format: YYYY-MM-DD or YYYY/MM/DD
+    let match = strVal.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (match) {
+      const [_, y, m, d] = match;
+      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+
+    // Check format: DD-MM-YYYY or DD/MM/YYYY
+    match = strVal.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (match) {
+      const [_, d, m, y] = match;
+      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+
+    // 3. Fallback to standard JS Date parsing
+    const parsed = new Date(strVal);
+    if (!isNaN(parsed.getTime())) {
+      if (!strVal.includes('T') && !strVal.includes(':')) {
+        // Date only - use UTC values to prevent offset shifts
+        const year = parsed.getUTCFullYear();
+        const month = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(parsed.getUTCDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      } else {
+        // Date and time - use local values
+        const year = parsed.getFullYear();
+        const month = String(parsed.getMonth() + 1).padStart(2, '0');
+        const day = String(parsed.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+    }
+
+    return defaultDate;
+  };
+
+  // Helper to match column headers using case-insensitive normalization to prevent duplicate mappings
+  const mapHeaders = (headers, isIngreso) => {
+    const normalize = (str) => {
+      return String(str || '')
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]/g, '');
+    };
+
+    const normHeaders = headers.map(normalize);
+    const matchedIndices = new Set();
+
+    const findMatch = (targets) => {
+      // 1. Try exact matches first
+      for (const t of targets) {
+        const targetNorm = normalize(t);
+        for (let i = 0; i < normHeaders.length; i++) {
+          if (!matchedIndices.has(i) && normHeaders[i] === targetNorm) {
+            matchedIndices.add(i);
+            return i;
+          }
+        }
+      }
+      // 2. Try substring match (only if normalized target length >= 3)
+      for (const t of targets) {
+        const targetNorm = normalize(t);
+        if (targetNorm.length < 3) continue;
+        for (let i = 0; i < normHeaders.length; i++) {
+          if (!matchedIndices.has(i) && normHeaders[i].includes(targetNorm)) {
+            matchedIndices.add(i);
+            return i;
+          }
+        }
+      }
+      return -1;
+    };
+
+    // Map fields. Match specific ID Producto first to prevent overlap with Producto
+    const colCodigo = findMatch(['idproducto', 'codigoproducto', 'codigo', 'cod', 'idproduct', 'productcode']);
+    const colKey = findMatch(['transactionkey', 'key', 'clave', 'transkey', 'transactionid']);
+    
+    let colFecha, colCantidad, colUM, colAlmacenero, colProducto;
+    if (isIngreso) {
+      colFecha = findMatch(['fecha', 'fecharecproyecto', 'fecharec', 'date', 'fecharecepcion']);
+      colCantidad = findMatch(['cantrecepcionada', 'cantidadrecepcionada', 'cant', 'cantidad', 'qty', 'amount']);
+      colUM = findMatch(['um', 'unidad', 'unit']);
+      colProducto = findMatch(['producto', 'product', 'nombre', 'name']);
+    } else {
+      colFecha = findMatch(['fecha', 'date', 'fecharec', 'fecharecproyecto']);
+      colCantidad = findMatch(['cantentregada', 'cantidadentregada', 'cant', 'cantidad', 'qty', 'amount']);
+      colUM = findMatch(['um', 'unidad', 'unit']);
+      colAlmacenero = findMatch(['codalmacenero', 'almacenero', 'keeper']);
+      colProducto = findMatch(['producto', 'product', 'nombre', 'name']);
+    }
+
+    return { colKey, colCodigo, colProducto, colFecha, colCantidad, colUM, colAlmacenero };
+  };
+
+  // Excel & CSV Import handler for Ingresos
+  const handleImportIngresos = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
-    setCsvMsg({ text: 'Procesando archivo CSV de movimientos...', type: 'info' });
+    setCsvMsg({ text: 'Procesando archivo de ingresos...', type: 'info' });
 
     const reader = new FileReader();
     reader.onload = async function(e) {
-      const text = e.target.result;
-      const lines = text.split(/\r?\n/);
-      
-      if (lines.length < 2) {
-        setCsvMsg({ text: 'El archivo CSV está vacío o no contiene suficientes filas.', type: 'error' });
-        event.target.value = '';
-        return;
-      }
-
-      const headerLine = lines[0];
-      let delimiter = ',';
-      if (headerLine.includes(';')) {
-        delimiter = ';';
-      }
-
-      const headers = headerLine.split(delimiter).map(h => h.trim().toLowerCase());
-      const colCodigo = headers.findIndex(h => h === 'id producto' || h === 'código' || h === 'codigo' || h === 'cód' || (!h.includes('key') && h.includes('cod')));
-      const colCantidad = headers.findIndex(h => h === 'cantidad' || h === 'cant' || h.includes('cant') || h.includes('amount') || h.includes('num'));
-      const colKey = headers.findIndex(h => h === 'transaction key' || h === 'product key' || h === 'key' || h === 'clave' || h === 'clav');
-      const colFecha = headers.findIndex(h => h === 'fecha de mov.' || h === 'fecha de mov' || h === 'fecha' || h.includes('fech') || h.includes('date'));
-      const colObservaciones = headers.findIndex(h => h === 'observaciones' || h === 'obs' || h.includes('obs') || h.includes('comment'));
-
-      if (colCodigo === -1 || colCantidad === -1 || colKey === -1) {
-        setCsvMsg({ text: 'Formato CSV incorrecto. El archivo debe contener al menos las columnas: "Transaction Key", "ID Producto", y "Cantidad".', type: 'error' });
-        event.target.value = '';
-        return;
-      }
-
       try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        // Convert to array of arrays (header: 1)
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        if (rows.length < 2) {
+          setCsvMsg({ text: 'El archivo está vacío o no contiene suficientes filas.', type: 'error' });
+          event.target.value = '';
+          return;
+        }
+
+        const rawHeaders = rows[0];
+        const { colKey, colCodigo, colFecha, colCantidad, colUM } = mapHeaders(rawHeaders, true);
+
+        if (colCodigo === -1 || colCantidad === -1 || colKey === -1) {
+          setCsvMsg({ 
+            text: 'Formato de archivo incorrecto. Debe contener al menos las columnas: "Transaction Key", "ID Producto", y "Cant. Recepcionada".', 
+            type: 'error' 
+          });
+          event.target.value = '';
+          return;
+        }
+
+        // Gather unique product codes and transaction keys from file for validation
+        const codesInFile = Array.from(new Set(
+          rows.slice(1)
+            .map(r => r[colCodigo] ? String(r[colCodigo]).trim().toUpperCase() : '')
+            .filter(Boolean)
+        ));
+
+        const keysInFile = Array.from(new Set(
+          rows.slice(1)
+            .map(r => r[colKey] ? String(r[colKey]).trim() : '')
+            .filter(Boolean)
+        ));
+
+        // Fetch verification data using efficient IN filters
         const [resProductos, resMovimientos] = await Promise.all([
-          supabase.from('productos').select('codigo'),
-          supabase.from('movimientos').select('key')
+          supabase.from('productos').select('codigo').in('codigo', codesInFile),
+          supabase.from('movimientos').select('key').in('key', keysInFile)
         ]);
 
         if (resProductos.error) throw resProductos.error;
@@ -285,76 +414,275 @@ export default function Movements({ user }) {
         const existingKeys = new Set(resMovimientos.data.filter(m => m.key).map(m => m.key.trim().toUpperCase()));
         const defaultDate = fecha || new Date().toISOString().slice(0, 10);
 
-        const movementsToInsert = [];
+        const movementsToUpsert = [];
         let skippedInvalidProduct = 0;
         let skippedInvalidAmount = 0;
-        let skippedDuplicateKey = 0;
         let emptyCount = 0;
-        const seenKeysInCsv = new Set();
+        let insertCount = 0;
+        let updateCount = 0;
+        const seenKeysInSheet = new Set();
 
-        const splitRegex = new RegExp(`${delimiter}(?=(?:(?:[^"]*"){2})*[^"]*$)`);
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row || row.length === 0) continue;
 
-        for (let i = 1; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (!line) continue;
+          const keyRaw = row[colKey];
+          const codigoRaw = row[colCodigo];
+          const cantidadRaw = row[colCantidad];
 
-          const cols = line.split(splitRegex).map(c => c.trim().replace(/^"|"$/g, ''));
-
-          if (cols.length <= Math.max(colCodigo, colCantidad, colKey)) {
+          if (keyRaw === undefined || keyRaw === null || codigoRaw === undefined || codigoRaw === null || cantidadRaw === undefined || cantidadRaw === null) {
             emptyCount++;
             continue;
           }
 
-          const codigoVal = cols[colCodigo]?.trim().toUpperCase();
-          const cantidadStr = cols[colCantidad]?.trim();
-          const keyVal = cols[colKey]?.trim();
+          const keyVal = String(keyRaw).trim();
+          const codigoVal = String(codigoRaw).trim().toUpperCase();
+          const cantidadVal = parseFloat(cantidadRaw);
 
-          if (!codigoVal || !cantidadStr || !keyVal) {
+          if (!keyVal || !codigoVal || isNaN(cantidadVal)) {
             emptyCount++;
             continue;
           }
 
           const upperKey = keyVal.toUpperCase();
 
+          // Validation: Product existence
           if (!existingCodes.has(codigoVal)) {
             skippedInvalidProduct++;
             continue;
           }
 
-          if (existingKeys.has(upperKey) || seenKeysInCsv.has(upperKey)) {
-            skippedDuplicateKey++;
+          // Validation: Duplicate keys within the same sheet
+          if (seenKeysInSheet.has(upperKey)) {
             continue;
           }
-          seenKeysInCsv.add(upperKey);
+          seenKeysInSheet.add(upperKey);
 
-          const qtyVal = parseFloat(cantidadStr);
-          if (isNaN(qtyVal) || qtyVal <= 0) {
+          // Validation: Valid amount
+          if (cantidadVal <= 0) {
             skippedInvalidAmount++;
             continue;
           }
 
-          let fechaVal = defaultDate;
-          if (colFecha !== -1 && cols[colFecha]) {
-            const rawFecha = cols[colFecha].trim();
-            const parsedDate = new Date(rawFecha);
-            if (!isNaN(parsedDate.getTime())) {
-              const year = parsedDate.getFullYear();
-              const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
-              const day = String(parsedDate.getDate()).padStart(2, '0');
-              fechaVal = `${year}-${month}-${day}`;
-            }
+          // Date processing
+          const rawFecha = colFecha !== -1 ? row[colFecha] : null;
+          const fechaVal = parseDateValue(rawFecha, defaultDate);
+
+          // Observations formatting
+          const umRaw = colUM !== -1 ? row[colUM] : null;
+          let obsParts = [];
+          if (umRaw && String(umRaw).trim()) {
+            obsParts.push(`UM: ${String(umRaw).trim()}`);
+          }
+          const obsVal = obsParts.join(', ');
+
+          const isUpdate = existingKeys.has(upperKey);
+          if (isUpdate) {
+            updateCount++;
+          } else {
+            insertCount++;
           }
 
-          let obsVal = '';
-          if (colObservaciones !== -1 && cols[colObservaciones]) {
-            obsVal = cols[colObservaciones].trim();
+          movementsToUpsert.push({
+            producto_codigo: codigoVal,
+            fecha: fechaVal,
+            tipo: 'INGRESO',
+            cantidad: cantidadVal,
+            usuario: 'Usuario Sistema',
+            observaciones: obsVal,
+            key: keyVal
+          });
+        }
+
+        if (movementsToUpsert.length === 0) {
+          let msg = 'No se importó ningún movimiento de ingreso nuevo ni se actualizaron registros.';
+          const skippedList = [];
+          if (skippedInvalidProduct > 0) skippedList.push(`${skippedInvalidProduct} productos inexistentes`);
+          if (skippedInvalidAmount > 0) skippedList.push(`${skippedInvalidAmount} cantidades inválidas`);
+          if (skippedList.length > 0) {
+            msg += ` (Omitidos: ${skippedList.join(', ')}).`;
           }
+          setCsvMsg({ text: msg, type: 'warning' });
+          event.target.value = '';
+          return;
+        }
+
+        const { error: insertErr } = await supabase.from('movimientos').upsert(movementsToUpsert, { onConflict: 'key' });
+        if (insertErr) throw insertErr;
+
+        let msg = `Importación exitosa: se registraron ${insertCount} nuevos ingresos y se actualizaron ${updateCount} existentes.`;
+        const skippedList = [];
+        if (skippedInvalidProduct > 0) skippedList.push(`${skippedInvalidProduct} productos inexistentes`);
+        if (skippedInvalidAmount > 0) skippedList.push(`${skippedInvalidAmount} cantidades inválidas`);
+        if (skippedList.length > 0) {
+          msg += ` (Omitidos: ${skippedList.join(', ')}).`;
+        }
+        
+        setCsvMsg({ text: msg, type: 'success' });
+        event.target.value = '';
+      } catch (err) {
+        console.error('Error importing movements Excel/CSV:', err);
+        setCsvMsg({ text: 'Error al importar: ' + err.message, type: 'error' });
+        event.target.value = '';
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
+  };
+
+  // Excel & CSV Import handler for Salidas
+  const handleImportSalidas = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setExcelMsg({ text: 'Procesando archivo de salidas...', type: 'info' });
+
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        // Convert to array of arrays (header: 1)
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        if (rows.length < 2) {
+          setExcelMsg({ text: 'El archivo está vacío o no contiene suficientes filas.', type: 'error' });
+          event.target.value = '';
+          return;
+        }
+
+        const rawHeaders = rows[0];
+        const { colKey, colCodigo, colFecha, colCantidad, colUM, colAlmacenero } = mapHeaders(rawHeaders, false);
+
+        if (colCodigo === -1 || colCantidad === -1 || colKey === -1) {
+          setExcelMsg({ 
+            text: 'Formato de archivo incorrecto. Debe contener al menos las columnas: "Transaction Key", "ID Producto", y "Cant. Entregada".', 
+            type: 'error' 
+          });
+          event.target.value = '';
+          return;
+        }
+
+        // Gather unique product codes and transaction keys from file for validation
+        const codesInFile = Array.from(new Set(
+          rows.slice(1)
+            .map(r => r[colCodigo] ? String(r[colCodigo]).trim().toUpperCase() : '')
+            .filter(Boolean)
+        ));
+
+        const keysInFile = Array.from(new Set(
+          rows.slice(1)
+            .map(r => r[colKey] ? String(r[colKey]).trim() : '')
+            .filter(Boolean)
+        ));
+
+        // Fetch existing products, stock, and transaction keys
+        const [resProductos, resMovimientos] = await Promise.all([
+          supabase.from('v_productos_stock').select('codigo, cantidad').in('codigo', codesInFile),
+          supabase.from('movimientos').select('key').in('key', keysInFile)
+        ]);
+
+        if (resProductos.error) throw resProductos.error;
+        if (resMovimientos.error) throw resMovimientos.error;
+        
+        // Map codes to stock
+        const productStockMap = new Map();
+        resProductos.data.forEach(p => {
+          productStockMap.set(p.codigo.trim().toUpperCase(), parseFloat(p.cantidad) || 0);
+        });
+
+        const existingKeys = new Set(resMovimientos.data.filter(m => m.key).map(m => m.key.trim().toUpperCase()));
+        const defaultDate = fecha || new Date().toISOString().slice(0, 10);
+
+        const movementsToInsert = [];
+        let skippedInvalidProduct = 0;
+        let skippedInvalidAmount = 0;
+        let skippedDuplicateKey = 0;
+        let skippedInsufficientStock = 0;
+        let emptyCount = 0;
+        const seenKeysInExcel = new Set();
+        
+        // Keep track of stock updates locally to prevent double-spending in the same sheet
+        const localStockMap = new Map(productStockMap);
+
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row || row.length === 0) continue;
+
+          const keyRaw = row[colKey];
+          const codigoRaw = row[colCodigo];
+          const cantEntregadaRaw = row[colCantidad];
+
+          if (keyRaw === undefined || keyRaw === null || codigoRaw === undefined || codigoRaw === null || cantEntregadaRaw === undefined || cantEntregadaRaw === null) {
+            emptyCount++;
+            continue;
+          }
+
+          const keyVal = String(keyRaw).trim();
+          const codigoVal = String(codigoRaw).trim().toUpperCase();
+          const cantEntregadaVal = parseFloat(cantEntregadaRaw);
+
+          if (!keyVal || !codigoVal || isNaN(cantEntregadaVal)) {
+            emptyCount++;
+            continue;
+          }
+
+          const upperKey = keyVal.toUpperCase();
+
+          // Validation: Product existence
+          if (!localStockMap.has(codigoVal)) {
+            skippedInvalidProduct++;
+            continue;
+          }
+
+          // Validation: Duplicate keys
+          if (existingKeys.has(upperKey) || seenKeysInExcel.has(upperKey)) {
+            skippedDuplicateKey++;
+            continue;
+          }
+          seenKeysInExcel.add(upperKey);
+
+          // Validation: Valid amount
+          if (cantEntregadaVal <= 0) {
+            skippedInvalidAmount++;
+            continue;
+          }
+
+          // Validation: Insufficient stock
+          const stockActual = localStockMap.get(codigoVal);
+          if (stockActual < cantEntregadaVal) {
+            skippedInsufficientStock++;
+            continue;
+          }
+
+          // Update local stock map
+          localStockMap.set(codigoVal, stockActual - cantEntregadaVal);
+
+          // Date processing
+          const rawFecha = colFecha !== -1 ? row[colFecha] : null;
+          const fechaVal = parseDateValue(rawFecha, defaultDate);
+
+          // Observations formatting
+          const umRaw = colUM !== -1 ? row[colUM] : null;
+          const almaceneroRaw = colAlmacenero !== -1 ? row[colAlmacenero] : null;
+
+          let obsParts = [];
+          if (umRaw && String(umRaw).trim()) {
+            obsParts.push(`UM: ${String(umRaw).trim()}`);
+          }
+          if (almaceneroRaw && String(almaceneroRaw).trim()) {
+            obsParts.push(`Almacenero: ${String(almaceneroRaw).trim()}`);
+          }
+          const obsVal = obsParts.join(', ');
 
           movementsToInsert.push({
             producto_codigo: codigoVal,
             fecha: fechaVal,
-            tipo: 'INGRESO',
-            cantidad: qtyVal,
+            tipo: 'SALIDA',
+            cantidad: cantEntregadaVal,
             usuario: 'Usuario Sistema',
             observaciones: obsVal,
             key: keyVal
@@ -362,11 +690,16 @@ export default function Movements({ user }) {
         }
 
         if (movementsToInsert.length === 0) {
-          let msg = 'No se importó ningún movimiento nuevo.';
-          if (skippedInvalidProduct > 0 || skippedInvalidAmount > 0 || skippedDuplicateKey > 0) {
-            msg += ` (Omitidos: ${skippedInvalidProduct} productos inexistentes, ${skippedDuplicateKey} claves duplicadas, ${skippedInvalidAmount} cantidades inválidas).`;
+          let msg = 'No se importó ningún movimiento de salida nuevo.';
+          const skippedList = [];
+          if (skippedInvalidProduct > 0) skippedList.push(`${skippedInvalidProduct} productos inexistentes`);
+          if (skippedDuplicateKey > 0) skippedList.push(`${skippedDuplicateKey} claves duplicadas`);
+          if (skippedInvalidAmount > 0) skippedList.push(`${skippedInvalidAmount} cantidades inválidas`);
+          if (skippedInsufficientStock > 0) skippedList.push(`${skippedInsufficientStock} stock insuficiente`);
+          if (skippedList.length > 0) {
+            msg += ` (Omitidos: ${skippedList.join(', ')}).`;
           }
-          setCsvMsg({ text: msg, type: 'warning' });
+          setExcelMsg({ text: msg, type: 'warning' });
           event.target.value = '';
           return;
         }
@@ -374,20 +707,26 @@ export default function Movements({ user }) {
         const { error: insertErr } = await supabase.from('movimientos').insert(movementsToInsert);
         if (insertErr) throw insertErr;
 
-        setCsvMsg({ 
-          text: `Importación exitosa: se registraron ${movementsToInsert.length} movimientos de tipo INGRESO. (Omitidos: ${skippedInvalidProduct} productos inexistentes, ${skippedDuplicateKey} claves duplicadas, ${skippedInvalidAmount} cantidades inválidas).`, 
-          type: 'success' 
-        });
-
+        let msg = `Importación exitosa: se registraron ${movementsToInsert.length} movimientos de tipo SALIDA.`;
+        const skippedList = [];
+        if (skippedInvalidProduct > 0) skippedList.push(`${skippedInvalidProduct} productos inexistentes`);
+        if (skippedDuplicateKey > 0) skippedList.push(`${skippedDuplicateKey} claves duplicadas`);
+        if (skippedInvalidAmount > 0) skippedList.push(`${skippedInvalidAmount} cantidades inválidas`);
+        if (skippedInsufficientStock > 0) skippedList.push(`${skippedInsufficientStock} stock insuficiente`);
+        if (skippedList.length > 0) {
+          msg += ` (Omitidos: ${skippedList.join(', ')}).`;
+        }
+        
+        setExcelMsg({ text: msg, type: 'success' });
         event.target.value = '';
       } catch (err) {
-        console.error('Error importing movements CSV:', err);
-        setCsvMsg({ text: 'Error al importar: ' + err.message, type: 'error' });
+        console.error('Error importing movements Excel/CSV:', err);
+        setExcelMsg({ text: 'Error al importar: ' + err.message, type: 'error' });
         event.target.value = '';
       }
     };
 
-    reader.readAsText(file, 'UTF-8');
+    reader.readAsArrayBuffer(file);
   };
 
   // Close dropdowns on clicking outside
@@ -577,24 +916,24 @@ export default function Movements({ user }) {
         <div className="card-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Upload size={18} />
-            <span>Importar Ingresos desde CSV</span>
+            <span>Importar Ingresos desde Excel / CSV</span>
           </div>
         </div>
         <div className="card-body">
           <p style={{ marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
-            Seleccione un archivo CSV para registrar múltiples movimientos de tipo <strong>Ingreso</strong> en lote.
-            El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>ID Producto</strong>, y <strong>Cantidad</strong>.
+            Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo <strong>Ingreso</strong> en lote.
+            El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Fecha</strong>, <strong>Cant. Recepcionada</strong>, y <strong>UM</strong>.
             <br />
             <strong style={{ color: 'var(--danger)' }}>Nota importante:</strong> Los productos a importar ya deben existir en el sistema.
           </p>
           <div className="actions">
             <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
               <Upload size={16} />
-              <span>Seleccionar Archivo CSV</span>
+              <span>Seleccionar Archivo</span>
               <input 
                 type="file" 
-                accept=".csv" 
-                onChange={handleImportMovimientosCSV} 
+                accept=".xlsx, .xls, .csv" 
+                onChange={handleImportIngresos} 
                 style={{ display: 'none' }} 
               />
             </label>
@@ -604,6 +943,42 @@ export default function Movements({ user }) {
             <div className={`message ${csvMsg.type}`}>
               {csvMsg.type === 'info' ? <Info size={16} /> : csvMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
               <span>{csvMsg.text}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Upload size={18} />
+            <span>Importar Salidas desde Excel / CSV</span>
+          </div>
+        </div>
+        <div className="card-body">
+          <p style={{ marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
+            Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo <strong>Salida</strong> en lote.
+            El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Fecha</strong>, <strong>Cant. Entregada</strong>, <strong>UM</strong>, y <strong>Cód.Almacenero</strong>.
+            <br />
+            <strong style={{ color: 'var(--danger)' }}>Nota importante:</strong> El sistema verificará que exista stock suficiente para cada salida. De lo contrario, se omitirán esas filas.
+          </p>
+          <div className="actions">
+            <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
+              <Upload size={16} />
+              <span>Seleccionar Archivo</span>
+              <input 
+                type="file" 
+                accept=".xlsx, .xls, .csv" 
+                onChange={handleImportSalidas} 
+                style={{ display: 'none' }} 
+              />
+            </label>
+          </div>
+
+          {excelMsg.text && (
+            <div className={`message ${excelMsg.type}`}>
+              {excelMsg.type === 'info' ? <Info size={16} /> : excelMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+              <span>{excelMsg.text}</span>
             </div>
           )}
         </div>

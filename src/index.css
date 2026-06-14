@@ -681,23 +681,24 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.4), var(--bg-app) 70%);
+  background: #000000;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
-  backdrop-filter: blur(8px);
 }
 
 .login-card {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
+  background: rgba(18, 18, 18, 0.65); /* Premium black glass */
+  border: 1px solid rgba(255, 255, 255, 0.12);
   padding: 40px;
   border-radius: var(--radius-lg);
   width: 100%;
   max-width: 400px;
-  box-shadow: var(--shadow-xl);
-  backdrop-filter: blur(12px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  color: #ffffff;
   animation: scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -714,13 +715,67 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
 .login-header h2 {
   font-size: 1.6rem;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #ffffff;
   margin-bottom: 4px;
 }
 
 .login-header p {
-  color: var(--text-secondary);
+  color: #94a3b8;
   font-size: 0.875rem;
+}
+
+/* Specific overrides for login card context to ensure contrast & glass aesthetics */
+.login-card label {
+  color: #e2e8f0 !important;
+}
+
+.login-card input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.login-card input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+}
+
+.login-card .message.error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.login-card .btn-primary {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  padding: 10px 32px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  margin: 12px auto 0 auto;
+  width: fit-content;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+.login-card .btn-primary:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+.login-card .btn-primary:active {
+  transform: translateY(0);
 }
 
 .search-filter-group {

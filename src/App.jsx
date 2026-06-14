@@ -103,7 +103,7 @@ export default function App() {
       case 'productos': return 'Gestión de Productos';
       case 'movimientos': return 'Registro de Movimientos';
       case 'inventario': return 'Control de Inventario';
-      case 'reportes': return 'Reportes y Análisis';
+      case 'reportes': return 'Reportes';
       case 'configuracion': return 'Configuración del Sistema';
       default: return 'Sistema de Inventario';
     }
