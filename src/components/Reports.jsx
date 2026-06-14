@@ -2,6 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { FileText, Play, Download, AlertCircle, CheckCircle2 } from 'lucide-react';
 
+// CSV injection sanitization helper (SEC-4)
+const sanitizeCsvCell = (val) => {
+  const str = String(val ?? '');
+  if (/^[=+\-@\t\r]/.test(str)) {
+    return "'" + str;
+  }
+  return str;
+};
+
 export default function Reports() {
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
@@ -11,6 +20,10 @@ export default function Reports() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+
+  // Pagination state (FUNC-2)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
 
   // Set default date range on mount
   useEffect(() => {
@@ -91,7 +104,7 @@ export default function Reports() {
       csv += "Fecha de mov.,Transaction Key,ID Producto,Producto,Unidad,Cantidad,Tipo,Observaciones,Usuario\n";
 
       reportData.forEach(m => {
-        csv += `"${m.fecha}","${m.productKey}","${m.codigo}","${m.producto}","${m.unidad}",${m.cantidad},"${m.tipo}","${m.observaciones}","${m.usuario}"\n`;
+        csv += `"${sanitizeCsvCell(m.fecha)}","${sanitizeCsvCell(m.productKey)}","${sanitizeCsvCell(m.codigo)}","${sanitizeCsvCell(m.producto)}","${sanitizeCsvCell(m.unidad)}",${m.cantidad},"${sanitizeCsvCell(m.tipo)}","${sanitizeCsvCell(m.observaciones)}","${sanitizeCsvCell(m.usuario)}"\n`;
       });
 
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -190,6 +203,7 @@ export default function Reports() {
               <span>Generando reporte de movimientos...</span>
             </div>
           ) : reportData.length > 0 && (
+            <>
             <div className="table-container" style={{ marginTop: '20px' }}>
               <table>
                 <thead>
@@ -205,7 +219,12 @@ export default function Reports() {
                   </tr>
                 </thead>
                 <tbody>
-                  {reportData.map((m, idx) => {
+                  {(() => {
+                    const totalPages = Math.max(1, Math.ceil(reportData.length / rowsPerPage));
+                    const safePage = Math.min(currentPage, totalPages);
+                    const startIdx = (safePage - 1) * rowsPerPage;
+                    const pageData = reportData.slice(startIdx, startIdx + rowsPerPage);
+                    return pageData.map((m, idx) => {
                     let tipoClass = 'text-success';
                     let tipoText = m.tipo;
                     
@@ -242,10 +261,52 @@ export default function Reports() {
                         <td><small>{m.observaciones}</small></td>
                       </tr>
                     );
-                  })}
+                  });
+                  })()}
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls (FUNC-2) */}
+            {(() => {
+              const totalPages = Math.max(1, Math.ceil(reportData.length / rowsPerPage));
+              const safePage = Math.min(currentPage, totalPages);
+              const startIdx = (safePage - 1) * rowsPerPage;
+              if (totalPages <= 1) return null;
+              return (
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  marginTop: '16px',
+                  padding: '12px 0',
+                  borderTop: '1px solid var(--border-color)',
+                  flexWrap: 'wrap',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    <span>Mostrando {startIdx + 1}–{Math.min(startIdx + rowsPerPage, reportData.length)} de {reportData.length}</span>
+                    <select 
+                      value={rowsPerPage} 
+                      onChange={(e) => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                      style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                    >
+                      <option value={25}>25 filas</option>
+                      <option value={50}>50 filas</option>
+                      <option value={100}>100 filas</option>
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(1)} disabled={safePage === 1}>«</button>
+                    <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
+                    <span style={{ padding: '4px 12px', fontSize: '0.85rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>{safePage} / {totalPages}</span>
+                    <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
+                    <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(totalPages)} disabled={safePage === totalPages}>»</button>
+                  </div>
+                </div>
+              );
+            })()}
+            </>
           )}
         </div>
       </div>

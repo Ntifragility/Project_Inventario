@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from './supabase';
 import Sidebar from './components/Sidebar';
 import Login from './components/Login';
@@ -8,12 +8,60 @@ import Movements from './components/Movements';
 import Inventory from './components/Inventory';
 import Reports from './components/Reports';
 import Config from './components/Config';
+import { Clock } from 'lucide-react';
+
+const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+const WARNING_BEFORE_MS = 60 * 1000; // Show warning 1 minute before logout
 
 export default function App() {
   const [session, setSession] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isDark, setIsDark] = useState(false);
   const [initializing, setInitializing] = useState(true);
+  const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
+
+  const inactivityTimer = useRef(null);
+  const warningTimer = useRef(null);
+
+  // Reset the inactivity timer on user activity
+  const resetInactivityTimer = useCallback(() => {
+    setShowTimeoutWarning(false);
+
+    if (warningTimer.current) clearTimeout(warningTimer.current);
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+
+    // Show warning before timeout
+    warningTimer.current = setTimeout(() => {
+      setShowTimeoutWarning(true);
+    }, INACTIVITY_TIMEOUT_MS - WARNING_BEFORE_MS);
+
+    // Auto-logout on timeout
+    inactivityTimer.current = setTimeout(async () => {
+      setShowTimeoutWarning(false);
+      try {
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.error('Auto-logout error:', err);
+      }
+    }, INACTIVITY_TIMEOUT_MS);
+  }, []);
+
+  // Set up activity listeners when session is active
+  useEffect(() => {
+    if (!session) return;
+
+    const activityEvents = ['mousemove', 'keydown', 'touchstart', 'click', 'scroll'];
+    const handler = () => resetInactivityTimer();
+
+    activityEvents.forEach(evt => document.addEventListener(evt, handler, { passive: true }));
+    resetInactivityTimer();
+
+    return () => {
+      activityEvents.forEach(evt => document.removeEventListener(evt, handler));
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+      if (warningTimer.current) clearTimeout(warningTimer.current);
+    };
+  }, [session, resetInactivityTimer]);
 
   // Authenticated state listener
   useEffect(() => {
@@ -123,6 +171,17 @@ export default function App() {
         <header className="content-header">
           <h2>{getTabTitle()}</h2>
         </header>
+
+        {showTimeoutWarning && (
+          <div className="message warning" style={{ 
+            margin: '0 24px 16px 24px',
+            animation: 'fadeIn 0.3s ease'
+          }}>
+            <Clock size={16} />
+            <span><strong>Aviso:</strong> Su sesión se cerrará automáticamente en 1 minuto por inactividad. Mueva el mouse o presione una tecla para continuar.</span>
+          </div>
+        )}
+
         <main className="content-body">
           {renderTabContent()}
         </main>

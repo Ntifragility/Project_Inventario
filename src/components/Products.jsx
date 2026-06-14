@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabase';
-import { Plus, Upload, List, AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import { Plus, Upload, List, AlertCircle, CheckCircle2, Info, Pencil, Trash2, X, Save } from 'lucide-react';
 
 export default function Products() {
   // Form states
@@ -20,6 +20,24 @@ export default function Products() {
   const [formMsg, setFormMsg] = useState({ text: '', type: '' });
   const [csvMsg, setCsvMsg] = useState({ text: '', type: '' });
   const [submitting, setSubmitting] = useState(false);
+
+  // Edit mode states (FUNC-1)
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [editNombre, setEditNombre] = useState('');
+  const [editUnidad, setEditUnidad] = useState('');
+  const [editGrupo, setEditGrupo] = useState('');
+  const [editStockMin, setEditStockMin] = useState(0);
+  const [editMsg, setEditMsg] = useState({ text: '', type: '' });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
+  // Delete confirmation states (FUNC-1)
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteMsg, setDeleteMsg] = useState({ text: '', type: '' });
+  const [deleting, setDeleting] = useState(false);
+
+  // Pagination state (FUNC-2)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
 
   // Fetch lists (unidades, grupos)
   const fetchListas = useCallback(async () => {
@@ -53,6 +71,7 @@ export default function Products() {
 
       if (error) throw error;
       setProductsList(data || []);
+      setCurrentPage(1);
     } catch (err) {
       console.error('Error listing products:', err);
     } finally {
@@ -75,6 +94,16 @@ export default function Products() {
 
     if (!codeClean || !nameClean) {
       setFormMsg({ text: 'Código y nombre son obligatorios.', type: 'error' });
+      return;
+    }
+
+    // Input length validation (SEC-5)
+    if (codeClean.length > 50) {
+      setFormMsg({ text: 'El código no puede exceder 50 caracteres.', type: 'error' });
+      return;
+    }
+    if (nameClean.length > 255) {
+      setFormMsg({ text: 'El nombre no puede exceder 255 caracteres.', type: 'error' });
       return;
     }
 
@@ -116,6 +145,117 @@ export default function Products() {
       setFormMsg({ text: 'Error al registrar: ' + err.message, type: 'error' });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // ── FUNC-1: Edit product ──
+  const handleStartEdit = (product) => {
+    setEditingProduct(product);
+    setEditNombre(product.nombre);
+    setEditUnidad(product.unidad);
+    setEditGrupo(product.grupo);
+    setEditStockMin(product.stockMin);
+    setEditMsg({ text: '', type: '' });
+  };
+
+  const handleSaveEdit = async () => {
+    const nameClean = editNombre.trim();
+    if (!nameClean) {
+      setEditMsg({ text: 'El nombre es obligatorio.', type: 'error' });
+      return;
+    }
+    if (nameClean.length > 255) {
+      setEditMsg({ text: 'El nombre no puede exceder 255 caracteres.', type: 'error' });
+      return;
+    }
+
+    setEditSubmitting(true);
+    try {
+      const [resUnit, resGroup] = await Promise.all([
+        supabase.from('unidades').select('id').eq('nombre', editUnidad).single(),
+        supabase.from('grupos').select('id').eq('nombre', editGrupo).single()
+      ]);
+
+      if (resUnit.error) throw resUnit.error;
+      if (resGroup.error) throw resGroup.error;
+
+      const { error } = await supabase
+        .from('productos')
+        .update({
+          nombre: nameClean,
+          unidad_id: resUnit.data.id,
+          grupo_id: resGroup.data.id,
+          stock_min: parseInt(editStockMin) || 0
+        })
+        .eq('codigo', editingProduct.codigo);
+
+      if (error) throw error;
+
+      setEditingProduct(null);
+      fetchProducts();
+    } catch (err) {
+      console.error('Error updating product:', err);
+      setEditMsg({ text: 'Error al actualizar: ' + err.message, type: 'error' });
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  // ── FUNC-1: Delete product ──
+  const handleStartDelete = (product) => {
+    setDeleteTarget(product);
+    setDeleteMsg({ text: '', type: '' });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteMsg({ text: '', type: '' });
+
+    try {
+      // Check for associated movements
+      const { count, error: countErr } = await supabase
+        .from('movimientos')
+        .select('id', { count: 'exact', head: true })
+        .eq('producto_codigo', deleteTarget.codigo);
+
+      if (countErr) throw countErr;
+
+      if (count > 0) {
+        setDeleteMsg({ 
+          text: `Este producto tiene ${count} movimiento(s) asociado(s). Al eliminarlo, también se eliminarán todos sus movimientos (CASCADE). ¿Desea continuar?`, 
+          type: 'warning' 
+        });
+        // Switch to a "force delete" flow
+        setDeleting(false);
+        return;
+      }
+
+      await executeDelete();
+    } catch (err) {
+      console.error('Error checking movements:', err);
+      setDeleteMsg({ text: 'Error al verificar: ' + err.message, type: 'error' });
+      setDeleting(false);
+    }
+  };
+
+  const executeDelete = async () => {
+    setDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('productos')
+        .delete()
+        .eq('codigo', deleteTarget.codigo);
+
+      if (error) throw error;
+
+      setDeleteTarget(null);
+      fetchProducts();
+    } catch (err) {
+      console.error('Error deleting product:', err);
+      setDeleteMsg({ text: 'Error al eliminar: ' + err.message, type: 'error' });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -199,6 +339,12 @@ export default function Products() {
             continue;
           }
 
+          // Input length validation (SEC-5)
+          if (codigoVal.length > 50 || nombreVal.length > 255) {
+            emptyCount++;
+            continue;
+          }
+
           if (existingCodes.has(codigoVal)) {
             skippedCount++;
             continue;
@@ -259,6 +405,12 @@ export default function Products() {
     reader.readAsText(file, 'UTF-8');
   };
 
+  // Pagination computed values (FUNC-2)
+  const totalPages = Math.max(1, Math.ceil(productsList.length / rowsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIdx = (safeCurrentPage - 1) * rowsPerPage;
+  const paginatedData = productsList.slice(startIdx, startIdx + rowsPerPage);
+
   return (
     <div id="productos" className="tab-content active">
       <div className="card">
@@ -279,6 +431,7 @@ export default function Products() {
                   placeholder="ID único del producto" 
                   value={codigo}
                   onChange={(e) => setCodigo(e.target.value)}
+                  maxLength={50}
                   required 
                 />
               </div>
@@ -290,6 +443,7 @@ export default function Products() {
                   placeholder="Nombre del producto" 
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
+                  maxLength={255}
                   required 
                 />
               </div>
@@ -409,6 +563,7 @@ export default function Products() {
           ) : productsList.length === 0 ? (
             <div className="message warning">No hay productos registrados en el sistema.</div>
           ) : (
+            <>
             <div className="table-container">
               <table>
                 <thead>
@@ -419,10 +574,11 @@ export default function Products() {
                     <th>Grupo</th>
                     <th>Stock Mín.</th>
                     <th>Stock Actual</th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {productsList.map((p) => {
+                  {paginatedData.map((p) => {
                     let statusClass = 'status-normal';
                     if (p.cantidad <= 0) statusClass = 'status-zero';
                     else if (p.cantidad <= p.stockMin && p.stockMin > 0) statusClass = 'status-low';
@@ -435,15 +591,217 @@ export default function Products() {
                         <td>{p.grupo}</td>
                         <td>{p.stockMin}</td>
                         <td>{p.cantidad}</td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button
+                              className="btn btn-secondary"
+                              style={{ padding: '5px 10px', fontSize: '0.75rem' }}
+                              onClick={() => handleStartEdit(p)}
+                              title="Editar producto"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              className="btn btn-danger"
+                              style={{ padding: '5px 10px', fontSize: '0.75rem' }}
+                              onClick={() => handleStartDelete(p)}
+                              title="Eliminar producto"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls (FUNC-2) */}
+            {totalPages > 1 && (
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                marginTop: '16px',
+                padding: '12px 0',
+                borderTop: '1px solid var(--border-color)',
+                flexWrap: 'wrap',
+                gap: '12px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  <span>Mostrando {startIdx + 1}–{Math.min(startIdx + rowsPerPage, productsList.length)} de {productsList.length}</span>
+                  <select 
+                    value={rowsPerPage} 
+                    onChange={(e) => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                    style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                  >
+                    <option value={25}>25 filas</option>
+                    <option value={50}>50 filas</option>
+                    <option value={100}>100 filas</option>
+                  </select>
+                </div>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(1)} disabled={safeCurrentPage === 1}>«</button>
+                  <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safeCurrentPage === 1}>‹</button>
+                  <span style={{ padding: '4px 12px', fontSize: '0.85rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>{safeCurrentPage} / {totalPages}</span>
+                  <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safeCurrentPage === totalPages}>›</button>
+                  <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(totalPages)} disabled={safeCurrentPage === totalPages}>»</button>
+                </div>
+              </div>
+            )}
+            </>
           )}
         </div>
       </div>
+
+      {/* Edit Product Modal (FUNC-1) */}
+      {editingProduct && (
+        <div className="dialog-overlay">
+          <div className="dialog-card" style={{ maxWidth: '520px', width: '90%' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Pencil size={16} style={{ color: 'var(--primary)' }} />
+                <span>Editar Producto: {editingProduct.codigo}</span>
+              </div>
+              <button 
+                onClick={() => setEditingProduct(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                disabled={editSubmitting}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="card-body" style={{ padding: '24px' }}>
+              <div className="form-grid">
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label>Nombre *</label>
+                  <input
+                    type="text"
+                    value={editNombre}
+                    onChange={(e) => setEditNombre(e.target.value)}
+                    maxLength={255}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Unidad</label>
+                  <select value={editUnidad} onChange={(e) => setEditUnidad(e.target.value)}>
+                    {unidadesList.map((u) => (
+                      <option key={u.nombre} value={u.nombre}>{u.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Grupo</label>
+                  <select value={editGrupo} onChange={(e) => setEditGrupo(e.target.value)}>
+                    {gruposList.map((g) => (
+                      <option key={g.nombre} value={g.nombre}>{g.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Stock Mínimo</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editStockMin}
+                    onChange={(e) => setEditStockMin(Math.max(0, parseInt(e.target.value) || 0))}
+                  />
+                </div>
+              </div>
+
+              {editMsg.text && (
+                <div className={`message ${editMsg.type}`} style={{ marginTop: '16px' }}>
+                  <AlertCircle size={16} />
+                  <span>{editMsg.text}</span>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => setEditingProduct(null)} 
+                  disabled={editSubmitting}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  className="btn btn-success" 
+                  onClick={handleSaveEdit} 
+                  disabled={editSubmitting}
+                >
+                  <Save size={16} />
+                  <span>{editSubmitting ? 'Guardando...' : 'Guardar Cambios'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal (FUNC-1) */}
+      {deleteTarget && (
+        <div className="dialog-overlay">
+          <div className="dialog-card" style={{ maxWidth: '480px', width: '90%' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Trash2 size={16} style={{ color: 'var(--danger)' }} />
+                <span>Eliminar Producto</span>
+              </div>
+              <button 
+                onClick={() => setDeleteTarget(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                disabled={deleting}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="card-body" style={{ padding: '24px' }}>
+              <p style={{ color: 'var(--text-primary)', marginBottom: '16px', lineHeight: '1.6' }}>
+                ¿Está seguro de que desea eliminar el producto <strong>{deleteTarget.codigo}</strong> ({deleteTarget.nombre})?
+              </p>
+
+              {deleteMsg.text && (
+                <div className={`message ${deleteMsg.type}`} style={{ marginBottom: '16px' }}>
+                  <AlertCircle size={16} />
+                  <span>{deleteMsg.text}</span>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => setDeleteTarget(null)} 
+                  disabled={deleting}
+                >
+                  Cancelar
+                </button>
+                {deleteMsg.type === 'warning' ? (
+                  <button 
+                    className="btn btn-danger" 
+                    onClick={executeDelete} 
+                    disabled={deleting}
+                  >
+                    <Trash2 size={14} />
+                    <span>{deleting ? 'Eliminando...' : 'Eliminar de Todos Modos'}</span>
+                  </button>
+                ) : (
+                  <button 
+                    className="btn btn-danger" 
+                    onClick={handleConfirmDelete} 
+                    disabled={deleting}
+                  >
+                    <Trash2 size={14} />
+                    <span>{deleting ? 'Verificando...' : 'Confirmar Eliminación'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

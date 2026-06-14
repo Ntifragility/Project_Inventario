@@ -8,6 +8,18 @@ import {
   ShieldAlert, 
   ShieldCheck 
 } from 'lucide-react';
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend
+} from 'recharts';
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -20,6 +32,10 @@ export default function Dashboard() {
   const [error, setError] = useState('');
   const [alertProducts, setAlertProducts] = useState([]);
   const [showAlerts, setShowAlerts] = useState(false);
+
+  // Chart data states (FUNC-8)
+  const [trendData, setTrendData] = useState([]);
+  const [topProducts, setTopProducts] = useState([]);
 
   const fetchStats = useCallback(async () => {
     setError('');
@@ -60,6 +76,9 @@ export default function Dashboard() {
       });
 
       setAlertProducts(alerts);
+
+      // Fetch chart data (FUNC-8)
+      await fetchChartData();
     } catch (err) {
       console.error('Error loading dashboard stats:', err);
       setError('Error al cargar estadísticas: ' + err.message);
@@ -68,9 +87,79 @@ export default function Dashboard() {
     }
   }, []);
 
+  const fetchChartData = async () => {
+    try {
+      // Get movements from last 30 days for trend chart
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const fromDate = thirtyDaysAgo.toISOString().slice(0, 10);
+
+      const { data: recentMoves, error: movErr } = await supabase
+        .from('movimientos')
+        .select('fecha, tipo, cantidad')
+        .gte('fecha', fromDate)
+        .order('fecha');
+
+      if (movErr) throw movErr;
+
+      // Aggregate by date
+      const dateMap = new Map();
+      (recentMoves || []).forEach(m => {
+        const key = m.fecha;
+        if (!dateMap.has(key)) {
+          dateMap.set(key, { fecha: key, ingresos: 0, salidas: 0 });
+        }
+        const entry = dateMap.get(key);
+        if (m.tipo === 'INGRESO' || m.tipo === 'AJUSTE_POSITIVO') {
+          entry.ingresos += parseFloat(m.cantidad) || 0;
+        } else if (m.tipo === 'SALIDA' || m.tipo === 'AJUSTE_NEGATIVO') {
+          entry.salidas += parseFloat(m.cantidad) || 0;
+        }
+      });
+
+      const trend = Array.from(dateMap.values())
+        .sort((a, b) => a.fecha.localeCompare(b.fecha))
+        .map(d => ({
+          ...d,
+          fecha: d.fecha.split('-').slice(1).join('/'), // MM/DD format
+          ingresos: Math.round(d.ingresos * 100) / 100,
+          salidas: Math.round(d.salidas * 100) / 100
+        }));
+      setTrendData(trend);
+
+      // Top 5 most moved products
+      const productMap = new Map();
+      (recentMoves || []).forEach(m => {
+        const code = m.producto_codigo || 'N/A';
+        const current = productMap.get(code) || 0;
+        productMap.set(code, current + (parseFloat(m.cantidad) || 0));
+      });
+
+      const top = Array.from(productMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([codigo, total]) => ({ codigo, total: Math.round(total * 100) / 100 }));
+      setTopProducts(top);
+
+    } catch (err) {
+      console.error('Error loading chart data:', err);
+    }
+  };
+
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
+
+  // Custom tooltip style for charts
+  const CustomTooltipStyle = {
+    backgroundColor: 'var(--bg-card)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '8px',
+    padding: '10px 14px',
+    fontSize: '0.8rem',
+    color: 'var(--text-primary)',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+  };
 
   return (
     <div id="dashboard" className="tab-content active">
@@ -115,6 +204,53 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Charts Section (FUNC-8) */}
+      {trendData.length > 0 && (
+        <div className="card">
+          <div className="card-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Activity size={18} />
+              <span>Movimientos — Últimos 30 Días</span>
+            </div>
+          </div>
+          <div className="card-body">
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={trendData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
+                <XAxis dataKey="fecha" tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} />
+                <YAxis tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} />
+                <Tooltip contentStyle={CustomTooltipStyle} />
+                <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
+                <Line type="monotone" dataKey="ingresos" stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} name="Ingresos" />
+                <Line type="monotone" dataKey="salidas" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} name="Salidas" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {topProducts.length > 0 && (
+        <div className="card">
+          <div className="card-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Package size={18} />
+              <span>Top 5 Productos Más Movidos (30 días)</span>
+            </div>
+          </div>
+          <div className="card-body">
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={topProducts} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
+                <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} />
+                <YAxis dataKey="codigo" type="category" tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} width={100} />
+                <Tooltip contentStyle={CustomTooltipStyle} />
+                <Bar dataKey="total" fill="#3b82f6" radius={[0, 4, 4, 0]} name="Cantidad Total" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <div className="card-header">

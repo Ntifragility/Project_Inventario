@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase';
-import { Save, Upload, AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import { Save, Upload, AlertCircle, CheckCircle2, Info, X, Eye } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function Movements({ user }) {
@@ -27,6 +27,10 @@ export default function Movements({ user }) {
   const [csvMsg, setCsvMsg] = useState({ text: '', type: '' });
   const [excelMsg, setExcelMsg] = useState({ text: '', type: '' });
   const [submitting, setSubmitting] = useState(false);
+
+  // Import preview states (FUNC-3)
+  const [importPreview, setImportPreview] = useState(null); // { type: 'ingreso'|'salida', data: [], insertCount, updateCount, skippedInfo, inputRef }
+  const [importExecuting, setImportExecuting] = useState(false);
 
   const autocompleteTimeout = useRef(null);
 
@@ -145,7 +149,7 @@ export default function Movements({ user }) {
     setCodigo('');
   };
 
-  // Form submit handler
+  // Form submit handler — uses atomic server-side RPC to prevent race conditions
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormMsg({ text: '', type: '' });
@@ -158,66 +162,35 @@ export default function Movements({ user }) {
       return;
     }
 
+    // Input length validation (SEC-5)
+    if (observaciones.length > 1000) {
+      setFormMsg({ text: 'Las observaciones no pueden exceder 1000 caracteres.', type: 'error' });
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      // Fetch product stock state
-      const { data: prodStock, error: stockErr } = await supabase
-        .from('v_productos_stock')
-        .select('codigo, cantidad')
-        .eq('codigo', codeClean)
-        .single();
-
-      if (stockErr || !prodStock) {
-        setFormMsg({ text: 'El producto no existe. Regístrelo en la pestaña Gestión de Productos.', type: 'error' });
-        setSubmitting(false);
-        return;
-      }
-
-      const stockActual = parseFloat(prodStock.cantidad) || 0;
-
-      // Validate outgoing quantities bounds
-      if ((tipo === 'SALIDA' || tipo === 'AJUSTE_NEGATIVO') && stockActual < qtyClean) {
-        setFormMsg({ 
-          text: `Stock insuficiente. Disponible: ${stockActual}, Solicitado: ${qtyClean}`, 
-          type: 'error' 
-        });
-        setSubmitting(false);
-        return;
-      }
-
-      // Generate or validate transaction keys
-      let finalKey = transactionKey.trim();
-      if (finalKey && finalKey !== 'Automatico') {
-        const { data: existingMov, error: keyErr } = await supabase
-          .from('movimientos')
-          .select('id')
-          .eq('key', finalKey);
-        
-        if (keyErr) throw keyErr;
-
-        if (existingMov && existingMov.length > 0) {
-          setFormMsg({ text: 'Esta clave de transacción (Transaction Key) ya ha sido registrada.', type: 'error' });
-          setSubmitting(false);
-          return;
-        }
-      } else {
-        finalKey = await generateUniqueMovementKey();
-      }
-
       const activeUserEmail = user ? user.email : 'Usuario Sistema';
+      const keyToSend = transactionKey.trim() || 'Automatico';
 
-      const { error: insertErr } = await supabase.from('movimientos').insert([{
-        producto_codigo: codeClean,
-        fecha,
-        tipo,
-        cantidad: qtyClean,
-        usuario: activeUserEmail,
-        observaciones: observaciones.trim(),
-        key: finalKey
-      }]);
+      const { data, error } = await supabase.rpc('registrar_movimiento', {
+        p_producto_codigo: codeClean,
+        p_fecha: fecha,
+        p_tipo: tipo,
+        p_cantidad: qtyClean,
+        p_usuario: activeUserEmail,
+        p_observaciones: observaciones.trim(),
+        p_key: keyToSend
+      });
 
-      if (insertErr) throw insertErr;
+      if (error) throw error;
+
+      if (data && data.success === false) {
+        setFormMsg({ text: data.error, type: 'error' });
+        setSubmitting(false);
+        return;
+      }
 
       setFormMsg({ text: 'Movimiento registrado correctamente.', type: 'success' });
       
@@ -507,19 +480,20 @@ export default function Movements({ user }) {
           return;
         }
 
-        const { error: insertErr } = await supabase.from('movimientos').upsert(movementsToUpsert, { onConflict: 'key' });
-        if (insertErr) throw insertErr;
-
-        let msg = `Importación exitosa: se registraron ${insertCount} nuevos ingresos y se actualizaron ${updateCount} existentes.`;
+        // Show preview instead of immediately inserting (FUNC-3)
         const skippedList = [];
         if (skippedInvalidProduct > 0) skippedList.push(`${skippedInvalidProduct} productos inexistentes`);
         if (skippedInvalidAmount > 0) skippedList.push(`${skippedInvalidAmount} cantidades inválidas`);
-        if (skippedList.length > 0) {
-          msg += ` (Omitidos: ${skippedList.join(', ')}).`;
-        }
-        
-        setCsvMsg({ text: msg, type: 'success' });
-        event.target.value = '';
+
+        setImportPreview({
+          type: 'ingreso',
+          data: movementsToUpsert,
+          insertCount,
+          updateCount,
+          skippedInfo: skippedList.join(', '),
+          inputRef: event.target
+        });
+        setCsvMsg({ text: '', type: '' });
       } catch (err) {
         console.error('Error importing movements Excel/CSV:', err);
         setCsvMsg({ text: 'Error al importar: ' + err.message, type: 'error' });
@@ -704,21 +678,22 @@ export default function Movements({ user }) {
           return;
         }
 
-        const { error: insertErr } = await supabase.from('movimientos').insert(movementsToInsert);
-        if (insertErr) throw insertErr;
-
-        let msg = `Importación exitosa: se registraron ${movementsToInsert.length} movimientos de tipo SALIDA.`;
+        // Show preview instead of immediately inserting (FUNC-3)
         const skippedList = [];
         if (skippedInvalidProduct > 0) skippedList.push(`${skippedInvalidProduct} productos inexistentes`);
         if (skippedDuplicateKey > 0) skippedList.push(`${skippedDuplicateKey} claves duplicadas`);
         if (skippedInvalidAmount > 0) skippedList.push(`${skippedInvalidAmount} cantidades inválidas`);
         if (skippedInsufficientStock > 0) skippedList.push(`${skippedInsufficientStock} stock insuficiente`);
-        if (skippedList.length > 0) {
-          msg += ` (Omitidos: ${skippedList.join(', ')}).`;
-        }
-        
-        setExcelMsg({ text: msg, type: 'success' });
-        event.target.value = '';
+
+        setImportPreview({
+          type: 'salida',
+          data: movementsToInsert,
+          insertCount: movementsToInsert.length,
+          updateCount: 0,
+          skippedInfo: skippedList.join(', '),
+          inputRef: event.target
+        });
+        setExcelMsg({ text: '', type: '' });
       } catch (err) {
         console.error('Error importing movements Excel/CSV:', err);
         setExcelMsg({ text: 'Error al importar: ' + err.message, type: 'error' });
@@ -740,6 +715,40 @@ export default function Movements({ user }) {
     document.addEventListener('click', handleOutsideClick);
     return () => document.removeEventListener('click', handleOutsideClick);
   }, []);
+
+  // Handle confirmed import execution (FUNC-3)
+  const handleConfirmImport = async () => {
+    if (!importPreview) return;
+    setImportExecuting(true);
+
+    try {
+      if (importPreview.type === 'ingreso') {
+        const { error } = await supabase.from('movimientos').upsert(importPreview.data, { onConflict: 'key' });
+        if (error) throw error;
+        setCsvMsg({
+          text: `Importación exitosa: se registraron ${importPreview.insertCount} nuevos ingresos y se actualizaron ${importPreview.updateCount} existentes.`,
+          type: 'success'
+        });
+      } else {
+        const { error } = await supabase.from('movimientos').insert(importPreview.data);
+        if (error) throw error;
+        setExcelMsg({
+          text: `Importación exitosa: se registraron ${importPreview.insertCount} movimientos de tipo SALIDA.`,
+          type: 'success'
+        });
+      }
+
+      if (importPreview.inputRef) importPreview.inputRef.value = '';
+      setImportPreview(null);
+    } catch (err) {
+      console.error('Error executing import:', err);
+      const msgSetter = importPreview.type === 'ingreso' ? setCsvMsg : setExcelMsg;
+      msgSetter({ text: 'Error al importar: ' + err.message, type: 'error' });
+      setImportPreview(null);
+    } finally {
+      setImportExecuting(false);
+    }
+  };
 
   return (
     <div id="movimientos" className="tab-content active">
@@ -873,6 +882,7 @@ export default function Movements({ user }) {
                   id="obsMov" 
                   placeholder="Observaciones opcionales" 
                   rows="3"
+                  maxLength={1000}
                   value={observaciones}
                   onChange={(e) => setObservaciones(e.target.value)}
                 />
@@ -983,6 +993,96 @@ export default function Movements({ user }) {
           )}
         </div>
       </div>
+
+      {/* Import Preview/Confirmation Modal (FUNC-3) */}
+      {importPreview && (
+        <div className="dialog-overlay">
+          <div className="dialog-card" style={{ maxWidth: '700px', width: '90%' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Eye size={18} style={{ color: 'var(--primary)' }} />
+                <span>Vista Previa de Importación ({importPreview.type === 'ingreso' ? 'Ingresos' : 'Salidas'})</span>
+              </div>
+              <button
+                onClick={() => { setImportPreview(null); if (importPreview.inputRef) importPreview.inputRef.value = ''; }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                disabled={importExecuting}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="card-body" style={{ padding: '24px' }}>
+              {/* Summary */}
+              <div className="message success" style={{ marginBottom: '16px' }}>
+                <CheckCircle2 size={16} />
+                <span>
+                  <strong>{importPreview.data.length}</strong> registros listos para importar
+                  {importPreview.updateCount > 0 && ` (${importPreview.insertCount} nuevos, ${importPreview.updateCount} actualizaciones)`}
+                </span>
+              </div>
+
+              {importPreview.skippedInfo && (
+                <div className="message warning" style={{ marginBottom: '16px' }}>
+                  <AlertCircle size={16} />
+                  <span>Omitidos: {importPreview.skippedInfo}</span>
+                </div>
+              )}
+
+              {/* Preview Table */}
+              <div className="table-container" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Key</th>
+                      <th>ID Producto</th>
+                      <th>Fecha</th>
+                      <th>Cantidad</th>
+                      <th>Tipo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importPreview.data.slice(0, 10).map((m, idx) => (
+                      <tr key={idx}>
+                        <td><small>{m.key}</small></td>
+                        <td><strong>{m.producto_codigo}</strong></td>
+                        <td>{m.fecha}</td>
+                        <td>{m.cantidad}</td>
+                        <td>{m.tipo}</td>
+                      </tr>
+                    ))}
+                    {importPreview.data.length > 10 && (
+                      <tr>
+                        <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                          ... y {importPreview.data.length - 10} registros más
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => { setImportPreview(null); if (importPreview.inputRef) importPreview.inputRef.value = ''; }}
+                  disabled={importExecuting}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="btn btn-success"
+                  onClick={handleConfirmImport}
+                  disabled={importExecuting}
+                >
+                  <Upload size={16} />
+                  <span>{importExecuting ? 'Importando...' : 'Confirmar Importación'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

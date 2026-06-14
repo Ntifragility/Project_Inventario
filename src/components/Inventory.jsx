@@ -10,12 +10,25 @@ import {
   Layers 
 } from 'lucide-react';
 
+// CSV injection sanitization helper (SEC-4)
+const sanitizeCsvCell = (val) => {
+  const str = String(val ?? '');
+  if (/^[=+\-@\t\r]/.test(str)) {
+    return "'" + str;
+  }
+  return str;
+};
+
 export default function Inventory() {
   const [stockData, setStockData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [filterText, setFilterText] = useState('');
   const [onlyAlerts, setOnlyAlerts] = useState(false);
+
+  // Pagination state (FUNC-2)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
 
   // Detail Modal states
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -81,7 +94,7 @@ export default function Inventory() {
         if (qty <= 0) estado = 'Sin Stock';
         else if (qty <= min && min > 0) estado = 'Stock Bajo';
 
-        csv += `"${p.codigo}","${p.nombre}",${qty},"${p.unidad}","${p.grupo}",${min},"${estado}"\n`;
+        csv += `"${sanitizeCsvCell(p.codigo)}","${sanitizeCsvCell(p.nombre)}",${qty},"${sanitizeCsvCell(p.unidad)}","${sanitizeCsvCell(p.grupo)}",${min},"${estado}"\n`;
       });
 
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -116,6 +129,17 @@ export default function Inventory() {
 
     return true;
   });
+
+  // Pagination computed values (FUNC-2)
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / rowsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIdx = (safeCurrentPage - 1) * rowsPerPage;
+  const paginatedData = filteredData.slice(startIdx, startIdx + rowsPerPage);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterText, onlyAlerts]);
 
   return (
     <div id="inventario" className="tab-content active">
@@ -175,6 +199,7 @@ export default function Inventory() {
           ) : filteredData.length === 0 ? (
             <div className="message warning">No se encontraron productos con el filtro especificado.</div>
           ) : (
+            <>
             <div className="table-container">
               <table>
                 <thead>
@@ -190,7 +215,7 @@ export default function Inventory() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredData.map((p) => {
+                  {paginatedData.map((p) => {
                     let statusClass = 'status-normal';
                     let estado = 'Normal';
                     let badgeClass = 'badge-normal';
@@ -235,6 +260,41 @@ export default function Inventory() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls (FUNC-2) */}
+            {totalPages > 1 && (
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                marginTop: '16px',
+                padding: '12px 0',
+                borderTop: '1px solid var(--border-color)',
+                flexWrap: 'wrap',
+                gap: '12px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  <span>Mostrando {startIdx + 1}–{Math.min(startIdx + rowsPerPage, filteredData.length)} de {filteredData.length}</span>
+                  <select 
+                    value={rowsPerPage} 
+                    onChange={(e) => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                    style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                  >
+                    <option value={25}>25 filas</option>
+                    <option value={50}>50 filas</option>
+                    <option value={100}>100 filas</option>
+                  </select>
+                </div>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(1)} disabled={safeCurrentPage === 1}>«</button>
+                  <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safeCurrentPage === 1}>‹</button>
+                  <span style={{ padding: '4px 12px', fontSize: '0.85rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>{safeCurrentPage} / {totalPages}</span>
+                  <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safeCurrentPage === totalPages}>›</button>
+                  <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(totalPages)} disabled={safeCurrentPage === totalPages}>»</button>
+                </div>
+              </div>
+            )}
+            </>
           )}
         </div>
       </div>

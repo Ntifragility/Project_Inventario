@@ -14,12 +14,38 @@ export default function Config() {
   const [resetError, setResetError] = useState('');
   const [resetting, setResetting] = useState(false);
 
-  // Validate integrity local function
-  const handleValidateIntegrity = () => {
-    setResultMsg({
-      text: 'Integridad verificada con éxito. Todos los esquemas, restricciones de claves, y triggers lógicos están consistentes e intactos dentro del entorno Supabase (PostgreSQL).',
-      type: 'success'
-    });
+  // Validate integrity via server-side RPC
+  const handleValidateIntegrity = async () => {
+    setResultMsg({ text: '', type: '' });
+    setLoadingAction(true);
+    try {
+      const { data, error } = await supabase.rpc('validar_integridad');
+      if (error) throw error;
+
+      if (data.is_healthy) {
+        setResultMsg({
+          text: 'Integridad verificada con éxito. No se encontraron inconsistencias en la base de datos.',
+          type: 'success'
+        });
+      } else {
+        const issues = [];
+        if (data.orphaned_movements > 0) issues.push(`${data.orphaned_movements} movimientos huérfanos`);
+        if (data.negative_stock > 0) issues.push(`${data.negative_stock} productos con stock negativo`);
+        if (data.invalid_tipos > 0) issues.push(`${data.invalid_tipos} movimientos con tipo inválido`);
+        setResultMsg({
+          text: `Se detectaron inconsistencias: ${issues.join(', ')}.`,
+          type: 'error'
+        });
+      }
+    } catch (err) {
+      console.error('Integrity validation error:', err);
+      setResultMsg({
+        text: 'Error al validar integridad: ' + err.message,
+        type: 'error'
+      });
+    } finally {
+      setLoadingAction(false);
+    }
   };
 
   // Check Supabase connection
