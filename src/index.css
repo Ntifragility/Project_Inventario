@@ -1127,86 +1127,54 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
   text-align: center !important;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   Nuevo Movimiento de Inventario — Form Layout
-   ═══════════════════════════════════════════════════════════════ */
-
-/* Row 1: All 6 main fields on ONE horizontal line */
+/* Nuevo Movimiento de Inventario — Form Layout */
 .movement-form-row-1 {
   display: flex;
-  gap: 8px;
-  grid-column: 1 / -1;          /* span the full parent grid width */
-  width: 100%;
-  align-items: flex-end;        /* bottom-align inputs across columns */
-  flex-wrap: nowrap;
-  overflow: hidden;             /* prevent horizontal blowout */
-}
-
-/* Row 2: Almacenero + Observaciones */
-.movement-form-row-2 {
-  display: flex;
-  gap: 8px;
+  gap: 10px;
   grid-column: 1 / -1;
   width: 100%;
-  align-items: flex-end;
-  margin-top: 8px;
+  align-items: flex-start;
+  flex-wrap: nowrap;
 }
 
-/* Kill default form-group bottom margin inside the rows */
+.movement-form-row-2 {
+  display: flex;
+  gap: 10px;
+  grid-column: 1 / -1;
+  width: 100%;
+  margin-top: 12px;
+}
+
 .movement-form-row-1 .form-group,
 .movement-form-row-2 .form-group {
   margin-bottom: 0;
 }
 
-/* ── Compact labels ── */
-.movement-form-row-1 label,
-.movement-form-row-2 label {
-  font-size: 0.7rem !important;
-  font-weight: 600 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.04em !important;
-  color: var(--text-secondary) !important;
-  margin-bottom: 4px !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-}
+/* Row 1 column widths */
+.m-col-fecha    { flex: 0 1 120px; }
+.m-col-id       { flex: 1 1 10%;   }
+.m-col-producto { flex: 2 1 20%;   }
+.m-col-key      { flex: 1.5 1 14%; }
+.m-col-cantidad { flex: 0.7 1 7%;  }
+.m-col-tipo     { flex: 1.2 1 14%; }
 
-/* ── Compact inputs ── */
-.movement-form-row-1 input,
-.movement-form-row-1 select,
-.movement-form-row-2 input,
-.movement-form-row-2 select {
-  padding: 7px 8px !important;
-  height: 36px !important;
-  font-size: 0.82rem !important;
-}
-
-/* ── Row 1 column proportions (no min-width so they always fit) ── */
-.m-col-fecha    { flex: 0 1 120px; }   /* date picker needs some space */
-.m-col-id       { flex: 1 1 10%;  }   /* ID Producto */
-.m-col-producto { flex: 2 1 20%;  }   /* Producto (widest) */
-.m-col-key      { flex: 1.5 1 14%; }  /* Transaction Key */
-.m-col-cantidad { flex: 0.7 1 7%; }   /* Cantidad (narrow) */
-.m-col-tipo     { flex: 1.2 1 14%; }  /* Tipo de Movimiento */
-
-/* ── Row 2 column proportions ── */
+/* Row 2 column widths */
 .m-col-almacenero    { flex: 0 0 150px; }
 .m-col-observaciones { flex: 0 1 400px; max-width: 400px; }
 
-/* ═══ Responsive: wrap to 2-col on tablets ═══ */
+/* Responsive: wrap to 2-col on tablets */
 @media (max-width: 1100px) {
   .movement-form-row-1 {
     flex-wrap: wrap;
   }
   .m-col-fecha, .m-col-id, .m-col-producto,
   .m-col-key, .m-col-cantidad, .m-col-tipo {
-    flex: 1 1 calc(50% - 8px);
+    flex: 1 1 calc(50% - 10px);
   }
   .m-col-observaciones { max-width: 100%; flex: 1 1 100%; }
 }
 
-/* ═══ Responsive: stack on mobile ═══ */
+/* Responsive: stack on mobile */
 @media (max-width: 650px) {
   .m-col-fecha, .m-col-id, .m-col-producto,
   .m-col-key, .m-col-cantidad, .m-col-tipo {
