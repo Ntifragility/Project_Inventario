@@ -1109,7 +1109,7 @@ export default function Movements({ user }) {
                 </div>
               )}
 
-              <div className="form-group">
+              <div className="form-group" style={{ maxWidth: '50%' }}>
                 <label htmlFor="fechaMov">Fecha de mov. *</label>
                 <input 
                   type="date" 
@@ -1120,7 +1120,7 @@ export default function Movements({ user }) {
                 />
               </div>
 
-              <div className="form-group autocomplete-container">
+              <div className="form-group autocomplete-container" style={{ maxWidth: '50%' }}>
                 <label htmlFor="codigoMov">ID Producto *</label>
                 <input 
                   type="text" 
@@ -1177,7 +1177,7 @@ export default function Movements({ user }) {
                 )}
               </div>
 
-              <div className="form-group">
+              <div className="form-group" style={{ maxWidth: '30%' }}>
                 <label htmlFor="cantMov">Cantidad *</label>
                 <input 
                   type="number" 
@@ -1191,7 +1191,7 @@ export default function Movements({ user }) {
                 />
               </div>
 
-              <div className="form-group">
+              <div className="form-group" style={{ maxWidth: '70%' }}>
                 <label htmlFor="tipoMov">Tipo de Movimiento *</label>
                 <select 
                   id="tipoMov" 
