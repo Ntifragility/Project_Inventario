@@ -265,7 +265,7 @@ export default function Config() {
 
                   <div className="form-group" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
                     <label htmlFor="resetDniInput" style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px', fontSize: '0.875rem' }}>
-                      Ingrese DNI de Administrador para Autorizar *
+                      DNI
                     </label>
                     <input 
                       type="text" 
