@@ -875,6 +875,7 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
 .dialog-card {
   background: #ffffff !important;
   border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  border-radius: var(--radius-lg) !important;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
   color: #0f172a !important; /* Force high contrast dark slate text */
   width: 100%;
@@ -953,7 +954,7 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
   text-align: center !important;
 }
 
-.dialog-card .card-body label {
+.dialog-card .card-body label:not(.btn) {
   font-size: 0.85rem !important;
   font-weight: 600 !important;
   color: #0f172a !important;
@@ -961,7 +962,7 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
   text-align: center !important;
 }
 
-.dark-theme .dialog-card .card-body label {
+.dark-theme .dialog-card .card-body label:not(.btn) {
   color: #f8fafc !important;
 }
 
@@ -1026,6 +1027,32 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
 .dialog-card div[style*="display:flex"] {
   justify-content: center !important;
   gap: 12px !important;
+}
+
+/* Force standard buttons inside dialog footer/actions to be properly aligned and colored */
+.dialog-card .btn,
+.dialog-card label.btn,
+.dialog-card label.btn span {
+  padding: 10px 20px !important;
+  font-size: 0.9rem !important;
+  border-radius: var(--radius-md) !important;
+  font-weight: 500 !important;
+  color: #ffffff !important; /* Force white text for buttons in all themes */
+  margin-bottom: 0 !important;
+}
+
+.dialog-card .btn-secondary,
+.dialog-card label.btn-secondary,
+.dialog-card label.btn-secondary span {
+  background: var(--bg-card-header) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-secondary) !important; /* Retain secondary grey text */
+}
+
+.dialog-card .btn-secondary:hover,
+.dialog-card label.btn-secondary:hover {
+  background: var(--border-color) !important;
+  color: var(--text-primary) !important;
 }
 
 /* Center warning/info/success message banners */
