@@ -19,6 +19,7 @@ export default function Products() {
   const [loadingList, setLoadingList] = useState(false);
   const [formMsg, setFormMsg] = useState({ text: '', type: '' });
   const [csvMsg, setCsvMsg] = useState({ text: '', type: '' });
+  const [showImportModal, setShowImportModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Edit mode states (FUNC-1)
@@ -517,6 +518,14 @@ export default function Products() {
               >
                 Limpiar
               </button>
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                onClick={() => setShowImportModal(true)}
+              >
+                <Upload size={16} />
+                <span>Importar desde CSV</span>
+              </button>
             </div>
           </form>
 
@@ -529,39 +538,62 @@ export default function Products() {
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Upload size={18} />
-            <span>Importar Productos desde CSV</span>
-          </div>
-        </div>
-        <div className="card-body">
-          <p style={{ marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
-            Seleccione un archivo CSV para registrar múltiples productos en lote. El archivo debe incluir las
-            cabeceras: <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Unidad</strong>, <strong>Grupo</strong>, y <strong>Stock Mín.</strong>
-          </p>
-          <div className="actions">
-            <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
-              <Upload size={16} />
-              <span>Seleccionar Archivo CSV</span>
-              <input 
-                type="file" 
-                accept=".csv" 
-                onChange={handleImportCSV} 
-                style={{ display: 'none' }} 
-              />
-            </label>
-          </div>
-
-          {csvMsg.text && (
-            <div className={`message ${csvMsg.type}`}>
-              {csvMsg.type === 'info' ? <Info size={16} /> : csvMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-              <span>{csvMsg.text}</span>
+      {showImportModal && (
+        <div className="dialog-overlay">
+          <div className="dialog-card" style={{ maxWidth: '500px', width: '90%' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Upload size={18} style={{ color: 'var(--primary)' }} />
+                <span>Importar Productos desde CSV</span>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowImportModal(false);
+                  setCsvMsg({ text: '', type: '' });
+                }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+              >
+                <X size={20} />
+              </button>
             </div>
-          )}
+            <div className="card-body" style={{ padding: '24px' }}>
+              <p style={{ marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                Seleccione un archivo CSV para registrar múltiples productos en lote. El archivo debe incluir las cabeceras: <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Unidad</strong>, <strong>Grupo</strong>, y <strong>Stock Mín.</strong>
+              </p>
+              <div className="actions" style={{ marginBottom: 0 }}>
+                <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
+                  <Upload size={16} />
+                  <span>Seleccionar archivo</span>
+                  <input 
+                    type="file" 
+                    accept=".csv" 
+                    onChange={handleImportCSV} 
+                    style={{ display: 'none' }} 
+                  />
+                </label>
+              </div>
+
+              {csvMsg.text && (
+                <div className={`message ${csvMsg.type}`} style={{ margin: '16px 0 0 0' }}>
+                  {csvMsg.type === 'info' ? <Info size={16} /> : csvMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                  <span>{csvMsg.text}</span>
+                </div>
+              )}
+            </div>
+            <div style={{ padding: '16px 24px', background: 'var(--bg-card-header)', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end' }}>
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  setShowImportModal(false);
+                  setCsvMsg({ text: '', type: '' });
+                }}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="card">
         <div className="card-header">

@@ -37,6 +37,10 @@ export default function Movements({ user }) {
   const [lastImport, setLastImport] = useState(null); // { type: 'ingreso' | 'salida', keys: [], prevRecords: [], newKeys: [] }
   const [undoing, setUndoing] = useState(false);
 
+  // Compact Import Modals
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importOption, setImportOption] = useState(null); // 'ingreso' | 'salida'
+
   // Movements History Admin States
   const [adminDni, setAdminDni] = useState('');
   const [ledgerMovements, setLedgerMovements] = useState([]);
@@ -1258,6 +1262,14 @@ export default function Movements({ user }) {
               >
                 Limpiar
               </button>
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                onClick={() => setShowImportModal(true)}
+              >
+                <Upload size={16} />
+                <span>Importar desde Excel / CSV</span>
+              </button>
             </div>
           </form>
 
@@ -1270,101 +1282,167 @@ export default function Movements({ user }) {
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Upload size={18} />
-            <span>Importar Ingresos desde Excel / CSV</span>
-          </div>
-        </div>
-        <div className="card-body">
-          <p style={{ marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
-            Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo <strong>Ingreso</strong> en lote.
-            El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>Fecha</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Cant. Recepcionada</strong>, y <strong>Unidad</strong>.
-            <br />
-            <strong style={{ color: 'var(--danger)' }}>Nota importante:</strong> Los productos a importar ya deben existir en el sistema.
-          </p>
-          <div className="actions">
-            <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
-              <Upload size={16} />
-              <span>Seleccionar Archivo</span>
-              <input 
-                type="file" 
-                accept=".xlsx, .xls, .csv" 
-                onChange={handleImportIngresos} 
-                style={{ display: 'none' }} 
-              />
-            </label>
-          </div>
-
-          {csvMsg.text && (
-            <div className={`message ${csvMsg.type}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+      {showImportModal && !importPreview && (
+        <div className="dialog-overlay">
+          <div className="dialog-card" style={{ maxWidth: '600px', width: '90%' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {csvMsg.type === 'info' ? <Info size={16} /> : csvMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-                <span>{csvMsg.text}</span>
+                <Upload size={18} style={{ color: 'var(--primary)' }} />
+                <span>Importar desde Excel / CSV</span>
               </div>
-              {csvMsg.type === 'success' && lastImport && lastImport.type === 'ingreso' && (
-                <button 
-                  onClick={handleUndoLastImport} 
-                  disabled={undoing}
-                  className="btn btn-secondary" 
-                  style={{ padding: '6px 12px', fontSize: '0.8rem', marginLeft: '12px' }}
-                >
-                  {undoing ? 'Deshaciendo...' : 'Deshacer'}
-                </button>
-              )}
+              <button 
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportOption(null);
+                  setCsvMsg({ text: '', type: '' });
+                  setExcelMsg({ text: '', type: '' });
+                }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+              >
+                <X size={20} />
+              </button>
             </div>
-          )}
-        </div>
-      </div>
+            <div className="card-body" style={{ padding: '24px' }}>
+              
+              {/* Option Selector Buttons */}
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
+                <button
+                  type="button"
+                  className={`btn ${importOption === 'ingreso' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ flex: 1, padding: '12px' }}
+                  onClick={() => {
+                    setImportOption('ingreso');
+                    setCsvMsg({ text: '', type: '' });
+                    setExcelMsg({ text: '', type: '' });
+                  }}
+                >
+                  Ingresos de material
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${importOption === 'salida' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ flex: 1, padding: '12px' }}
+                  onClick={() => {
+                    setImportOption('salida');
+                    setCsvMsg({ text: '', type: '' });
+                    setExcelMsg({ text: '', type: '' });
+                  }}
+                >
+                  Salida de Material
+                </button>
+              </div>
 
-      <div className="card">
-        <div className="card-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Upload size={18} />
-            <span>Importar Salidas desde Excel / CSV</span>
+              {/* Instructions and File Selector based on selected option */}
+              {importOption === 'ingreso' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                    Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo Ingreso en lote. El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>Fecha</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Cant. Recepcionada</strong>, y <strong>Unidad</strong>.
+                    <br /><br />
+                    <strong>Nota importante:</strong> Los productos a importar ya deben existir en el sistema.
+                  </p>
+                  
+                  <div className="actions" style={{ marginBottom: 0 }}>
+                    <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
+                      <Upload size={16} />
+                      <span>Seleccionar archivo</span>
+                      <input 
+                        type="file" 
+                        accept=".xlsx, .xls, .csv" 
+                        onChange={handleImportIngresos} 
+                        style={{ display: 'none' }} 
+                      />
+                    </label>
+                  </div>
+
+                  {csvMsg.text && (
+                    <div className={`message ${csvMsg.type}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', margin: '12px 0 0 0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {csvMsg.type === 'info' ? <Info size={16} /> : csvMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                        <span>{csvMsg.text}</span>
+                      </div>
+                      {csvMsg.type === 'success' && lastImport && lastImport.type === 'ingreso' && (
+                        <button 
+                          onClick={handleUndoLastImport} 
+                          disabled={undoing}
+                          className="btn btn-secondary" 
+                          style={{ padding: '6px 12px', fontSize: '0.8rem', marginLeft: '12px' }}
+                        >
+                          {undoing ? 'Deshaciendo...' : 'Deshacer'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {importOption === 'salida' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                    Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo Salida en lote. El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>Fecha</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Cant. Entregada</strong>, <strong>Unidad</strong>, y <strong>Cód.Almacenero</strong>.
+                    <br /><br />
+                    <strong>Nota importante:</strong> El sistema verificará que exista stock suficiente para cada salida. De lo contrario, se omitirán esas filas.
+                  </p>
+                  
+                  <div className="actions" style={{ marginBottom: 0 }}>
+                    <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
+                      <Upload size={16} />
+                      <span>Seleccionar archivo</span>
+                      <input 
+                        type="file" 
+                        accept=".xlsx, .xls, .csv" 
+                        onChange={handleImportSalidas} 
+                        style={{ display: 'none' }} 
+                      />
+                    </label>
+                  </div>
+
+                  {excelMsg.text && (
+                    <div className={`message ${excelMsg.type}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', margin: '12px 0 0 0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {excelMsg.type === 'info' ? <Info size={16} /> : excelMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                        <span>{excelMsg.text}</span>
+                      </div>
+                      {excelMsg.type === 'success' && lastImport && lastImport.type === 'salida' && (
+                        <button 
+                          onClick={handleUndoLastImport} 
+                          disabled={undoing}
+                          className="btn btn-secondary" 
+                          style={{ padding: '6px 12px', fontSize: '0.8rem', marginLeft: '12px' }}
+                        >
+                          {undoing ? 'Deshaciendo...' : 'Deshacer'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Default Message when no option is selected */}
+              {!importOption && (
+                <p style={{ color: 'var(--text-muted)', textAlign: 'center', margin: '20px 0', fontSize: '0.9rem' }}>
+                  Seleccione una opción para ver las instrucciones y cargar un archivo.
+                </p>
+              )}
+
+            </div>
+            
+            <div style={{ padding: '16px 24px', background: 'var(--bg-card-header)', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end' }}>
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportOption(null);
+                  setCsvMsg({ text: '', type: '' });
+                  setExcelMsg({ text: '', type: '' });
+                }}
+              >
+                Cerrar
+              </button>
+            </div>
+
           </div>
         </div>
-        <div className="card-body">
-          <p style={{ marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
-            Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo <strong>Salida</strong> en lote.
-            El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>Fecha</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Cant. Entregada</strong>, <strong>Unidad</strong>, y <strong>Cód.Almacenero</strong>.
-            <br />
-            <strong style={{ color: 'var(--danger)' }}>Nota importante:</strong> El sistema verificará que exista stock suficiente para cada salida. De lo contrario, se omitirán esas filas.
-          </p>
-          <div className="actions">
-            <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
-              <Upload size={16} />
-              <span>Seleccionar Archivo</span>
-              <input 
-                type="file" 
-                accept=".xlsx, .xls, .csv" 
-                onChange={handleImportSalidas} 
-                style={{ display: 'none' }} 
-              />
-            </label>
-          </div>
-
-          {excelMsg.text && (
-            <div className={`message ${excelMsg.type}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {excelMsg.type === 'info' ? <Info size={16} /> : excelMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-                <span>{excelMsg.text}</span>
-              </div>
-              {excelMsg.type === 'success' && lastImport && lastImport.type === 'salida' && (
-                <button 
-                  onClick={handleUndoLastImport} 
-                  disabled={undoing}
-                  className="btn btn-secondary" 
-                  style={{ padding: '6px 12px', fontSize: '0.8rem', marginLeft: '12px' }}
-                >
-                  {undoing ? 'Deshaciendo...' : 'Deshacer'}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Import Preview/Confirmation Modal (FUNC-3) */}
       {importPreview && (

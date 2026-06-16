@@ -94,6 +94,11 @@ export default function Config() {
       return;
     }
 
+    if (cleanDni.length !== 8) {
+      setDniError('El DNI debe tener exactamente 8 dígitos.');
+      return;
+    }
+
     setResetStep(2);
   };
 
@@ -199,10 +204,10 @@ export default function Config() {
                     <input 
                       type="text" 
                       id="resetDniInput" 
-                      placeholder="Ingrese DNI (solo dígitos)" 
+                      placeholder="Ingrese DNI (8 dígitos)" 
                       value={dni}
-                      onChange={(e) => setDni(e.target.value)}
-                      maxLength={20}
+                      onChange={(e) => setDni(e.target.value.replace(/\D/g, ''))}
+                      maxLength={8}
                       autoComplete="off"
                     />
                     {dniError && (
