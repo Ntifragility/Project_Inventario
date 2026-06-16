@@ -33,27 +33,6 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, isDar
           </h1>
         </div>
 
-        {user && (
-          <div className="user-profile-card">
-            <div className="user-info">
-              <span className="user-avatar">
-                <User size={18} />
-              </span>
-              <span className="user-email" title={user.email}>
-                {user.email}
-              </span>
-            </div>
-            <button 
-              type="button" 
-              className="btn-logout" 
-              onClick={onLogout} 
-              title="Cerrar Sesión"
-            >
-              <LogOut size={14} />
-            </button>
-          </div>
-        )}
-
         <ul className="nav-menu">
           {menuItems.map((item) => {
             const IconComponent = item.icon;
@@ -74,6 +53,27 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, isDar
       </div>
 
       <div className="sidebar-footer">
+        {user && (
+          <div className="user-profile-card" style={{ marginBottom: '12px' }}>
+            <div className="user-info">
+              <span className="user-avatar">
+                <User size={18} />
+              </span>
+              <span className="user-email" title={user.email}>
+                {user.email}
+              </span>
+            </div>
+            <button 
+              type="button" 
+              className="btn-logout" 
+              onClick={onLogout} 
+              title="Cerrar Sesión"
+            >
+              <LogOut size={14} />
+            </button>
+          </div>
+        )}
+
         <button onClick={toggleTheme} className="theme-btn">
           {isDark ? (
             <>
