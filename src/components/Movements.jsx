@@ -1097,8 +1097,8 @@ export default function Movements({ user }) {
           <form onSubmit={handleSubmit}>
             <div className="form-grid">
               {/* Row 1: All 6 main fields on the same row */}
-              <div style={{ display: 'flex', gap: '12px', gridColumn: 'span 2', width: '100%', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
-                <div className="form-group" style={{ flex: '1 1 13%' }}>
+              <div className="movement-form-row-1">
+                <div className="form-group m-col-fecha">
                   <label htmlFor="fechaMov">Fecha de mov. *</label>
                   <input 
                     type="date" 
@@ -1109,7 +1109,7 @@ export default function Movements({ user }) {
                   />
                 </div>
 
-                <div className="form-group autocomplete-container" style={{ flex: '1 1 13%' }}>
+                <div className="form-group autocomplete-container m-col-id">
                   <label htmlFor="codigoMov">ID Producto *</label>
                   <input 
                     type="text" 
@@ -1138,7 +1138,7 @@ export default function Movements({ user }) {
                   )}
                 </div>
 
-                <div className="form-group autocomplete-container" style={{ flex: '2 1 26%' }}>
+                <div className="form-group autocomplete-container m-col-producto">
                   <label htmlFor="nombreMov">Producto</label>
                   <input 
                     type="text" 
@@ -1166,7 +1166,7 @@ export default function Movements({ user }) {
                   )}
                 </div>
 
-                <div className="form-group" style={{ flex: '1.2 1 16%' }}>
+                <div className="form-group m-col-key">
                   <label htmlFor="keyMov">Transaction Key (Clave)</label>
                   <input 
                     type="text" 
@@ -1177,7 +1177,7 @@ export default function Movements({ user }) {
                   />
                 </div>
 
-                <div className="form-group" style={{ flex: '0.8 1 10%' }}>
+                <div className="form-group m-col-cantidad">
                   <label htmlFor="cantMov">Cantidad *</label>
                   <input 
                     type="number" 
@@ -1191,7 +1191,7 @@ export default function Movements({ user }) {
                   />
                 </div>
 
-                <div className="form-group" style={{ flex: '1.2 1 22%' }}>
+                <div className="form-group m-col-tipo">
                   <label htmlFor="tipoMov">Tipo de Movimiento *</label>
                   <select 
                     id="tipoMov" 
@@ -1210,10 +1210,10 @@ export default function Movements({ user }) {
               </div>
 
               {/* Row 2: Cod Almacenero (if SALIDA) and Observaciones */}
-              <div style={{ display: 'flex', gap: '12px', gridColumn: 'span 2', width: '100%', marginTop: '12px' }}>
+              <div className="movement-form-row-2">
                 {tipo === 'SALIDA' ? (
                   <>
-                    <div className="form-group" style={{ flex: '1 1 20%' }}>
+                    <div className="form-group m-col-almacenero">
                       <label htmlFor="almaceneroMov">Cód. Almacenero *</label>
                       <input 
                         type="text" 
@@ -1224,7 +1224,7 @@ export default function Movements({ user }) {
                         required
                       />
                     </div>
-                    <div className="form-group" style={{ flex: '3 1 80%' }}>
+                    <div className="form-group m-col-observaciones">
                       <label htmlFor="obsMov">Observaciones</label>
                       <input 
                         type="text"
@@ -1237,7 +1237,7 @@ export default function Movements({ user }) {
                     </div>
                   </>
                 ) : (
-                  <div className="form-group" style={{ flex: '1 1 100%' }}>
+                  <div className="form-group m-col-observaciones">
                     <label htmlFor="obsMov">Observaciones</label>
                     <input 
                       type="text"

@@ -1127,3 +1127,77 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
   text-align: center !important;
 }
 
+/* Nuevo Movimiento Layout Rules */
+.movement-form-row-1 {
+  display: flex;
+  gap: 10px;
+  grid-column: span 2;
+  width: 100%;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+}
+
+.movement-form-row-2 {
+  display: flex;
+  gap: 10px;
+  grid-column: span 2;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.movement-form-row-1 .form-group,
+.movement-form-row-2 .form-group {
+  margin-bottom: 0;
+}
+
+/* Compact input styling for the row to look clean and premium */
+.movement-form-row-1 label,
+.movement-form-row-2 label {
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  color: var(--text-secondary) !important;
+  margin-bottom: 6px !important;
+}
+
+.movement-form-row-1 input,
+.movement-form-row-1 select,
+.movement-form-row-2 input,
+.movement-form-row-2 select {
+  padding: 8px 10px !important;
+  height: 38px !important;
+  font-size: 0.85rem !important;
+}
+
+/* Row 1 column proportional widths */
+.m-col-fecha { flex: 1 1 12%; min-width: 110px; }
+.m-col-id { flex: 1 1 12%; min-width: 110px; }
+.m-col-producto { flex: 2 1 24%; min-width: 180px; }
+.m-col-key { flex: 1.5 1 18%; min-width: 140px; }
+.m-col-cantidad { flex: 0.8 1 10%; min-width: 80px; }
+.m-col-tipo { flex: 1.2 1 16%; min-width: 130px; }
+
+/* Row 2 column proportional widths */
+.m-col-almacenero { flex: 0 0 160px; }
+.m-col-observaciones { flex: 0 1 450px; }
+
+/* Responsive adjustments */
+@media (max-width: 1100px) {
+  .movement-form-row-1 {
+    flex-wrap: wrap;
+  }
+  .m-col-fecha, .m-col-id, .m-col-producto, .m-col-key, .m-col-cantidad, .m-col-tipo {
+    flex: 1 1 calc(50% - 10px); /* 2 per row on medium screens */
+  }
+}
+
+@media (max-width: 650px) {
+  .m-col-fecha, .m-col-id, .m-col-producto, .m-col-key, .m-col-cantidad, .m-col-tipo {
+    flex: 1 1 100%; /* 1 per row on mobile */
+  }
+  .m-col-almacenero, .m-col-observaciones {
+    flex: 1 1 100%;
+  }
+}
+
