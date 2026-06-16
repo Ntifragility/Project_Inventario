@@ -527,6 +527,14 @@ export default function Products() {
               </button>
               <button 
                 type="button" 
+                className="btn btn-primary" 
+                onClick={() => setShowImportModal(true)}
+              >
+                <Upload size={16} />
+                <span>Importar desde Excel / CSV</span>
+              </button>
+              <button 
+                type="button" 
                 className="btn btn-secondary" 
                 onClick={() => {
                   setCodigo('');
@@ -536,14 +544,6 @@ export default function Products() {
                 }}
               >
                 Limpiar
-              </button>
-              <button 
-                type="button" 
-                className="btn btn-primary" 
-                onClick={() => setShowImportModal(true)}
-              >
-                <Upload size={16} />
-                <span>Importar desde Excel / CSV</span>
               </button>
             </div>
           </form>

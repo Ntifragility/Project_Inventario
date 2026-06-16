@@ -1247,6 +1247,14 @@ export default function Movements({ user }) {
               </button>
               <button 
                 type="button" 
+                className="btn btn-primary" 
+                onClick={() => setShowImportModal(true)}
+              >
+                <Upload size={16} />
+                <span>Importar desde Excel / CSV</span>
+              </button>
+              <button 
+                type="button" 
                 className="btn btn-secondary" 
                 onClick={() => {
                   setCodigo('');
@@ -1261,14 +1269,6 @@ export default function Movements({ user }) {
                 }}
               >
                 Limpiar
-              </button>
-              <button 
-                type="button" 
-                className="btn btn-primary" 
-                onClick={() => setShowImportModal(true)}
-              >
-                <Upload size={16} />
-                <span>Importar desde Excel / CSV</span>
               </button>
             </div>
           </form>
