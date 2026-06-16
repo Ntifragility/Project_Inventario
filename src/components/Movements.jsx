@@ -1227,7 +1227,7 @@ export default function Movements({ user }) {
                 </div>
               )}
 
-              <div className="form-group" style={{ gridColumn: 'span 2' }}>
+              <div className="form-group">
                 <label htmlFor="obsMov">Observaciones</label>
                 <textarea 
                   id="obsMov" 
