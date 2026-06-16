@@ -1031,19 +1031,22 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
 
 /* Force standard buttons inside dialog footer/actions to be properly aligned and colored */
 .dialog-card .btn,
-.dialog-card label.btn,
-.dialog-card label.btn span {
+.dialog-card label.btn {
   padding: 10px 20px !important;
   font-size: 0.9rem !important;
   border-radius: var(--radius-md) !important;
-  font-weight: 500 !important;
+  font-weight: 600 !important;
   color: #ffffff !important; /* Force white text for buttons in all themes */
   margin-bottom: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 44px !important; /* Force exact same height constraint for pixel-perfect uniformity! */
+  box-sizing: border-box !important;
 }
 
 .dialog-card .btn-secondary,
-.dialog-card label.btn-secondary,
-.dialog-card label.btn-secondary span {
+.dialog-card label.btn-secondary {
   background: var(--bg-card-header) !important;
   border: 1px solid var(--border-color) !important;
   color: var(--text-secondary) !important; /* Retain secondary grey text */
@@ -1053,6 +1056,17 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
 .dialog-card label.btn-secondary:hover {
   background: var(--border-color) !important;
   color: var(--text-primary) !important;
+}
+
+/* Correct target for inner spans inside dialog buttons to prevent duplicate padding */
+.dialog-card .btn span,
+.dialog-card label.btn span {
+  color: inherit !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 1 !important;
 }
 
 /* Center warning/info/success message banners */
