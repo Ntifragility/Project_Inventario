@@ -28,7 +28,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, isDar
       <div className="nav-menu-container">
         <div className="sidebar-header">
           <h1>
-            <Package size={20} className="text-primary" style={{ color: '#3b82f6' }} />
+            <img src="/favicon.svg" alt="Favicon" style={{ width: '20px', height: '20px' }} />
             <span>CCP - Materiales</span>
           </h1>
         </div>
