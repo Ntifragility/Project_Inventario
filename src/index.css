@@ -206,7 +206,7 @@ body {
 
 .nav-link:hover {
   background: var(--bg-sidebar-hover);
-  color: #ffffff;
+  color: var(--text-primary);
   transform: translateX(4px);
 }
 
