@@ -174,15 +174,15 @@ export default function Config() {
       {/* Reusable step-by-step Reset Confirmation Modal */}
       {showResetModal && (
         <div className="dialog-overlay">
-          <div className="dialog-card">
-            <div className="card-header" style={{ color: 'var(--danger-text)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="dialog-card" style={{ maxWidth: '520px', width: '90%' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <ShieldAlert size={18} style={{ color: 'var(--danger)' }} />
-                <span>⚠️ Advertencia de Restablecimiento</span>
+                <span style={{ fontWeight: '700', letterSpacing: '0.3px' }}>Advertencia de Restablecimiento</span>
               </div>
               <button 
                 onClick={() => setShowResetModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', padding: '4px' }}
                 disabled={resetting}
               >
                 <X size={20} />
@@ -191,14 +191,70 @@ export default function Config() {
 
             <div className="card-body" style={{ padding: '24px' }}>
               
+              {/* Premium Visual Step Progress Indicator */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '24px' }}>
+                <div style={{ 
+                  padding: '6px 12px', 
+                  borderRadius: '20px', 
+                  fontSize: '0.75rem', 
+                  fontWeight: '600',
+                  background: resetStep === 1 ? 'var(--primary-glow)' : 'transparent',
+                  border: resetStep === 1 ? '1px solid var(--primary)' : '1px solid var(--border-color)',
+                  color: resetStep === 1 ? 'var(--primary)' : 'var(--text-muted)',
+                  transition: 'all 0.3s ease'
+                }}>
+                  1. Autorización
+                </div>
+                <div style={{ width: '20px', height: '1px', background: 'var(--border-color)' }}></div>
+                <div style={{ 
+                  padding: '6px 12px', 
+                  borderRadius: '20px', 
+                  fontSize: '0.75rem', 
+                  fontWeight: '600',
+                  background: resetStep === 2 ? 'var(--primary-glow)' : 'transparent',
+                  border: resetStep === 2 ? '1px solid var(--primary)' : '1px solid var(--border-color)',
+                  color: resetStep === 2 ? 'var(--primary)' : 'var(--text-muted)',
+                  transition: 'all 0.3s ease'
+                }}>
+                  2. Confirmación
+                </div>
+                <div style={{ width: '20px', height: '1px', background: 'var(--border-color)' }}></div>
+                <div style={{ 
+                  padding: '6px 12px', 
+                  borderRadius: '20px', 
+                  fontSize: '0.75rem', 
+                  fontWeight: '600',
+                  background: resetStep === 3 ? 'var(--primary-glow)' : 'transparent',
+                  border: resetStep === 3 ? '1px solid var(--primary)' : '1px solid var(--border-color)',
+                  color: resetStep === 3 ? 'var(--primary)' : 'var(--text-muted)',
+                  transition: 'all 0.3s ease'
+                }}>
+                  3. Listo
+                </div>
+              </div>
+
               {/* Step 1: Warnings and DNI form */}
               {resetStep === 1 && (
                 <div>
-                  <div className="message error" style={{ lineHeight: '1.5', marginBottom: '20px' }}>
-                    <strong>¡ATENCIÓN!</strong> Esta acción eliminará permanentemente TODOS los registros de productos y los movimientos en el sistema. Esta operación es irreversible.
+                  <div style={{
+                    background: 'var(--danger-bg)',
+                    borderLeft: '4px solid var(--danger)',
+                    padding: '16px',
+                    borderRadius: 'var(--radius-md)',
+                    marginBottom: '20px',
+                    color: 'var(--danger-text)',
+                    fontSize: '0.9rem',
+                    lineHeight: '1.6'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', marginBottom: '6px' }}>
+                      <ShieldAlert size={18} />
+                      <span>¡ATENCIÓN! ACCIÓN CRÍTICA</span>
+                    </div>
+                    Esta acción eliminará permanentemente <strong>TODOS los registros de productos</strong> y sus <strong>movimientos históricos</strong> del almacén. Esta operación es irreversible.
                   </div>
+
                   <div className="form-group">
-                    <label htmlFor="resetDniInput" style={{ fontWeight: '600' }}>
+                    <label htmlFor="resetDniInput" style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px', fontSize: '0.875rem' }}>
                       Ingrese DNI de Administrador para Autorizar *
                     </label>
                     <input 
@@ -209,14 +265,16 @@ export default function Config() {
                       onChange={(e) => setDni(e.target.value.replace(/\D/g, ''))}
                       maxLength={8}
                       autoComplete="off"
+                      style={{ fontSize: '0.95rem', padding: '12px' }}
                     />
                     {dniError && (
-                      <span style={{ color: 'var(--danger)', fontSize: '0.825rem', marginTop: '6px', fontWeight: '500' }}>
+                      <span style={{ color: 'var(--danger)', fontSize: '0.825rem', marginTop: '6px', fontWeight: '600', display: 'block' }}>
                         {dniError}
                       </span>
                     )}
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '28px' }}>
                     <button type="button" className="btn btn-secondary" onClick={() => setShowResetModal(false)}>
                       Cancelar
                     </button>
@@ -230,7 +288,20 @@ export default function Config() {
               {/* Step 2: Final confirmation step */}
               {resetStep === 2 && (
                 <div>
-                  <div className="message warning" style={{ lineHeight: '1.5', marginBottom: '20px' }}>
+                  <div style={{
+                    background: 'var(--warning-bg)',
+                    borderLeft: '4px solid var(--warning)',
+                    padding: '16px',
+                    borderRadius: 'var(--radius-md)',
+                    marginBottom: '20px',
+                    color: 'var(--warning-text)',
+                    fontSize: '0.9rem',
+                    lineHeight: '1.6'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', marginBottom: '6px' }}>
+                      <AlertCircle size={18} />
+                      <span>CONFIRMACIÓN FINAL</span>
+                    </div>
                     Se guardará el registro de restablecimiento bajo la identificación DNI: <strong>{dni}</strong>.
                     <br /><br />
                     ¿Desea proceder con el borrado completo e irreversible de la base de datos?
@@ -243,7 +314,7 @@ export default function Config() {
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '28px' }}>
                     <button 
                       type="button" 
                       className="btn btn-secondary" 
@@ -274,11 +345,35 @@ export default function Config() {
               {/* Step 3: Success view */}
               {resetStep === 3 && (
                 <div>
-                  <div className="message success" style={{ lineHeight: '1.5', marginBottom: '20px' }}>
-                    <CheckCircle2 size={18} />
-                    <span><strong>¡Éxito!</strong> La base de datos ha sido restablecida a su estado inicial. Todos los productos y logs de movimientos fueron eliminados de forma segura.</span>
+                  <div style={{
+                    background: 'var(--success-bg)',
+                    borderLeft: '4px solid var(--success)',
+                    padding: '20px',
+                    borderRadius: 'var(--radius-md)',
+                    marginBottom: '20px',
+                    color: 'var(--success-text)',
+                    textAlign: 'center',
+                    fontSize: '0.95rem',
+                    lineHeight: '1.6'
+                  }}>
+                    <div style={{ 
+                      width: '48px', 
+                      height: '48px', 
+                      background: 'rgba(16, 185, 129, 0.15)', 
+                      borderRadius: '50%', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      margin: '0 auto 12px auto',
+                      color: 'var(--success)'
+                    }}>
+                      <CheckCircle2 size={28} />
+                    </div>
+                    <h4 style={{ fontWeight: '700', marginBottom: '8px', fontSize: '1.05rem', letterSpacing: '0.2px' }}>¡Restablecimiento Completado!</h4>
+                    La base de datos ha sido restablecida a su estado inicial de forma exitosa. Todos los productos y logs de movimientos fueron eliminados de forma segura.
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '28px' }}>
                     <button type="button" className="btn btn-success" onClick={() => setShowResetModal(false)}>
                       Cerrar
                     </button>
