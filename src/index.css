@@ -873,47 +873,128 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
 }
 
 .dialog-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xl);
+  background: #ffffff !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+  color: #0f172a !important; /* Force high contrast dark slate text */
   width: 100%;
   max-width: 500px;
   overflow: hidden;
   animation: scaleUp 0.2s ease-out;
 }
 
-/* Global Floating Dialog Centering & Justification Rules */
+.dark-theme .dialog-card {
+  background: #0d0d12 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+  color: #f8fafc !important; /* Force clean light slate text */
+}
+
+/* Premium Dialog Header styling */
 .dialog-card .card-header {
   display: flex !important;
   justify-content: center !important;
   align-items: center !important;
   position: relative !important;
   text-align: center !important;
+  padding: 20px 24px !important;
+  background: rgba(15, 23, 42, 0.02) !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06) !important;
+  font-weight: 700 !important;
+  font-size: 1.1rem !important;
+  color: #0f172a !important;
 }
 
+.dark-theme .dialog-card .card-header {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: #f8fafc !important;
+}
+
+/* Premium Dialog Close Button styling */
 .dialog-card .card-header button {
   position: absolute !important;
-  right: 16px !important;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-secondary);
+  right: 18px !important;
+  background: none !important;
+  border: none !important;
+  cursor: pointer !important;
+  color: var(--text-secondary) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 6px !important;
+  border-radius: 50% !important;
+  transition: all 0.2s ease !important;
 }
 
+.dialog-card .card-header button:hover {
+  background: rgba(15, 23, 42, 0.06) !important;
+  color: #0f172a !important;
+  transform: rotate(90deg);
+}
+
+.dark-theme .dialog-card .card-header button:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #ffffff !important;
+}
+
+/* Premium Dialog Body layout */
 .dialog-card .card-body {
+  padding: 28px 24px !important;
   text-align: center !important;
 }
 
-.dialog-card .card-body p,
-.dialog-card .card-body label,
-.dialog-card .card-body span,
-.dialog-card .card-body h4,
-.dialog-card .card-body small {
+/* Ensure all textual descriptions and instructions inside have readable colors */
+.dialog-card .card-body p {
+  color: var(--text-secondary) !important;
+  font-size: 0.925rem !important;
+  line-height: 1.6 !important;
+  margin-bottom: 20px !important;
   text-align: center !important;
 }
 
-/* Center flexbox/grid containers inside the dialog */
+.dialog-card .card-body label {
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+  color: #0f172a !important;
+  margin-bottom: 8px !important;
+  text-align: center !important;
+}
+
+.dark-theme .dialog-card .card-body label {
+  color: #f8fafc !important;
+}
+
+/* Solid, clean input styling in dialogs */
+.dialog-card input,
+.dialog-card select,
+.dialog-card textarea {
+  background: #ffffff !important;
+  border: 1px solid rgba(15, 23, 42, 0.15) !important;
+  color: #0f172a !important;
+  border-radius: var(--radius-md) !important;
+  padding: 10px 14px !important;
+  font-size: 0.9rem !important;
+  text-align: center !important;
+  transition: all 0.2s ease !important;
+}
+
+.dark-theme .dialog-card input,
+.dark-theme .dialog-card select,
+.dark-theme .dialog-card textarea {
+  background: #18181b !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #f8fafc !important;
+}
+
+.dialog-card input:focus,
+.dialog-card select:focus,
+.dialog-card textarea:focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px var(--primary-glow) !important;
+}
+
+/* Forms layout inside dialog */
 .dialog-card .card-body .form-grid {
   display: flex !important;
   flex-direction: column !important;
@@ -934,17 +1015,17 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
 
 .dialog-card .card-body .form-group input,
 .dialog-card .card-body .form-group select {
-  text-align: center !important;
   max-width: 320px !important;
   width: 100% !important;
 }
 
-/* Center dialog buttons and actions */
+/* Dialog footers and action buttons */
 .dialog-card .card-body .actions,
 .dialog-card .card-body .actions-row,
 .dialog-card div[style*="display: flex"],
 .dialog-card div[style*="display:flex"] {
   justify-content: center !important;
+  gap: 12px !important;
 }
 
 /* Center warning/info/success message banners */
@@ -953,21 +1034,50 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
   align-items: center !important;
   justify-content: center !important;
   text-align: center !important;
+  padding: 12px 16px !important;
+  border-radius: var(--radius-md) !important;
+  font-size: 0.875rem !important;
   margin: 16px auto !important;
   width: 100% !important;
+  line-height: 1.5 !important;
 }
 
-/* Center preview tables and table cells inside the dialog */
+/* Table container styling inside dialogs */
 .dialog-card .card-body .table-container {
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  border-radius: var(--radius-md) !important;
+  background: rgba(15, 23, 42, 0.01) !important;
+  margin: 16px 0 !important;
+  width: 100% !important;
+  overflow-x: auto !important;
   display: flex !important;
   justify-content: center !important;
   align-items: center !important;
-  width: 100% !important;
+}
+
+.dark-theme .dialog-card .card-body .table-container {
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 255, 255, 0.01) !important;
 }
 
 .dialog-card .card-body table {
   margin: 0 auto !important;
   width: 100% !important;
+}
+
+.dialog-card .card-body table th {
+  background: rgba(15, 23, 42, 0.03) !important;
+  color: #0f172a !important;
+  font-weight: 600 !important;
+}
+
+.dark-theme .dialog-card .card-body table th {
+  background: rgba(255, 255, 255, 0.03) !important;
+  color: #f8fafc !important;
+}
+
+.dialog-card .card-body table td {
+  color: var(--text-secondary) !important;
 }
 
 .dialog-card .card-body table th,
