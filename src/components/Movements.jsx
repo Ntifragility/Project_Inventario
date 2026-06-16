@@ -1096,9 +1096,9 @@ export default function Movements({ user }) {
         <div className="card-body">
           <form onSubmit={handleSubmit}>
             <div className="form-grid">
-              {/* Row 1: Fecha and ID Producto */}
-              <div style={{ display: 'flex', gap: '20px', gridColumn: 'span 2', width: '100%' }}>
-                <div className="form-group" style={{ flex: '1 1 50%' }}>
+              {/* Row 1: All 6 main fields on the same row */}
+              <div style={{ display: 'flex', gap: '12px', gridColumn: 'span 2', width: '100%', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
+                <div className="form-group" style={{ flex: '1 1 13%' }}>
                   <label htmlFor="fechaMov">Fecha de mov. *</label>
                   <input 
                     type="date" 
@@ -1109,12 +1109,12 @@ export default function Movements({ user }) {
                   />
                 </div>
 
-                <div className="form-group autocomplete-container" style={{ flex: '1 1 50%' }}>
+                <div className="form-group autocomplete-container" style={{ flex: '1 1 13%' }}>
                   <label htmlFor="codigoMov">ID Producto *</label>
                   <input 
                     type="text" 
                     id="codigoMov" 
-                    placeholder="Escriba código para buscar..." 
+                    placeholder="Escriba código..." 
                     value={codigo}
                     onChange={(e) => handleCodigoChange(e.target.value)}
                     onFocus={handleCodigoFocus}
@@ -1137,78 +1137,67 @@ export default function Movements({ user }) {
                     </div>
                   )}
                 </div>
-              </div>
 
-              {/* Row 2: Producto Name (Autocomplete) */}
-              <div className="form-group autocomplete-container" style={{ gridColumn: 'span 2' }}>
-                <label htmlFor="nombreMov">Producto</label>
-                <input 
-                  type="text" 
-                  id="nombreMov" 
-                  placeholder="Escriba nombre para buscar..." 
-                  value={nombre}
-                  onChange={(e) => handleNombreChange(e.target.value)}
-                  onFocus={handleNombreFocus}
-                  readOnly={nombreReadOnly}
-                  autoComplete="off"
-                />
-                {showNombreDropdown && (
-                  <div className="autocomplete-dropdown">
-                    {nombreSuggestions.map((p) => (
-                      <div 
-                        key={p.codigo} 
-                        className="autocomplete-item"
-                        onMouseDown={() => handleSelectProduct(p)}
-                      >
-                        <span className="autocomplete-code">{p.nombre}</span>
-                        <span className="autocomplete-name">{p.codigo} ({p.grupo})</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                <div className="form-group autocomplete-container" style={{ flex: '2 1 26%' }}>
+                  <label htmlFor="nombreMov">Producto</label>
+                  <input 
+                    type="text" 
+                    id="nombreMov" 
+                    placeholder="Escriba nombre..." 
+                    value={nombre}
+                    onChange={(e) => handleNombreChange(e.target.value)}
+                    onFocus={handleNombreFocus}
+                    readOnly={nombreReadOnly}
+                    autoComplete="off"
+                  />
+                  {showNombreDropdown && (
+                    <div className="autocomplete-dropdown">
+                      {nombreSuggestions.map((p) => (
+                        <div 
+                          key={p.codigo} 
+                          className="autocomplete-item"
+                          onMouseDown={() => handleSelectProduct(p)}
+                        >
+                          <span className="autocomplete-code">{p.nombre}</span>
+                          <span className="autocomplete-name">{p.codigo} ({p.grupo})</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
-              {/* Row 3: Transaction Key, Cantidad, Tipo de Movimiento */}
-              <div style={{ display: 'flex', gap: '20px', gridColumn: 'span 2', width: '100%', alignItems: 'flex-start' }}>
-                {(tipo === 'INGRESO' || tipo === 'SALIDA') && (
-                  <div className="form-group" style={{ flex: '2 1 40%' }}>
-                    <label htmlFor="keyMov">Transaction Key (Clave)</label>
-                    <input 
-                      type="text" 
-                      id="keyMov" 
-                      placeholder="Auto-generada (deje en 'Automatico')" 
-                      value={transactionKey}
-                      onChange={(e) => setTransactionKey(e.target.value)}
-                    />
-                  </div>
-                )}
+                <div className="form-group" style={{ flex: '1.2 1 16%' }}>
+                  <label htmlFor="keyMov">Transaction Key (Clave)</label>
+                  <input 
+                    type="text" 
+                    id="keyMov" 
+                    placeholder="Auto-generada" 
+                    value={transactionKey}
+                    onChange={(e) => setTransactionKey(e.target.value)}
+                  />
+                </div>
 
-                <div className="form-group" style={{ flex: '1 1 20%' }}>
+                <div className="form-group" style={{ flex: '0.8 1 10%' }}>
                   <label htmlFor="cantMov">Cantidad *</label>
                   <input 
                     type="number" 
                     id="cantMov" 
                     min="0.01" 
                     step="0.01" 
-                    placeholder="Cantidad mayor a 0" 
+                    placeholder="Cant." 
                     value={cantidad}
                     onChange={(e) => setCantidad(e.target.value)}
                     required 
                   />
                 </div>
 
-                <div className="form-group" style={{ flex: '2 1 40%' }}>
+                <div className="form-group" style={{ flex: '1.2 1 22%' }}>
                   <label htmlFor="tipoMov">Tipo de Movimiento *</label>
                   <select 
                     id="tipoMov" 
                     value={tipo}
                     onChange={(e) => {
                       setTipo(e.target.value);
-                      if (e.target.value !== 'INGRESO' && e.target.value !== 'SALIDA') {
-                        setTransactionKey('');
-                      } else {
-                        setTransactionKey('Automatico');
-                      }
                     }}
                     required
                   >
@@ -1220,11 +1209,11 @@ export default function Movements({ user }) {
                 </div>
               </div>
 
-              {/* Row 4: Cod Almacenero (if SALIDA) and Observaciones */}
-              <div style={{ display: 'flex', gap: '20px', gridColumn: 'span 2', width: '100%' }}>
+              {/* Row 2: Cod Almacenero (if SALIDA) and Observaciones */}
+              <div style={{ display: 'flex', gap: '12px', gridColumn: 'span 2', width: '100%', marginTop: '12px' }}>
                 {tipo === 'SALIDA' ? (
                   <>
-                    <div className="form-group" style={{ flex: '1 1 30%' }}>
+                    <div className="form-group" style={{ flex: '1 1 20%' }}>
                       <label htmlFor="almaceneroMov">Cód. Almacenero *</label>
                       <input 
                         type="text" 
@@ -1235,7 +1224,7 @@ export default function Movements({ user }) {
                         required
                       />
                     </div>
-                    <div className="form-group" style={{ flex: '2 1 70%' }}>
+                    <div className="form-group" style={{ flex: '3 1 80%' }}>
                       <label htmlFor="obsMov">Observaciones</label>
                       <input 
                         type="text"
