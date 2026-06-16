@@ -1229,10 +1229,10 @@ export default function Movements({ user }) {
 
               <div className="form-group">
                 <label htmlFor="obsMov">Observaciones</label>
-                <textarea 
+                <input 
+                  type="text"
                   id="obsMov" 
                   placeholder="Observaciones opcionales" 
-                  rows="3"
                   maxLength={1000}
                   value={observaciones}
                   onChange={(e) => setObservaciones(e.target.value)}
