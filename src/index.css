@@ -882,3 +882,96 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
   overflow: hidden;
   animation: scaleUp 0.2s ease-out;
 }
+
+/* Global Floating Dialog Centering & Justification Rules */
+.dialog-card .card-header {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  position: relative !important;
+  text-align: center !important;
+}
+
+.dialog-card .card-header button {
+  position: absolute !important;
+  right: 16px !important;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.dialog-card .card-body {
+  text-align: center !important;
+}
+
+.dialog-card .card-body p,
+.dialog-card .card-body label,
+.dialog-card .card-body span,
+.dialog-card .card-body h4,
+.dialog-card .card-body small {
+  text-align: center !important;
+}
+
+/* Center flexbox/grid containers inside the dialog */
+.dialog-card .card-body .form-grid {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 16px !important;
+  width: 100% !important;
+}
+
+.dialog-card .card-body .form-group {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  width: 100% !important;
+}
+
+.dialog-card .card-body .form-group input,
+.dialog-card .card-body .form-group select {
+  text-align: center !important;
+  max-width: 320px !important;
+  width: 100% !important;
+}
+
+/* Center dialog buttons and actions */
+.dialog-card .card-body .actions,
+.dialog-card .card-body .actions-row,
+.dialog-card div[style*="display: flex"],
+.dialog-card div[style*="display:flex"] {
+  justify-content: center !important;
+}
+
+/* Center warning/info/success message banners */
+.dialog-card .card-body .message {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  margin: 16px auto !important;
+  width: 100% !important;
+}
+
+/* Center preview tables and table cells inside the dialog */
+.dialog-card .card-body .table-container {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 100% !important;
+}
+
+.dialog-card .card-body table {
+  margin: 0 auto !important;
+  width: 100% !important;
+}
+
+.dialog-card .card-body table th,
+.dialog-card .card-body table td {
+  text-align: center !important;
+}
+
