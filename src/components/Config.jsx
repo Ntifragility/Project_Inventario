@@ -117,7 +117,13 @@ export default function Config() {
       setResetStep(3);
     } catch (err) {
       console.error('System reset error:', err);
-      setResetError('Error al restablecer la base de datos: ' + (err.message || err.details || 'Error desconocido'));
+      const errMsg = err.message || err.details || '';
+      if (errMsg.includes('no está autorizado')) {
+        setResultMsg({ text: 'DNI no autorizado.', type: 'error' });
+        setShowResetModal(false);
+      } else {
+        setResetError('Error al restablecer la base de datos: ' + (errMsg || 'Error desconocido'));
+      }
     } finally {
       setResetting(false);
     }
@@ -244,28 +250,30 @@ export default function Config() {
                     marginBottom: '20px',
                     color: 'var(--danger-text)',
                     fontSize: '0.9rem',
-                    lineHeight: '1.6'
+                    lineHeight: '1.6',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', marginBottom: '6px' }}>
-                      <ShieldAlert size={18} />
-                      <span>¡ATENCIÓN! ACCIÓN CRÍTICA</span>
-                    </div>
-                    Esta acción eliminará permanentemente <strong>TODOS los registros de productos</strong> y sus <strong>movimientos históricos</strong> del almacén. Esta operación es irreversible.
+                    <ShieldAlert size={18} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--danger)' }} />
+                    <span>
+                      Esta acción eliminará permanentemente <strong>TODOS los registros de productos</strong> y sus <strong>movimientos históricos</strong> del almacén. Esta operación es irreversible.
+                    </span>
                   </div>
 
-                  <div className="form-group">
+                  <div className="form-group" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                     <label htmlFor="resetDniInput" style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px', fontSize: '0.875rem' }}>
                       Ingrese DNI de Administrador para Autorizar *
                     </label>
                     <input 
                       type="text" 
                       id="resetDniInput" 
-                      placeholder="Ingrese DNI (8 dígitos)" 
+                      placeholder="8 dígitos" 
                       value={dni}
                       onChange={(e) => setDni(e.target.value.replace(/\D/g, ''))}
                       maxLength={8}
                       autoComplete="off"
-                      style={{ fontSize: '0.95rem', padding: '12px' }}
+                      style={{ maxWidth: '120px', width: '100%', textAlign: 'center', fontSize: '0.95rem', padding: '10px 12px' }}
                     />
                     {dniError && (
                       <span style={{ color: 'var(--danger)', fontSize: '0.825rem', marginTop: '6px', fontWeight: '600', display: 'block' }}>
@@ -296,15 +304,15 @@ export default function Config() {
                     marginBottom: '20px',
                     color: 'var(--warning-text)',
                     fontSize: '0.9rem',
-                    lineHeight: '1.6'
+                    lineHeight: '1.6',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', marginBottom: '6px' }}>
-                      <AlertCircle size={18} />
-                      <span>CONFIRMACIÓN FINAL</span>
-                    </div>
-                    Se guardará el registro de restablecimiento bajo la identificación DNI: <strong>{dni}</strong>.
-                    <br /><br />
-                    ¿Desea proceder con el borrado completo e irreversible de la base de datos?
+                    <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--warning)' }} />
+                    <span>
+                      Se guardará el registro de restablecimiento bajo la identificación DNI: <strong>{dni}</strong>.
+                    </span>
                   </div>
 
                   {resetError && (
