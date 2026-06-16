@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabase';
-import { Plus, Upload, List, AlertCircle, CheckCircle2, Info, Pencil, Trash2, X, Save } from 'lucide-react';
+import { Plus, Upload, List, AlertCircle, CheckCircle2, Info, Pencil, Trash2, X, Save, Search } from 'lucide-react';
 
 export default function Products() {
   // Form states
@@ -38,6 +38,12 @@ export default function Products() {
   // Pagination state (FUNC-2)
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [filterText, setFilterText] = useState('');
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterText]);
 
   // Fetch lists (unidades, grupos)
   const fetchListas = useCallback(async () => {
@@ -405,11 +411,21 @@ export default function Products() {
     reader.readAsText(file, 'UTF-8');
   };
 
+  // Client-side search filtering
+  const filteredProducts = productsList.filter(p => {
+    const cleanFilter = filterText.toLowerCase();
+    return (
+      p.codigo?.toLowerCase().includes(cleanFilter) ||
+      p.nombre?.toLowerCase().includes(cleanFilter) ||
+      p.grupo?.toLowerCase().includes(cleanFilter)
+    );
+  });
+
   // Pagination computed values (FUNC-2)
-  const totalPages = Math.max(1, Math.ceil(productsList.length / rowsPerPage));
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / rowsPerPage));
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const startIdx = (safeCurrentPage - 1) * rowsPerPage;
-  const paginatedData = productsList.slice(startIdx, startIdx + rowsPerPage);
+  const paginatedData = filteredProducts.slice(startIdx, startIdx + rowsPerPage);
 
   return (
     <div id="productos" className="tab-content active">
@@ -555,6 +571,28 @@ export default function Products() {
           </div>
         </div>
         <div className="card-body">
+          {!loadingList && productsList.length > 0 && (
+            <div className="search-filter-group">
+              <Search size={18} style={{ color: 'var(--text-muted)' }} />
+              <input 
+                type="text" 
+                placeholder="Buscar por código, nombre o grupo..." 
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              {filterText && (
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => setFilterText('')}
+                  style={{ padding: '8px 12px' }}
+                >
+                  Limpiar
+                </button>
+              )}
+            </div>
+          )}
+
           {loadingList ? (
             <div className="loading-container">
               <span className="spinner"></span>
@@ -562,6 +600,8 @@ export default function Products() {
             </div>
           ) : productsList.length === 0 ? (
             <div className="message warning">No hay productos registrados en el sistema.</div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="message warning">No se encontraron productos con el filtro especificado.</div>
           ) : (
             <>
             <div className="table-container">
@@ -631,7 +671,7 @@ export default function Products() {
                 gap: '12px'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  <span>Mostrando {startIdx + 1}–{Math.min(startIdx + rowsPerPage, productsList.length)} de {productsList.length}</span>
+                  <span>Mostrando {startIdx + 1}–{Math.min(startIdx + rowsPerPage, filteredProducts.length)} de {filteredProducts.length}</span>
                   <select 
                     value={rowsPerPage} 
                     onChange={(e) => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}

@@ -16,7 +16,7 @@ import {
 export default function Sidebar({ activeTab, setActiveTab, user, onLogout, isDark, toggleTheme }) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart2 },
-    { id: 'productos', label: 'Nuevo producto', icon: PlusCircle },
+    { id: 'productos', label: 'Productos', icon: Package },
     { id: 'movimientos', label: 'Movimientos', icon: FileInput },
     { id: 'inventario', label: 'Inventario', icon: Layers },
     { id: 'reportes', label: 'Reportes', icon: FileText },

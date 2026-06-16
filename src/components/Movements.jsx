@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase';
-import { Save, Upload, AlertCircle, CheckCircle2, Info, X, Eye } from 'lucide-react';
+import { Save, Upload, AlertCircle, CheckCircle2, Info, X, Eye, Clock } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function Movements({ user }) {
@@ -8,6 +8,7 @@ export default function Movements({ user }) {
   const [tipo, setTipo] = useState('INGRESO');
   const [cantidad, setCantidad] = useState('');
   const [observaciones, setObservaciones] = useState('');
+  const [almacenero, setAlmacenero] = useState('');
   
   // Autocomplete states
   const [codigo, setCodigo] = useState('');
@@ -31,6 +32,209 @@ export default function Movements({ user }) {
   // Import preview states (FUNC-3)
   const [importPreview, setImportPreview] = useState(null); // { type: 'ingreso'|'salida', data: [], insertCount, updateCount, skippedInfo, inputRef }
   const [importExecuting, setImportExecuting] = useState(false);
+
+  // Undo import state
+  const [lastImport, setLastImport] = useState(null); // { type: 'ingreso' | 'salida', keys: [], prevRecords: [], newKeys: [] }
+  const [undoing, setUndoing] = useState(false);
+
+  // Movements History Admin States
+  const [adminDni, setAdminDni] = useState('');
+  const [ledgerMovements, setLedgerMovements] = useState([]);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerError, setLedgerError] = useState('');
+  const [ledgerMsg, setLedgerMsg] = useState({ text: '', type: '' });
+  
+  // Filters
+  const [ledgerDateFrom, setLedgerDateFrom] = useState('');
+  const [ledgerDateTo, setLedgerDateTo] = useState('');
+  const [ledgerType, setLedgerType] = useState('');
+  const [ledgerSearch, setLedgerSearch] = useState('');
+  
+  // Pagination
+  const [ledgerPage, setLedgerPage] = useState(1);
+  const [ledgerRowsPerPage, setLedgerRowsPerPage] = useState(25);
+
+  // Edit / Delete Modals
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [actionTarget, setActionTarget] = useState(null); // the movement object
+  const [actionQty, setActionQty] = useState('');
+  const [actionDni, setActionDni] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
+
+  // Fetch movements list
+  const fetchLedgerMovements = async () => {
+    setLedgerLoading(true);
+    setLedgerError('');
+    try {
+      let query = supabase
+        .from('movimientos')
+        .select(`
+          id,
+          producto_codigo,
+          fecha,
+          tipo,
+          cantidad,
+          observaciones,
+          usuario,
+          key,
+          created_at,
+          producto:productos(nombre, unidades(nombre))
+        `)
+        .order('fecha', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (ledgerDateFrom) {
+        query = query.gte('fecha', ledgerDateFrom);
+      }
+      if (ledgerDateTo) {
+        query = query.lte('fecha', ledgerDateTo);
+      }
+      if (ledgerType) {
+        query = query.eq('tipo', ledgerType);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+
+      let formatted = (data || []).map(m => ({
+        id: m.id,
+        fecha: m.fecha.split('-').reverse().join('/'),
+        fechaRaw: m.fecha,
+        key: m.key || '',
+        codigo: m.producto_codigo || '',
+        producto: m.producto ? m.producto.nombre : 'Producto no encontrado',
+        unidad: m.producto && m.producto.unidades ? m.producto.unidades.nombre : '',
+        tipo: m.tipo,
+        cantidad: parseFloat(m.cantidad) || 0,
+        observaciones: m.observaciones || '',
+        usuario: m.usuario
+      }));
+
+      if (ledgerSearch.trim()) {
+        const term = ledgerSearch.toLowerCase().trim();
+        formatted = formatted.filter(m => 
+          m.producto.toLowerCase().includes(term) ||
+          m.codigo.toLowerCase().includes(term) ||
+          m.key.toLowerCase().includes(term) ||
+          m.observaciones.toLowerCase().includes(term)
+        );
+      }
+
+      setLedgerMovements(formatted);
+      setLedgerPage(1);
+    } catch (err) {
+      console.error('Error fetching movements ledger:', err);
+      setLedgerError('Error al cargar historial: ' + err.message);
+    } finally {
+      setLedgerLoading(false);
+    }
+  };
+
+  // Set default dates on mount and fetch
+  useEffect(() => {
+    const today = new Date();
+    const monthAgo = new Date();
+    monthAgo.setMonth(monthAgo.getMonth() - 1);
+    setLedgerDateFrom(monthAgo.toISOString().slice(0, 10));
+    setLedgerDateTo(today.toISOString().slice(0, 10));
+  }, []);
+
+  // Fetch whenever dates or type change
+  useEffect(() => {
+    if (ledgerDateFrom && ledgerDateTo) {
+      fetchLedgerMovements();
+    }
+  }, [ledgerDateFrom, ledgerDateTo, ledgerType]);
+
+  // Handle Delete Click
+  const handleDeleteClick = (mov) => {
+    setActionTarget(mov);
+    setActionDni(adminDni);
+    setActionError('');
+    setShowDeleteModal(true);
+  };
+
+  // Confirm Delete Action
+  const handleConfirmDelete = async () => {
+    if (!actionTarget) return;
+    const finalDni = actionDni.trim();
+    if (!finalDni) {
+      setActionError('El DNI de administrador es obligatorio.');
+      return;
+    }
+    
+    setActionLoading(true);
+    setActionError('');
+    try {
+      const { error } = await supabase.rpc('eliminar_movimiento_autorizado', {
+        p_movimiento_id: actionTarget.id,
+        p_admin_dni: finalDni
+      });
+
+      if (error) throw error;
+
+      setAdminDni(finalDni);
+      setLedgerMsg({ text: 'Movimiento eliminado correctamente. El stock ha sido recalculado.', type: 'success' });
+      setShowDeleteModal(false);
+      setActionTarget(null);
+      fetchLedgerMovements();
+    } catch (err) {
+      console.error('Error deleting movement:', err);
+      setActionError(err.message || 'Error al eliminar');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle Edit Click
+  const handleEditClick = (mov) => {
+    setActionTarget(mov);
+    setActionQty(mov.cantidad.toString());
+    setActionDni(adminDni);
+    setActionError('');
+    setShowEditModal(true);
+  };
+
+  // Confirm Edit Action
+  const handleConfirmEdit = async () => {
+    if (!actionTarget) return;
+    const finalDni = actionDni.trim();
+    const newQty = parseFloat(actionQty);
+    
+    if (!finalDni) {
+      setActionError('El DNI de administrador es obligatorio.');
+      return;
+    }
+    if (isNaN(newQty) || newQty <= 0) {
+      setActionError('La cantidad debe ser un número válido mayor a cero.');
+      return;
+    }
+
+    setActionLoading(true);
+    setActionError('');
+    try {
+      const { error } = await supabase.rpc('editar_movimiento_autorizado', {
+        p_movimiento_id: actionTarget.id,
+        p_nueva_cantidad: newQty,
+        p_admin_dni: finalDni
+      });
+
+      if (error) throw error;
+
+      setAdminDni(finalDni);
+      setLedgerMsg({ text: 'Movimiento actualizado correctamente. El stock ha sido recalculado.', type: 'success' });
+      setShowEditModal(false);
+      setActionTarget(null);
+      fetchLedgerMovements();
+    } catch (err) {
+      console.error('Error editing movement:', err);
+      setActionError(err.message || 'Error al actualizar');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const autocompleteTimeout = useRef(null);
 
@@ -168,6 +372,16 @@ export default function Movements({ user }) {
       return;
     }
 
+    let finalObs = observaciones.trim();
+    if (tipo === 'SALIDA') {
+      const almaceneroClean = almacenero.trim();
+      if (!almaceneroClean) {
+        setFormMsg({ text: 'El código de almacenero es obligatorio para salidas.', type: 'error' });
+        return;
+      }
+      finalObs = finalObs ? `${finalObs}, Almacenero: ${almaceneroClean}` : `Almacenero: ${almaceneroClean}`;
+    }
+
     setSubmitting(true);
 
     try {
@@ -180,7 +394,7 @@ export default function Movements({ user }) {
         p_tipo: tipo,
         p_cantidad: qtyClean,
         p_usuario: activeUserEmail,
-        p_observaciones: observaciones.trim(),
+        p_observaciones: finalObs,
         p_key: keyToSend
       });
 
@@ -193,12 +407,14 @@ export default function Movements({ user }) {
       }
 
       setFormMsg({ text: 'Movimiento registrado correctamente.', type: 'success' });
+      fetchLedgerMovements();
       
       // Clear forms
       setCodigo('');
       setNombre('');
       setCantidad('');
       setObservaciones('');
+      setAlmacenero('');
       setTransactionKey('Automatico');
       setCodigoReadOnly(false);
       setNombreReadOnly(false);
@@ -331,6 +547,7 @@ export default function Movements({ user }) {
     if (!file) return;
 
     setCsvMsg({ text: 'Procesando archivo de ingresos...', type: 'info' });
+    setLastImport(null); // Clear previous undo state
 
     const reader = new FileReader();
     reader.onload = async function(e) {
@@ -374,22 +591,27 @@ export default function Movements({ user }) {
             .filter(Boolean)
         ));
 
-        // Fetch verification data using efficient IN filters
+        // Fetch verification data using efficient IN filters, including product units
         const [resProductos, resMovimientos] = await Promise.all([
-          supabase.from('productos').select('codigo').in('codigo', codesInFile),
+          supabase.from('v_productos_stock').select('codigo, unidad').in('codigo', codesInFile),
           supabase.from('movimientos').select('key').in('key', keysInFile)
         ]);
 
         if (resProductos.error) throw resProductos.error;
         if (resMovimientos.error) throw resMovimientos.error;
         
-        const existingCodes = new Set(resProductos.data.map(p => p.codigo.trim().toUpperCase()));
+        const productUnitMap = new Map();
+        resProductos.data?.forEach(p => {
+          productUnitMap.set(p.codigo.trim().toUpperCase(), p.unidad?.trim().toUpperCase() || '');
+        });
+
         const existingKeys = new Set(resMovimientos.data.filter(m => m.key).map(m => m.key.trim().toUpperCase()));
         const defaultDate = fecha || new Date().toISOString().slice(0, 10);
 
         const movementsToUpsert = [];
         let skippedInvalidProduct = 0;
         let skippedInvalidAmount = 0;
+        let skippedInconsistentUnit = 0;
         let emptyCount = 0;
         let insertCount = 0;
         let updateCount = 0;
@@ -420,8 +642,17 @@ export default function Movements({ user }) {
           const upperKey = keyVal.toUpperCase();
 
           // Validation: Product existence
-          if (!existingCodes.has(codigoVal)) {
+          if (!productUnitMap.has(codigoVal)) {
             skippedInvalidProduct++;
+            continue;
+          }
+
+          // Validation: Unit consistency
+          const umRaw = colUM !== -1 ? row[colUM] : null;
+          const umVal = umRaw ? String(umRaw).trim().toUpperCase() : '';
+          const baseUnit = productUnitMap.get(codigoVal);
+          if (umVal && baseUnit && umVal !== baseUnit) {
+            skippedInconsistentUnit++;
             continue;
           }
 
@@ -442,7 +673,6 @@ export default function Movements({ user }) {
           const fechaVal = parseDateValue(rawFecha, defaultDate);
 
           // Observations formatting
-          const umRaw = colUM !== -1 ? row[colUM] : null;
           let obsParts = [];
           if (umRaw && String(umRaw).trim()) {
             obsParts.push(`UM: ${String(umRaw).trim()}`);
@@ -472,6 +702,7 @@ export default function Movements({ user }) {
           const skippedList = [];
           if (skippedInvalidProduct > 0) skippedList.push(`${skippedInvalidProduct} productos inexistentes`);
           if (skippedInvalidAmount > 0) skippedList.push(`${skippedInvalidAmount} cantidades inválidas`);
+          if (skippedInconsistentUnit > 0) skippedList.push(`${skippedInconsistentUnit} unidades inconsistentes`);
           if (skippedList.length > 0) {
             msg += ` (Omitidos: ${skippedList.join(', ')}).`;
           }
@@ -484,6 +715,7 @@ export default function Movements({ user }) {
         const skippedList = [];
         if (skippedInvalidProduct > 0) skippedList.push(`${skippedInvalidProduct} productos inexistentes`);
         if (skippedInvalidAmount > 0) skippedList.push(`${skippedInvalidAmount} cantidades inválidas`);
+        if (skippedInconsistentUnit > 0) skippedList.push(`${skippedInconsistentUnit} unidades inconsistentes`);
 
         setImportPreview({
           type: 'ingreso',
@@ -510,6 +742,7 @@ export default function Movements({ user }) {
     if (!file) return;
 
     setExcelMsg({ text: 'Procesando archivo de salidas...', type: 'info' });
+    setLastImport(null); // Clear previous undo state
 
     const reader = new FileReader();
     reader.onload = async function(e) {
@@ -553,19 +786,22 @@ export default function Movements({ user }) {
             .filter(Boolean)
         ));
 
-        // Fetch existing products, stock, and transaction keys
+        // Fetch existing products, stock, units, and transaction keys
         const [resProductos, resMovimientos] = await Promise.all([
-          supabase.from('v_productos_stock').select('codigo, cantidad').in('codigo', codesInFile),
+          supabase.from('v_productos_stock').select('codigo, unidad, cantidad').in('codigo', codesInFile),
           supabase.from('movimientos').select('key').in('key', keysInFile)
         ]);
 
         if (resProductos.error) throw resProductos.error;
         if (resMovimientos.error) throw resMovimientos.error;
         
-        // Map codes to stock
-        const productStockMap = new Map();
+        // Map codes to stock and units
+        const productDataMap = new Map();
         resProductos.data.forEach(p => {
-          productStockMap.set(p.codigo.trim().toUpperCase(), parseFloat(p.cantidad) || 0);
+          productDataMap.set(p.codigo.trim().toUpperCase(), {
+            stock: parseFloat(p.cantidad) || 0,
+            unit: p.unidad?.trim().toUpperCase() || ''
+          });
         });
 
         const existingKeys = new Set(resMovimientos.data.filter(m => m.key).map(m => m.key.trim().toUpperCase()));
@@ -576,11 +812,12 @@ export default function Movements({ user }) {
         let skippedInvalidAmount = 0;
         let skippedDuplicateKey = 0;
         let skippedInsufficientStock = 0;
+        let skippedInconsistentUnit = 0;
         let emptyCount = 0;
         const seenKeysInExcel = new Set();
         
         // Keep track of stock updates locally to prevent double-spending in the same sheet
-        const localStockMap = new Map(productStockMap);
+        const localStockMap = new Map(resProductos.data.map(p => [p.codigo.trim().toUpperCase(), parseFloat(p.cantidad) || 0]));
 
         for (let i = 1; i < rows.length; i++) {
           const row = rows[i];
@@ -607,8 +844,18 @@ export default function Movements({ user }) {
           const upperKey = keyVal.toUpperCase();
 
           // Validation: Product existence
-          if (!localStockMap.has(codigoVal)) {
+          if (!productDataMap.has(codigoVal)) {
             skippedInvalidProduct++;
+            continue;
+          }
+
+          const baseProduct = productDataMap.get(codigoVal);
+
+          // Validation: Unit consistency
+          const umRaw = colUM !== -1 ? row[colUM] : null;
+          const umVal = umRaw ? String(umRaw).trim().toUpperCase() : '';
+          if (umVal && baseProduct.unit && umVal !== baseProduct.unit) {
+            skippedInconsistentUnit++;
             continue;
           }
 
@@ -640,9 +887,8 @@ export default function Movements({ user }) {
           const fechaVal = parseDateValue(rawFecha, defaultDate);
 
           // Observations formatting
-          const umRaw = colUM !== -1 ? row[colUM] : null;
           const almaceneroRaw = colAlmacenero !== -1 ? row[colAlmacenero] : null;
-
+          
           let obsParts = [];
           if (umRaw && String(umRaw).trim()) {
             obsParts.push(`UM: ${String(umRaw).trim()}`);
@@ -670,6 +916,7 @@ export default function Movements({ user }) {
           if (skippedDuplicateKey > 0) skippedList.push(`${skippedDuplicateKey} claves duplicadas`);
           if (skippedInvalidAmount > 0) skippedList.push(`${skippedInvalidAmount} cantidades inválidas`);
           if (skippedInsufficientStock > 0) skippedList.push(`${skippedInsufficientStock} stock insuficiente`);
+          if (skippedInconsistentUnit > 0) skippedList.push(`${skippedInconsistentUnit} unidades inconsistentes`);
           if (skippedList.length > 0) {
             msg += ` (Omitidos: ${skippedList.join(', ')}).`;
           }
@@ -684,6 +931,7 @@ export default function Movements({ user }) {
         if (skippedDuplicateKey > 0) skippedList.push(`${skippedDuplicateKey} claves duplicadas`);
         if (skippedInvalidAmount > 0) skippedList.push(`${skippedInvalidAmount} cantidades inválidas`);
         if (skippedInsufficientStock > 0) skippedList.push(`${skippedInsufficientStock} stock insuficiente`);
+        if (skippedInconsistentUnit > 0) skippedList.push(`${skippedInconsistentUnit} unidades inconsistentes`);
 
         setImportPreview({
           type: 'salida',
@@ -722,20 +970,48 @@ export default function Movements({ user }) {
     setImportExecuting(true);
 
     try {
+      const keysToImport = importPreview.data.map(m => m.key);
+      
+      // Query existing records to build rollback snapshot
+      const { data: existingRecords, error: fetchError } = await supabase
+        .from('movimientos')
+        .select('id, key, producto_codigo, fecha, tipo, cantidad, usuario, observaciones, created_at')
+        .in('key', keysToImport);
+        
+      if (fetchError) throw fetchError;
+
       if (importPreview.type === 'ingreso') {
         const { error } = await supabase.from('movimientos').upsert(importPreview.data, { onConflict: 'key' });
         if (error) throw error;
+        
+        setLastImport({
+          type: 'ingreso',
+          keys: keysToImport,
+          prevRecords: existingRecords || [],
+          newKeys: keysToImport.filter(k => !existingRecords?.some(r => r.key.toUpperCase() === k.toUpperCase()))
+        });
+
         setCsvMsg({
           text: `Importación exitosa: se registraron ${importPreview.insertCount} nuevos ingresos y se actualizaron ${importPreview.updateCount} existentes.`,
           type: 'success'
         });
+        fetchLedgerMovements();
       } else {
         const { error } = await supabase.from('movimientos').insert(importPreview.data);
         if (error) throw error;
+
+        setLastImport({
+          type: 'salida',
+          keys: keysToImport,
+          prevRecords: existingRecords || [],
+          newKeys: keysToImport.filter(k => !existingRecords?.some(r => r.key.toUpperCase() === k.toUpperCase()))
+        });
+
         setExcelMsg({
           text: `Importación exitosa: se registraron ${importPreview.insertCount} movimientos de tipo SALIDA.`,
           type: 'success'
         });
+        fetchLedgerMovements();
       }
 
       if (importPreview.inputRef) importPreview.inputRef.value = '';
@@ -750,6 +1026,63 @@ export default function Movements({ user }) {
     }
   };
 
+  // Rollback the last imported batch
+  const handleUndoLastImport = async () => {
+    if (!lastImport) return;
+    setUndoing(true);
+    try {
+      // 1. Delete all newly inserted records
+      if (lastImport.newKeys.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('movimientos')
+          .delete()
+          .in('key', lastImport.newKeys);
+        if (deleteError) throw deleteError;
+      }
+
+      // 2. Restore previously existing records (re-upsert their original states)
+      if (lastImport.prevRecords.length > 0) {
+        const recordsToRestore = lastImport.prevRecords.map(r => ({
+          id: r.id,
+          producto_codigo: r.producto_codigo,
+          fecha: r.fecha,
+          tipo: r.tipo,
+          cantidad: r.cantidad,
+          usuario: r.usuario,
+          observaciones: r.observaciones,
+          key: r.key,
+          created_at: r.created_at
+        }));
+        const { error: restoreError } = await supabase
+          .from('movimientos')
+          .upsert(recordsToRestore);
+        if (restoreError) throw restoreError;
+      }
+
+      const importType = lastImport.type;
+      setLastImport(null);
+      
+      if (importType === 'ingreso') {
+        setCsvMsg({ text: 'Importación deshecha correctamente. Los cambios fueron revertidos.', type: 'success' });
+      } else {
+        setExcelMsg({ text: 'Importación deshecha correctamente. Los cambios fueron revertidos.', type: 'success' });
+      }
+      fetchLedgerMovements();
+    } catch (err) {
+      console.error('Error undoing import:', err);
+      const msgSetter = lastImport.type === 'ingreso' ? setCsvMsg : setExcelMsg;
+      msgSetter({ text: 'Error al deshacer la importación: ' + err.message, type: 'error' });
+    } finally {
+      setUndoing(false);
+    }
+  };
+
+  const getAlmaceneroFromObs = (obs) => {
+    if (!obs) return '';
+    const match = obs.match(/Almacenero:\s*([^,]+)/i);
+    return match ? match[1].trim() : '';
+  };
+
   return (
     <div id="movimientos" className="tab-content active">
       <div className="card">
@@ -759,17 +1092,6 @@ export default function Movements({ user }) {
         <div className="card-body">
           <form onSubmit={handleSubmit}>
             <div className="form-grid">
-              <div className="form-group">
-                <label htmlFor="fechaMov">Fecha de mov. *</label>
-                <input 
-                  type="date" 
-                  id="fechaMov" 
-                  value={fecha}
-                  onChange={(e) => setFecha(e.target.value)}
-                  required 
-                />
-              </div>
-
               {(tipo === 'INGRESO' || tipo === 'SALIDA') && (
                 <div className="form-group">
                   <label htmlFor="keyMov">Transaction Key (Clave)</label>
@@ -782,6 +1104,17 @@ export default function Movements({ user }) {
                   />
                 </div>
               )}
+
+              <div className="form-group">
+                <label htmlFor="fechaMov">Fecha de mov. *</label>
+                <input 
+                  type="date" 
+                  id="fechaMov" 
+                  value={fecha}
+                  onChange={(e) => setFecha(e.target.value)}
+                  required 
+                />
+              </div>
 
               <div className="form-group autocomplete-container">
                 <label htmlFor="codigoMov">ID Producto *</label>
@@ -876,6 +1209,20 @@ export default function Movements({ user }) {
                 </select>
               </div>
 
+              {tipo === 'SALIDA' && (
+                <div className="form-group">
+                  <label htmlFor="almaceneroMov">Cód. Almacenero *</label>
+                  <input 
+                    type="text" 
+                    id="almaceneroMov" 
+                    placeholder="Ej. K045" 
+                    value={almacenero}
+                    onChange={(e) => setAlmacenero(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+
               <div className="form-group" style={{ gridColumn: 'span 2' }}>
                 <label htmlFor="obsMov">Observaciones</label>
                 <textarea 
@@ -902,6 +1249,7 @@ export default function Movements({ user }) {
                   setNombre('');
                   setCantidad('');
                   setObservaciones('');
+                  setAlmacenero('');
                   setTransactionKey('Automatico');
                   setCodigoReadOnly(false);
                   setNombreReadOnly(false);
@@ -950,9 +1298,21 @@ export default function Movements({ user }) {
           </div>
 
           {csvMsg.text && (
-            <div className={`message ${csvMsg.type}`}>
-              {csvMsg.type === 'info' ? <Info size={16} /> : csvMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-              <span>{csvMsg.text}</span>
+            <div className={`message ${csvMsg.type}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {csvMsg.type === 'info' ? <Info size={16} /> : csvMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                <span>{csvMsg.text}</span>
+              </div>
+              {csvMsg.type === 'success' && lastImport && lastImport.type === 'ingreso' && (
+                <button 
+                  onClick={handleUndoLastImport} 
+                  disabled={undoing}
+                  className="btn btn-secondary" 
+                  style={{ padding: '6px 12px', fontSize: '0.8rem', marginLeft: '12px' }}
+                >
+                  {undoing ? 'Deshaciendo...' : 'Deshacer'}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -986,9 +1346,21 @@ export default function Movements({ user }) {
           </div>
 
           {excelMsg.text && (
-            <div className={`message ${excelMsg.type}`}>
-              {excelMsg.type === 'info' ? <Info size={16} /> : excelMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-              <span>{excelMsg.text}</span>
+            <div className={`message ${excelMsg.type}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {excelMsg.type === 'info' ? <Info size={16} /> : excelMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                <span>{excelMsg.text}</span>
+              </div>
+              {excelMsg.type === 'success' && lastImport && lastImport.type === 'salida' && (
+                <button 
+                  onClick={handleUndoLastImport} 
+                  disabled={undoing}
+                  className="btn btn-secondary" 
+                  style={{ padding: '6px 12px', fontSize: '0.8rem', marginLeft: '12px' }}
+                >
+                  {undoing ? 'Deshaciendo...' : 'Deshacer'}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -1077,6 +1449,359 @@ export default function Movements({ user }) {
                 >
                   <Upload size={16} />
                   <span>{importExecuting ? 'Importando...' : 'Confirmar Importación'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Historial y Administración de Movimientos */}
+      <div className="card" style={{ marginTop: '24px' }}>
+        <div className="card-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Clock size={18} />
+            <span>Historial y Administración de Movimientos</span>
+          </div>
+        </div>
+        <div className="card-body">
+          {/* Filters */}
+          <div className="form-grid" style={{ marginBottom: '16px' }}>
+            <div className="form-group">
+              <label htmlFor="ledgerDateFrom">Fecha Desde</label>
+              <input 
+                type="date" 
+                id="ledgerDateFrom" 
+                value={ledgerDateFrom} 
+                onChange={(e) => setLedgerDateFrom(e.target.value)} 
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="ledgerDateTo">Fecha Hasta</label>
+              <input 
+                type="date" 
+                id="ledgerDateTo" 
+                value={ledgerDateTo} 
+                onChange={(e) => setLedgerDateTo(e.target.value)} 
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="ledgerType">Filtrar por Tipo</label>
+              <select 
+                id="ledgerType" 
+                value={ledgerType} 
+                onChange={(e) => setLedgerType(e.target.value)}
+              >
+                <option value="">Todos los movimientos</option>
+                <option value="INGRESO">Ingresos</option>
+                <option value="SALIDA">Salidas</option>
+                <option value="AJUSTE_POSITIVO">Ajustes Positivos</option>
+                <option value="AJUSTE_NEGATIVO">Ajustes Negativos</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="ledgerSearch">Buscar Producto / Código / Clave</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input 
+                  type="text" 
+                  id="ledgerSearch" 
+                  placeholder="Buscar..." 
+                  value={ledgerSearch} 
+                  onChange={(e) => setLedgerSearch(e.target.value)} 
+                />
+                <button className="btn btn-primary" onClick={fetchLedgerMovements}>Buscar</button>
+              </div>
+            </div>
+          </div>
+
+          {ledgerMsg.text && (
+            <div className={`message ${ledgerMsg.type}`} style={{ marginBottom: '16px' }}>
+              {ledgerMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+              <span>{ledgerMsg.text}</span>
+            </div>
+          )}
+
+          {ledgerLoading ? (
+            <div className="loading-container">
+              <span className="spinner"></span>
+              <span>Cargando movimientos...</span>
+            </div>
+          ) : ledgerError ? (
+            <div className="message error">
+              <AlertCircle size={16} />
+              <span>{ledgerError}</span>
+            </div>
+          ) : ledgerMovements.length === 0 ? (
+            <div className="message warning">
+              <AlertCircle size={16} />
+              <span>No se encontraron movimientos registrados.</span>
+            </div>
+          ) : (
+            <>
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>ID Producto</th>
+                      <th>Producto</th>
+                      <th>Unidad</th>
+                      <th>Cantidad</th>
+                      <th>Tipo</th>
+                      <th>Transaction Key</th>
+                      <th>Usuario</th>
+                      <th>Almacenero</th>
+                      <th style={{ width: '120px', textAlign: 'center' }}>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const totalPages = Math.max(1, Math.ceil(ledgerMovements.length / ledgerRowsPerPage));
+                      const safePage = Math.min(ledgerPage, totalPages);
+                      const startIdx = (safePage - 1) * ledgerRowsPerPage;
+                      const pageData = ledgerMovements.slice(startIdx, startIdx + ledgerRowsPerPage);
+                      return pageData.map((m) => {
+                        let tipoClass = 'text-success';
+                        let tipoText = m.tipo;
+                        switch (m.tipo) {
+                          case 'INGRESO':
+                            tipoClass = 'text-success';
+                            tipoText = 'Ingreso';
+                            break;
+                          case 'SALIDA':
+                            tipoClass = 'text-danger';
+                            tipoText = 'Salida';
+                            break;
+                          case 'AJUSTE_POSITIVO':
+                            tipoClass = 'text-success';
+                            tipoText = 'Ajuste +';
+                            break;
+                          case 'AJUSTE_NEGATIVO':
+                            tipoClass = 'text-danger';
+                            tipoText = 'Ajuste -';
+                            break;
+                          default:
+                            tipoClass = 'text-info';
+                        }
+
+                        return (
+                          <tr key={m.id}>
+                            <td>{m.fecha}</td>
+                            <td><strong>{m.codigo}</strong></td>
+                            <td>{m.producto}</td>
+                            <td>{m.unidad}</td>
+                            <td>{m.cantidad}</td>
+                            <td className={tipoClass}><strong>{tipoText}</strong></td>
+                            <td><small>{m.key}</small></td>
+                            <td><small>{m.usuario}</small></td>
+                            <td>{m.tipo === 'SALIDA' ? (getAlmaceneroFromObs(m.observaciones) || '-') : '-'}</td>
+                            <td style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                              <button 
+                                className="btn btn-secondary" 
+                                style={{ padding: '4px 8px', fontSize: '0.75rem' }} 
+                                onClick={() => handleEditClick(m)}
+                              >
+                                Editar
+                              </button>
+                              <button 
+                                className="btn btn-danger" 
+                                style={{ padding: '4px 8px', fontSize: '0.75rem' }} 
+                                onClick={() => handleDeleteClick(m)}
+                              >
+                                Borrar
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Controls */}
+              {(() => {
+                const totalPages = Math.max(1, Math.ceil(ledgerMovements.length / ledgerRowsPerPage));
+                const safePage = Math.min(ledgerPage, totalPages);
+                const startIdx = (safePage - 1) * ledgerRowsPerPage;
+                if (totalPages <= 1) return null;
+                return (
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    marginTop: '16px',
+                    padding: '12px 0',
+                    borderTop: '1px solid var(--border-color)',
+                    flexWrap: 'wrap',
+                    gap: '12px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      <span>Mostrando {startIdx + 1}–{Math.min(startIdx + ledgerRowsPerPage, ledgerMovements.length)} de {ledgerMovements.length}</span>
+                      <select 
+                        value={ledgerRowsPerPage} 
+                        onChange={(e) => { setLedgerRowsPerPage(Number(e.target.value)); setLedgerPage(1); }}
+                        style={{ padding: '4px 8px', fontSize: '0.8rem', width: 'auto' }}
+                      >
+                        <option value={10}>10 filas</option>
+                        <option value={25}>25 filas</option>
+                        <option value={50}>50 filas</option>
+                        <option value={100}>100 filas</option>
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setLedgerPage(1)} disabled={safePage === 1}>«</button>
+                      <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setLedgerPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
+                      <span style={{ padding: '4px 12px', fontSize: '0.85rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>{safePage} / {totalPages}</span>
+                      <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setLedgerPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
+                      <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setLedgerPage(totalPages)} disabled={safePage === totalPages}>»</button>
+                    </div>
+                  </div>
+                );
+              })()}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Edit Movement Modal */}
+      {showEditModal && actionTarget && (
+        <div className="dialog-overlay">
+          <div className="dialog-card" style={{ maxWidth: '450px', width: '90%' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>✏️ Editar Cantidad de Movimiento</span>
+              <button 
+                onClick={() => setShowEditModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                disabled={actionLoading}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="card-body" style={{ padding: '24px' }}>
+              <p style={{ marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                Modificando el movimiento de <strong>{actionTarget.tipo}</strong> para el producto <strong>{actionTarget.codigo}</strong>.
+              </p>
+              
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label htmlFor="editQtyInput">Nueva Cantidad *</label>
+                <input 
+                  type="number" 
+                  id="editQtyInput"
+                  min="0.01"
+                  step="0.01"
+                  value={actionQty}
+                  onChange={(e) => setActionQty(e.target.value)}
+                  disabled={actionLoading}
+                />
+              </div>
+
+              {!adminDni && (
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <label htmlFor="editDniInput">DNI de Administrador para Autorizar *</label>
+                  <input 
+                    type="text" 
+                    id="editDniInput"
+                    placeholder="Ingrese su DNI"
+                    value={actionDni}
+                    onChange={(e) => setActionDni(e.target.value)}
+                    maxLength={20}
+                    disabled={actionLoading}
+                  />
+                </div>
+              )}
+
+              {actionError && (
+                <div className="message error" style={{ marginBottom: '16px' }}>
+                  <AlertCircle size={16} />
+                  <span>{actionError}</span>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => setShowEditModal(false)}
+                  disabled={actionLoading}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  className="btn btn-success" 
+                  onClick={handleConfirmEdit}
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Movement Modal */}
+      {showDeleteModal && actionTarget && (
+        <div className="dialog-overlay">
+          <div className="dialog-card" style={{ maxWidth: '450px', width: '90%' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--danger-text)' }}>
+              <span>⚠️ Confirmar Eliminación de Movimiento</span>
+              <button 
+                onClick={() => setShowDeleteModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                disabled={actionLoading}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="card-body" style={{ padding: '24px' }}>
+              <p style={{ marginBottom: '16px', lineHeight: '1.5', fontSize: '0.9rem' }}>
+                ¿Está seguro de que desea eliminar permanentemente este registro de movimiento?
+                <br /><br />
+                <strong>Detalles:</strong>
+                <br />
+                • Producto: <strong>{actionTarget.codigo}</strong> - {actionTarget.producto}
+                <br />
+                • Tipo: {actionTarget.tipo} | Cantidad: {actionTarget.cantidad}
+                <br />
+                • Clave: {actionTarget.key}
+              </p>
+
+              {!adminDni && (
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <label htmlFor="deleteDniInput">DNI de Administrador para Autorizar *</label>
+                  <input 
+                    type="text" 
+                    id="deleteDniInput"
+                    placeholder="Ingrese su DNI"
+                    value={actionDni}
+                    onChange={(e) => setActionDni(e.target.value)}
+                    maxLength={20}
+                    disabled={actionLoading}
+                  />
+                </div>
+              )}
+
+              {actionError && (
+                <div className="message error" style={{ marginBottom: '16px' }}>
+                  <AlertCircle size={16} />
+                  <span>{actionError}</span>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={actionLoading}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  className="btn btn-danger" 
+                  onClick={handleConfirmDelete}
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? 'Eliminando...' : 'Confirmar Eliminación'}
                 </button>
               </div>
             </div>

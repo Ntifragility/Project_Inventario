@@ -384,3 +384,137 @@ BEGIN
     RETURN result;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ═══════════════════════════════════════════════════════════════
+-- 11. AUTHORIZED MOVEMENT MANAGEMENT RPCs
+-- ═══════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION eliminar_movimiento_autorizado(
+    p_movimiento_id BIGINT,
+    p_admin_dni TEXT
+)
+RETURNS VOID AS $$
+DECLARE
+    is_authorized BOOLEAN;
+    v_producto_codigo VARCHAR(50);
+    v_tipo VARCHAR(50);
+    v_cantidad NUMERIC(10, 2);
+    v_stock_actual NUMERIC(10, 2);
+    v_impacto NUMERIC(10, 2);
+BEGIN
+    -- 1. Validate DNI against administrators table
+    SELECT EXISTS(
+        SELECT 1 FROM administradores WHERE dni = p_admin_dni
+    ) INTO is_authorized;
+
+    IF NOT is_authorized THEN
+        RAISE EXCEPTION 'Operación cancelada: El DNI ingresado no está autorizado.';
+    END IF;
+
+    -- 2. Get movement details and lock product row
+    SELECT producto_codigo, tipo, cantidad INTO v_producto_codigo, v_tipo, v_cantidad
+    FROM movimientos WHERE id = p_movimiento_id;
+    
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'El movimiento solicitado no existe.';
+    END IF;
+
+    PERFORM 1 FROM productos WHERE codigo = v_producto_codigo FOR UPDATE;
+
+    -- 3. Calculate current stock
+    SELECT COALESCE(SUM(
+        CASE 
+            WHEN tipo IN ('INGRESO', 'AJUSTE_POSITIVO', 'AJUSTE') THEN cantidad
+            WHEN tipo IN ('SALIDA', 'AJUSTE_NEGATIVO') THEN -cantidad
+            ELSE 0
+        END
+    ), 0) INTO v_stock_actual
+    FROM movimientos
+    WHERE producto_codigo = v_producto_codigo;
+
+    -- 4. Calculate stock impact if deleted
+    IF v_tipo IN ('INGRESO', 'AJUSTE_POSITIVO', 'AJUSTE') THEN
+        v_impacto := -v_cantidad;
+    ELSE
+        v_impacto := v_cantidad;
+    END IF;
+
+    -- 5. Block deletion if remaining stock would be negative
+    IF (v_stock_actual + v_impacto) < 0 THEN
+        RAISE EXCEPTION 'No se puede eliminar el movimiento: dejaría al producto % con stock negativo (Disponible: %, Reducción: %).', 
+            v_producto_codigo, v_stock_actual, ABS(v_impacto);
+    END IF;
+
+    -- 6. Execute delete
+    DELETE FROM movimientos WHERE id = p_movimiento_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+CREATE OR REPLACE FUNCTION editar_movimiento_autorizado(
+    p_movimiento_id BIGINT,
+    p_nueva_cantidad NUMERIC(10, 2),
+    p_admin_dni TEXT
+)
+RETURNS VOID AS $$
+DECLARE
+    is_authorized BOOLEAN;
+    v_producto_codigo VARCHAR(50);
+    v_tipo VARCHAR(50);
+    v_cantidad_anterior NUMERIC(10, 2);
+    v_stock_actual NUMERIC(10, 2);
+    v_diferencia NUMERIC(10, 2);
+BEGIN
+    -- 1. Validate DNI
+    SELECT EXISTS(
+        SELECT 1 FROM administradores WHERE dni = p_admin_dni
+    ) INTO is_authorized;
+
+    IF NOT is_authorized THEN
+        RAISE EXCEPTION 'Operación cancelada: El DNI ingresado no está autorizado.';
+    END IF;
+
+    IF p_nueva_cantidad <= 0 THEN
+        RAISE EXCEPTION 'La cantidad debe ser mayor a cero.';
+    END IF;
+
+    -- 2. Get current movement details and lock product row
+    SELECT producto_codigo, tipo, cantidad INTO v_producto_codigo, v_tipo, v_cantidad_anterior
+    FROM movimientos WHERE id = p_movimiento_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'El movimiento solicitado no existe.';
+    END IF;
+
+    PERFORM 1 FROM productos WHERE codigo = v_producto_codigo FOR UPDATE;
+
+    -- 3. Calculate current stock
+    SELECT COALESCE(SUM(
+        CASE 
+            WHEN tipo IN ('INGRESO', 'AJUSTE_POSITIVO', 'AJUSTE') THEN cantidad
+            WHEN tipo IN ('SALIDA', 'AJUSTE_NEGATIVO') THEN -cantidad
+            ELSE 0
+        END
+    ), 0) INTO v_stock_actual
+    FROM movimientos
+    WHERE producto_codigo = v_producto_codigo;
+
+    -- 4. Calculate net difference
+    IF v_tipo IN ('INGRESO', 'AJUSTE_POSITIVO', 'AJUSTE') THEN
+        v_diferencia := p_nueva_cantidad - v_cantidad_anterior;
+    ELSE
+        v_diferencia := v_cantidad_anterior - p_nueva_cantidad;
+    END IF;
+
+    -- 5. Validate stock safety
+    IF (v_stock_actual + v_diferencia) < 0 THEN
+        RAISE EXCEPTION 'No se puede editar el movimiento: el cambio dejaría al producto % con stock negativo (Stock actual: %, Impacto neto: %).', 
+            v_producto_codigo, v_stock_actual, v_diferencia;
+    END IF;
+
+    -- 6. Perform update
+    UPDATE movimientos 
+    SET cantidad = p_nueva_cantidad
+    WHERE id = p_movimiento_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
