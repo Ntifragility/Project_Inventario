@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabase';
 import { Plus, Upload, List, AlertCircle, CheckCircle2, Info, Pencil, Trash2, X, Save, Search } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export default function Products() {
   // Form states
@@ -266,44 +267,60 @@ export default function Products() {
     }
   };
 
-  // CSV Import handler
-  const handleImportCSV = async (event) => {
+  // Excel / CSV Import handler
+  const handleImportExcelCSV = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
-    setCsvMsg({ text: 'Procesando archivo CSV...', type: 'info' });
+    setCsvMsg({ text: 'Procesando archivo...', type: 'info' });
 
     const reader = new FileReader();
     reader.onload = async function(e) {
-      const text = e.target.result;
-      const lines = text.split(/\r?\n/);
-      
-      if (lines.length < 2) {
-        setCsvMsg({ text: 'El archivo CSV está vacío o no contiene suficientes filas.', type: 'error' });
-        event.target.value = '';
-        return;
-      }
-
-      const headerLine = lines[0];
-      let delimiter = ',';
-      if (headerLine.includes(';')) {
-        delimiter = ';';
-      }
-
-      const headers = headerLine.split(delimiter).map(h => h.trim().toLowerCase());
-      const colCodigo = headers.indexOf('id producto');
-      const colNombre = headers.indexOf('producto');
-      const colUnidad = headers.indexOf('unidad');
-      const colGrupo = headers.indexOf('grupo');
-      const colStockMin = headers.findIndex(h => h === 'stock mín.' || h === 'stock min.' || h === 'stock min' || h === 'stock mín');
-
-      if (colCodigo === -1 || colNombre === -1 || colUnidad === -1 || colGrupo === -1 || colStockMin === -1) {
-        setCsvMsg({ text: 'Formato CSV incorrecto. Debe incluir: "ID Producto", "Producto", "Unidad", "Grupo", y "Stock Mín.".', type: 'error' });
-        event.target.value = '';
-        return;
-      }
-
       try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        // Convert to array of arrays (header: 1)
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        if (rows.length < 2) {
+          setCsvMsg({ text: 'El archivo está vacío o no contiene suficientes filas.', type: 'error' });
+          event.target.value = '';
+          return;
+        }
+
+        const rawHeaders = rows[0];
+        const normalize = (str) => {
+          return String(str || '')
+            .trim()
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9]/g, '');
+        };
+
+        const normHeaders = rawHeaders.map(normalize);
+        const colCodigo = normHeaders.indexOf(normalize('ID Producto'));
+        const colNombre = normHeaders.indexOf(normalize('Producto'));
+        const colUnidad = normHeaders.indexOf(normalize('Unidad'));
+        const colGrupo = normHeaders.indexOf(normalize('Grupo'));
+        
+        // Find stock min index
+        const colStockMin = normHeaders.findIndex(h => 
+          h === normalize('Stock Mín.') || 
+          h === normalize('Stock Mín') || 
+          h === normalize('Stock Min.') || 
+          h === normalize('Stock Min')
+        );
+
+        if (colCodigo === -1 || colNombre === -1 || colUnidad === -1 || colGrupo === -1 || colStockMin === -1) {
+          setCsvMsg({ text: 'Formato incorrecto. Debe incluir las cabeceras: "ID Producto", "Producto", "Unidad", "Grupo", y "Stock Mín.".', type: 'error' });
+          event.target.value = '';
+          return;
+        }
+
         const [resUnidades, resGrupos, resProductos] = await Promise.all([
           supabase.from('unidades').select('id, nombre'),
           supabase.from('grupos').select('id, nombre'),
@@ -325,21 +342,20 @@ export default function Products() {
         let skippedCount = 0;
         let emptyCount = 0;
 
-        const splitRegex = new RegExp(`${delimiter}(?=(?:(?:[^"]*"){2})*[^"]*$)`);
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row || row.length === 0) continue;
 
-        for (let i = 1; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (!line) continue;
+          const codigoRaw = row[colCodigo];
+          const nombreRaw = row[colNombre];
 
-          const cols = line.split(splitRegex).map(c => c.trim().replace(/^"|"$/g, ''));
-
-          if (cols.length <= Math.max(colCodigo, colNombre)) {
+          if (codigoRaw === undefined || codigoRaw === null || nombreRaw === undefined || nombreRaw === null) {
             emptyCount++;
             continue;
           }
 
-          const codigoVal = cols[colCodigo]?.trim().toUpperCase();
-          const nombreVal = cols[colNombre]?.trim();
+          const codigoVal = String(codigoRaw).trim().toUpperCase();
+          const nombreVal = String(nombreRaw).trim();
 
           if (!codigoVal || !nombreVal) {
             emptyCount++;
@@ -358,20 +374,23 @@ export default function Products() {
           }
 
           let unidadId = defaultUnidadId;
-          if (colUnidad !== -1 && cols[colUnidad]) {
-            const uName = cols[colUnidad].trim().toLowerCase();
+          const umRaw = row[colUnidad];
+          if (umRaw !== undefined && umRaw !== null) {
+            const uName = String(umRaw).trim().toLowerCase();
             if (unidadesMap.has(uName)) unidadId = unidadesMap.get(uName);
           }
 
           let grupoId = defaultGrupoId;
-          if (colGrupo !== -1 && cols[colGrupo]) {
-            const gName = cols[colGrupo].trim().toLowerCase();
+          const gRaw = row[colGrupo];
+          if (gRaw !== undefined && gRaw !== null) {
+            const gName = String(gRaw).trim().toLowerCase();
             if (gruposMap.has(gName)) grupoId = gruposMap.get(gName);
           }
 
           let stockMinVal = 0;
-          if (colStockMin !== -1 && cols[colStockMin]) {
-            const parsedStock = parseInt(cols[colStockMin]);
+          const smRaw = row[colStockMin];
+          if (smRaw !== undefined && smRaw !== null) {
+            const parsedStock = parseInt(smRaw);
             if (!isNaN(parsedStock) && parsedStock >= 0) stockMinVal = parsedStock;
           }
 
@@ -403,13 +422,13 @@ export default function Products() {
         event.target.value = '';
         fetchProducts();
       } catch (err) {
-        console.error('Error importing CSV:', err);
+        console.error('Error importing Excel/CSV:', err);
         setCsvMsg({ text: 'Error al importar: ' + err.message, type: 'error' });
         event.target.value = '';
       }
     };
 
-    reader.readAsText(file, 'UTF-8');
+    reader.readAsArrayBuffer(file);
   };
 
   // Client-side search filtering
@@ -524,7 +543,7 @@ export default function Products() {
                 onClick={() => setShowImportModal(true)}
               >
                 <Upload size={16} />
-                <span>Importar desde CSV</span>
+                <span>Importar desde Excel / CSV</span>
               </button>
             </div>
           </form>
@@ -544,7 +563,7 @@ export default function Products() {
             <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Upload size={18} style={{ color: 'var(--primary)' }} />
-                <span>Importar Productos desde CSV</span>
+                <span>Importar Productos desde Excel / CSV</span>
               </div>
               <button 
                 onClick={() => {
@@ -558,7 +577,7 @@ export default function Products() {
             </div>
             <div className="card-body" style={{ padding: '24px' }}>
               <p style={{ marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
-                Seleccione un archivo CSV para registrar múltiples productos en lote. El archivo debe incluir las cabeceras: <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Unidad</strong>, <strong>Grupo</strong>, y <strong>Stock Mín.</strong>
+                Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples productos en lote. El archivo debe incluir las cabeceras: <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Unidad</strong>, <strong>Grupo</strong>, y <strong>Stock Mín.</strong>
               </p>
               <div className="actions" style={{ marginBottom: 0 }}>
                 <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
@@ -566,8 +585,8 @@ export default function Products() {
                   <span>Seleccionar archivo</span>
                   <input 
                     type="file" 
-                    accept=".csv" 
-                    onChange={handleImportCSV} 
+                    accept=".xlsx, .xls, .csv" 
+                    onChange={handleImportExcelCSV} 
                     style={{ display: 'none' }} 
                   />
                 </label>
