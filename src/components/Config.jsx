@@ -181,21 +181,21 @@ export default function Config() {
       {showResetModal && (
         <div className="dialog-overlay">
           <div className="dialog-card" style={{ maxWidth: '520px', width: '90%' }}>
-            <div className="card-header" style={{ borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <ShieldAlert size={18} style={{ color: 'var(--danger)' }} />
                 <span style={{ fontWeight: '700', letterSpacing: '0.3px' }}>Advertencia de Restablecimiento</span>
               </div>
               <button 
                 onClick={() => setShowResetModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', padding: '4px' }}
+                style={{ position: 'absolute', right: '16px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', padding: '4px' }}
                 disabled={resetting}
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="card-body" style={{ padding: '24px' }}>
+            <div className="card-body" style={{ padding: '24px', textAlign: 'center' }}>
               
               {/* Premium Visual Step Progress Indicator */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '24px' }}>
@@ -252,16 +252,18 @@ export default function Config() {
                     fontSize: '0.9rem',
                     lineHeight: '1.6',
                     display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '10px'
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '10px',
+                    textAlign: 'center'
                   }}>
-                    <ShieldAlert size={18} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--danger)' }} />
+                    <ShieldAlert size={18} style={{ color: 'var(--danger)' }} />
                     <span>
                       Esta acción eliminará permanentemente <strong>TODOS los registros de productos</strong> y sus <strong>movimientos históricos</strong> del almacén. Esta operación es irreversible.
                     </span>
                   </div>
 
-                  <div className="form-group" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                  <div className="form-group" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
                     <label htmlFor="resetDniInput" style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px', fontSize: '0.875rem' }}>
                       Ingrese DNI de Administrador para Autorizar *
                     </label>
@@ -282,7 +284,7 @@ export default function Config() {
                     )}
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '28px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '28px' }}>
                     <button type="button" className="btn btn-secondary" onClick={() => setShowResetModal(false)}>
                       Cancelar
                     </button>
@@ -306,10 +308,12 @@ export default function Config() {
                     fontSize: '0.9rem',
                     lineHeight: '1.6',
                     display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '10px'
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '10px',
+                    textAlign: 'center'
                   }}>
-                    <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--warning)' }} />
+                    <AlertCircle size={18} style={{ color: 'var(--warning)' }} />
                     <span>
                       Se guardará el registro de restablecimiento bajo la identificación DNI: <strong>{dni}</strong>.
                     </span>
@@ -322,7 +326,7 @@ export default function Config() {
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '28px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '28px' }}>
                     <button 
                       type="button" 
                       className="btn btn-secondary" 
@@ -381,7 +385,7 @@ export default function Config() {
                     La base de datos ha sido restablecida a su estado inicial de forma exitosa. Todos los productos y logs de movimientos fueron eliminados de forma segura.
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '28px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginTop: '28px' }}>
                     <button type="button" className="btn btn-success" onClick={() => setShowResetModal(false)}>
                       Cerrar
                     </button>
