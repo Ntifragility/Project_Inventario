@@ -1096,60 +1096,51 @@ export default function Movements({ user }) {
         <div className="card-body">
           <form onSubmit={handleSubmit}>
             <div className="form-grid">
-              {(tipo === 'INGRESO' || tipo === 'SALIDA') && (
-                <div className="form-group">
-                  <label htmlFor="keyMov">Transaction Key (Clave)</label>
+              {/* Row 1: Fecha and ID Producto */}
+              <div style={{ display: 'flex', gap: '20px', gridColumn: 'span 2', width: '100%' }}>
+                <div className="form-group" style={{ flex: '1 1 50%' }}>
+                  <label htmlFor="fechaMov">Fecha de mov. *</label>
                   <input 
-                    type="text" 
-                    id="keyMov" 
-                    placeholder="Auto-generada (deje en 'Automatico')" 
-                    value={transactionKey}
-                    onChange={(e) => setTransactionKey(e.target.value)}
+                    type="date" 
+                    id="fechaMov" 
+                    value={fecha}
+                    onChange={(e) => setFecha(e.target.value)}
+                    required 
                   />
                 </div>
-              )}
 
-              <div className="form-group" style={{ maxWidth: '50%' }}>
-                <label htmlFor="fechaMov">Fecha de mov. *</label>
-                <input 
-                  type="date" 
-                  id="fechaMov" 
-                  value={fecha}
-                  onChange={(e) => setFecha(e.target.value)}
-                  required 
-                />
+                <div className="form-group autocomplete-container" style={{ flex: '1 1 50%' }}>
+                  <label htmlFor="codigoMov">ID Producto *</label>
+                  <input 
+                    type="text" 
+                    id="codigoMov" 
+                    placeholder="Escriba código para buscar..." 
+                    value={codigo}
+                    onChange={(e) => handleCodigoChange(e.target.value)}
+                    onFocus={handleCodigoFocus}
+                    readOnly={codigoReadOnly}
+                    required 
+                    autoComplete="off"
+                  />
+                  {showCodigoDropdown && (
+                    <div className="autocomplete-dropdown">
+                      {codigoSuggestions.map((p) => (
+                        <div 
+                          key={p.codigo} 
+                          className="autocomplete-item"
+                          onMouseDown={() => handleSelectProduct(p)}
+                        >
+                          <span className="autocomplete-code">{p.codigo}</span>
+                          <span className="autocomplete-name">{p.nombre} ({p.grupo})</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="form-group autocomplete-container" style={{ maxWidth: '50%' }}>
-                <label htmlFor="codigoMov">ID Producto *</label>
-                <input 
-                  type="text" 
-                  id="codigoMov" 
-                  placeholder="Escriba código para buscar..." 
-                  value={codigo}
-                  onChange={(e) => handleCodigoChange(e.target.value)}
-                  onFocus={handleCodigoFocus}
-                  readOnly={codigoReadOnly}
-                  required 
-                  autoComplete="off"
-                />
-                {showCodigoDropdown && (
-                  <div className="autocomplete-dropdown">
-                    {codigoSuggestions.map((p) => (
-                      <div 
-                        key={p.codigo} 
-                        className="autocomplete-item"
-                        onMouseDown={() => handleSelectProduct(p)}
-                      >
-                        <span className="autocomplete-code">{p.codigo}</span>
-                        <span className="autocomplete-name">{p.nombre} ({p.grupo})</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="form-group autocomplete-container">
+              {/* Row 2: Producto Name (Autocomplete) */}
+              <div className="form-group autocomplete-container" style={{ gridColumn: 'span 2' }}>
                 <label htmlFor="nombreMov">Producto</label>
                 <input 
                   type="text" 
@@ -1177,66 +1168,98 @@ export default function Movements({ user }) {
                 )}
               </div>
 
-              <div className="form-group" style={{ maxWidth: '30%' }}>
-                <label htmlFor="cantMov">Cantidad *</label>
-                <input 
-                  type="number" 
-                  id="cantMov" 
-                  min="0.01" 
-                  step="0.01" 
-                  placeholder="Cantidad mayor a 0" 
-                  value={cantidad}
-                  onChange={(e) => setCantidad(e.target.value)}
-                  required 
-                />
-              </div>
+              {/* Row 3: Transaction Key, Cantidad, Tipo de Movimiento */}
+              <div style={{ display: 'flex', gap: '20px', gridColumn: 'span 2', width: '100%', alignItems: 'flex-start' }}>
+                {(tipo === 'INGRESO' || tipo === 'SALIDA') && (
+                  <div className="form-group" style={{ flex: '2 1 40%' }}>
+                    <label htmlFor="keyMov">Transaction Key (Clave)</label>
+                    <input 
+                      type="text" 
+                      id="keyMov" 
+                      placeholder="Auto-generada (deje en 'Automatico')" 
+                      value={transactionKey}
+                      onChange={(e) => setTransactionKey(e.target.value)}
+                    />
+                  </div>
+                )}
 
-              <div className="form-group" style={{ maxWidth: '70%' }}>
-                <label htmlFor="tipoMov">Tipo de Movimiento *</label>
-                <select 
-                  id="tipoMov" 
-                  value={tipo}
-                  onChange={(e) => {
-                    setTipo(e.target.value);
-                    if (e.target.value !== 'INGRESO' && e.target.value !== 'SALIDA') {
-                      setTransactionKey('');
-                    } else {
-                      setTransactionKey('Automatico');
-                    }
-                  }}
-                  required
-                >
-                  <option value="INGRESO">Ingreso</option>
-                  <option value="SALIDA">Salida</option>
-                  <option value="AJUSTE_POSITIVO">Ajuste Positivo</option>
-                  <option value="AJUSTE_NEGATIVO">Ajuste Negativo</option>
-                </select>
-              </div>
-
-              {tipo === 'SALIDA' && (
-                <div className="form-group">
-                  <label htmlFor="almaceneroMov">Cód. Almacenero *</label>
+                <div className="form-group" style={{ flex: '1 1 20%' }}>
+                  <label htmlFor="cantMov">Cantidad *</label>
                   <input 
-                    type="text" 
-                    id="almaceneroMov" 
-                    placeholder="Ej. K045" 
-                    value={almacenero}
-                    onChange={(e) => setAlmacenero(e.target.value)}
-                    required
+                    type="number" 
+                    id="cantMov" 
+                    min="0.01" 
+                    step="0.01" 
+                    placeholder="Cantidad mayor a 0" 
+                    value={cantidad}
+                    onChange={(e) => setCantidad(e.target.value)}
+                    required 
                   />
                 </div>
-              )}
 
-              <div className="form-group">
-                <label htmlFor="obsMov">Observaciones</label>
-                <input 
-                  type="text"
-                  id="obsMov" 
-                  placeholder="Observaciones opcionales" 
-                  maxLength={1000}
-                  value={observaciones}
-                  onChange={(e) => setObservaciones(e.target.value)}
-                />
+                <div className="form-group" style={{ flex: '2 1 40%' }}>
+                  <label htmlFor="tipoMov">Tipo de Movimiento *</label>
+                  <select 
+                    id="tipoMov" 
+                    value={tipo}
+                    onChange={(e) => {
+                      setTipo(e.target.value);
+                      if (e.target.value !== 'INGRESO' && e.target.value !== 'SALIDA') {
+                        setTransactionKey('');
+                      } else {
+                        setTransactionKey('Automatico');
+                      }
+                    }}
+                    required
+                  >
+                    <option value="INGRESO">Ingreso</option>
+                    <option value="SALIDA">Salida</option>
+                    <option value="AJUSTE_POSITIVO">Ajuste Positivo</option>
+                    <option value="AJUSTE_NEGATIVO">Ajuste Negativo</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 4: Cod Almacenero (if SALIDA) and Observaciones */}
+              <div style={{ display: 'flex', gap: '20px', gridColumn: 'span 2', width: '100%' }}>
+                {tipo === 'SALIDA' ? (
+                  <>
+                    <div className="form-group" style={{ flex: '1 1 30%' }}>
+                      <label htmlFor="almaceneroMov">Cód. Almacenero *</label>
+                      <input 
+                        type="text" 
+                        id="almaceneroMov" 
+                        placeholder="Ej. K045" 
+                        value={almacenero}
+                        onChange={(e) => setAlmacenero(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group" style={{ flex: '2 1 70%' }}>
+                      <label htmlFor="obsMov">Observaciones</label>
+                      <input 
+                        type="text"
+                        id="obsMov" 
+                        placeholder="Observaciones opcionales" 
+                        maxLength={1000}
+                        value={observaciones}
+                        onChange={(e) => setObservaciones(e.target.value)}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="form-group" style={{ flex: '1 1 100%' }}>
+                    <label htmlFor="obsMov">Observaciones</label>
+                    <input 
+                      type="text"
+                      id="obsMov" 
+                      placeholder="Observaciones opcionales" 
+                      maxLength={1000}
+                      value={observaciones}
+                      onChange={(e) => setObservaciones(e.target.value)}
+                    />
+                  </div>
+                )}
               </div>
             </div>
             
