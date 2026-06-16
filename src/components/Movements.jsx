@@ -1316,7 +1316,7 @@ export default function Movements({ user }) {
                     setExcelMsg({ text: '', type: '' });
                   }}
                 >
-                  Ingresos de material
+                  Ingreso de material
                 </button>
                 <button
                   type="button"
@@ -1342,7 +1342,7 @@ export default function Movements({ user }) {
                   </p>
                   
                   <div className="actions" style={{ marginBottom: 0 }}>
-                    <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
+                    <label className="btn btn-primary" style={{ cursor: 'pointer', padding: '12px' }}>
                       <Upload size={16} />
                       <span>Seleccionar archivo</span>
                       <input 
@@ -1384,7 +1384,7 @@ export default function Movements({ user }) {
                   </p>
                   
                   <div className="actions" style={{ marginBottom: 0 }}>
-                    <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
+                    <label className="btn btn-primary" style={{ cursor: 'pointer', padding: '12px' }}>
                       <Upload size={16} />
                       <span>Seleccionar archivo</span>
                       <input 
