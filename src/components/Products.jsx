@@ -580,7 +580,7 @@ export default function Products() {
                 Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples productos en lote. El archivo debe incluir las cabeceras: <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Unidad</strong>, <strong>Grupo</strong>, y <strong>Stock Mín.</strong>
               </p>
               <div className="actions" style={{ marginBottom: 0 }}>
-                <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
+                <label className="btn btn-primary" style={{ cursor: 'pointer', padding: '12px' }}>
                   <Upload size={16} />
                   <span>Seleccionar archivo</span>
                   <input 
