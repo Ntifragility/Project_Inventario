@@ -846,6 +846,20 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
   box-shadow: none !important;
 }
 
+.input-with-button {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.input-with-button input {
+  flex: 1;
+}
+
+.input-with-button button {
+  flex-shrink: 0;
+}
+
 /* CSV Upload Area styling */
 .csv-import-box {
   border: 2px dashed var(--border-color);
@@ -1184,6 +1198,16 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
     flex: 1 1 calc(50% - 10px);
   }
   .m-col-observaciones { max-width: 100%; flex: 1 1 100%; }
+
+  .input-with-button {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .input-with-button button {
+    width: 100% !important;
+    height: 44px !important;
+  }
 }
 
 /* Responsive: stack on mobile */
@@ -1356,6 +1380,8 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
     text-align: right !important;
     width: 100%;
     font-size: 0.9rem;
+    gap: 12px;
+    word-break: break-word;
   }
 
   .dark-theme tbody td {
@@ -1366,7 +1392,7 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
     border-bottom: none;
     padding-bottom: 0;
     margin-top: 8px;
-    justify-content: flex-end;
+    justify-content: center !important;
   }
 
   tbody td::before {
@@ -1375,17 +1401,70 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
     text-align: left;
     color: var(--text-secondary);
     font-size: 0.825rem;
-    display: inline-block;
+    flex: 0 0 40%;
   }
 
-  /* Specific resets for action cells */
+  /* Specific resets for action cells: hide the label completely on mobile cards */
+  tbody td[data-label="Acciones"]::before {
+    display: none !important;
+    content: "" !important;
+  }
+
   tbody td[data-label="Acciones"] {
     border-bottom: none;
+    justify-content: center !important;
+    padding-left: 0 !important;
+    padding-top: 12px !important;
+    text-align: center !important;
+    border-top: 1px solid rgba(15, 23, 42, 0.05) !important;
+  }
+
+  .dark-theme tbody td[data-label="Acciones"] {
+    border-top-color: rgba(255, 255, 255, 0.05) !important;
   }
 
   tbody td[data-label="Acciones"] div {
     width: 100%;
-    justify-content: flex-end;
+    justify-content: center !important;
+  }
+
+  /* Prevent row action buttons from stretching to 100% wide */
+  tbody td .btn,
+  tbody td .btn-secondary,
+  tbody td .btn-danger {
+    width: auto !important;
+    display: inline-flex !important;
+    padding: 6px 12px !important;
+    height: 32px !important;
+    font-size: 0.75rem !important;
+    margin: 0 2px !important;
+  }
+
+  /* Remove left border from individual cells on mobile cards */
+  tr.status-normal td,
+  tr.status-low td,
+  tr.status-zero td {
+    border-left: none !important;
+    background: transparent !important;
+  }
+
+  /* Apply left border to the card row (tr) itself for a clean look */
+  tbody tr.status-normal {
+    border-left: 4px solid var(--success) !important;
+  }
+  tbody tr.status-low {
+    border-left: 4px solid var(--warning) !important;
+  }
+  tbody tr.status-zero {
+    border-left: 4px solid var(--danger) !important;
+  }
+
+  /* Prevent long text cell values from overflowing on mobile */
+  tbody td > *:not(::before) {
+    max-width: 60%;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    text-align: right;
   }
 
   /* Actions list flex wrapper stack */

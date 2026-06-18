@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase';
-import { Save, Upload, AlertCircle, CheckCircle2, Info, X, Eye, Clock, Scan } from 'lucide-react';
+import { Save, Upload, AlertCircle, CheckCircle2, Info, X, Eye, Clock, Scan, Pencil, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import BarcodeScanner from './BarcodeScanner';
 
@@ -1113,7 +1113,7 @@ export default function Movements({ user }) {
 
                 <div className="form-group autocomplete-container m-col-id">
                   <label htmlFor="codigoMov">ID Producto *</label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  <div className="input-with-button">
                     <input 
                       type="text" 
                       id="codigoMov" 
@@ -1130,7 +1130,6 @@ export default function Movements({ user }) {
                       className="btn btn-secondary" 
                       onClick={() => setShowScanner(true)}
                       title="Escanear Código"
-                      style={{ padding: '10px 14px', flexShrink: 0 }}
                     >
                       <Scan size={16} />
                     </button>
@@ -1671,29 +1670,31 @@ export default function Movements({ user }) {
 
                         return (
                           <tr key={m.id}>
-                            <td data-label="Fecha">{m.fecha}</td>
+                            <td data-label="Fecha"><span>{m.fecha}</span></td>
                             <td data-label="ID Producto"><strong>{m.codigo}</strong></td>
-                            <td data-label="Producto">{m.producto}</td>
-                            <td data-label="Unidad">{m.unidad}</td>
-                            <td data-label="Cantidad">{m.cantidad}</td>
+                            <td data-label="Producto"><span>{m.producto}</span></td>
+                            <td data-label="Unidad"><span>{m.unidad}</span></td>
+                            <td data-label="Cantidad"><span>{m.cantidad}</span></td>
                             <td data-label="Tipo" className={tipoClass}><strong>{tipoText}</strong></td>
                             <td data-label="Transaction Key"><small>{m.key}</small></td>
                             <td data-label="Usuario"><small>{m.usuario}</small></td>
-                            <td data-label="Almacenero">{m.tipo === 'SALIDA' ? (getAlmaceneroFromObs(m.observaciones) || '-') : '-'}</td>
+                            <td data-label="Almacenero"><span>{m.tipo === 'SALIDA' ? (getAlmaceneroFromObs(m.observaciones) || '-') : '-'}</span></td>
                             <td data-label="Acciones" style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                               <button 
                                 className="btn btn-secondary" 
                                 style={{ padding: '4px 8px', fontSize: '0.75rem' }} 
                                 onClick={() => handleEditClick(m)}
                               >
-                                Editar
+                                <Pencil size={12} />
+                                <span>Editar</span>
                               </button>
                               <button 
                                 className="btn btn-danger" 
                                 style={{ padding: '4px 8px', fontSize: '0.75rem' }} 
                                 onClick={() => handleDeleteClick(m)}
                               >
-                                Borrar
+                                <Trash2 size={12} />
+                                <span>Borrar</span>
                               </button>
                             </td>
                           </tr>

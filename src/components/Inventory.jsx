@@ -236,11 +236,11 @@ export default function Inventory() {
                     return (
                       <tr key={p.codigo} className={statusClass}>
                         <td data-label="ID Producto"><strong>{p.codigo}</strong></td>
-                        <td data-label="Producto">{p.nombre}</td>
+                        <td data-label="Producto"><span>{p.nombre}</span></td>
                         <td data-label="Cantidad"><strong>{p.cantidad}</strong></td>
-                        <td data-label="Unidad">{p.unidad}</td>
-                        <td data-label="Grupo">{p.grupo}</td>
-                        <td data-label="Stock Mín.">{p.stockMin}</td>
+                        <td data-label="Unidad"><span>{p.unidad}</span></td>
+                        <td data-label="Grupo"><span>{p.grupo}</span></td>
+                        <td data-label="Stock Mín."><span>{p.stockMin}</span></td>
                         <td data-label="Estado">
                           <span className={`badge ${badgeClass}`}>{estado}</span>
                         </td>

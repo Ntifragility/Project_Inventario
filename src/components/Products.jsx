@@ -463,7 +463,7 @@ export default function Products() {
             <div className="form-grid">
               <div className="form-group">
                 <label htmlFor="codigoProd">ID Producto *</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div className="input-with-button">
                   <input 
                     type="text" 
                     id="codigoProd" 
@@ -478,7 +478,6 @@ export default function Products() {
                     className="btn btn-secondary" 
                     onClick={() => setShowScanner(true)}
                     title="Escanear Código"
-                    style={{ padding: '10px 14px', flexShrink: 0 }}
                   >
                     <Scan size={16} />
                   </button>
@@ -681,11 +680,11 @@ export default function Products() {
                     return (
                       <tr key={p.codigo} className={statusClass}>
                         <td data-label="ID Producto"><strong>{p.codigo}</strong></td>
-                        <td data-label="Producto">{p.nombre}</td>
-                        <td data-label="Unidad">{p.unidad}</td>
-                        <td data-label="Grupo">{p.grupo}</td>
-                        <td data-label="Stock Mín.">{p.stockMin}</td>
-                        <td data-label="Stock Actual">{p.cantidad}</td>
+                        <td data-label="Producto"><span>{p.nombre}</span></td>
+                        <td data-label="Unidad"><span>{p.unidad}</span></td>
+                        <td data-label="Grupo"><span>{p.grupo}</span></td>
+                        <td data-label="Stock Mín."><span>{p.stockMin}</span></td>
+                        <td data-label="Stock Actual"><span>{p.cantidad}</span></td>
                         <td data-label="Acciones">
                           <div style={{ display: 'flex', gap: '6px' }}>
                             <button
