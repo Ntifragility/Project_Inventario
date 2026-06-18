@@ -8,7 +8,7 @@ import Movements from './components/Movements';
 import Inventory from './components/Inventory';
 import Reports from './components/Reports';
 import Config from './components/Config';
-import { Clock } from 'lucide-react';
+import { Clock, Menu } from 'lucide-react';
 
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 const WARNING_BEFORE_MS = 60 * 1000; // Show warning 1 minute before logout
@@ -19,6 +19,7 @@ export default function App() {
   const [isDark, setIsDark] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const inactivityTimer = useRef(null);
   const warningTimer = useRef(null);
@@ -166,10 +167,27 @@ export default function App() {
         onLogout={handleLogout}
         isDark={isDark}
         toggleTheme={toggleTheme}
+        isOpen={isMobileSidebarOpen}
+        onClose={() => setIsMobileSidebarOpen(false)}
       />
+      {isMobileSidebarOpen && (
+        <div 
+          className="sidebar-overlay" 
+          onClick={() => setIsMobileSidebarOpen(false)}
+        ></div>
+      )}
       <div className="main-content">
         <header className="content-header">
-          <h2>{getTabTitle()}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button 
+              className="sidebar-toggle-btn" 
+              onClick={() => setIsMobileSidebarOpen(true)}
+              aria-label="Abrir menú"
+            >
+              <Menu size={20} />
+            </button>
+            <h2>{getTabTitle()}</h2>
+          </div>
         </header>
 
         {showTimeoutWarning && (

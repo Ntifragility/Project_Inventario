@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase';
-import { Save, Upload, AlertCircle, CheckCircle2, Info, X, Eye, Clock } from 'lucide-react';
+import { Save, Upload, AlertCircle, CheckCircle2, Info, X, Eye, Clock, Scan } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import BarcodeScanner from './BarcodeScanner';
 
 export default function Movements({ user }) {
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
@@ -22,6 +23,7 @@ export default function Movements({ user }) {
 
   // Manual key input
   const [transactionKey, setTransactionKey] = useState('Automatico');
+  const [showScanner, setShowScanner] = useState(false);
   
   // Messages and submitting
   const [formMsg, setFormMsg] = useState({ text: '', type: '' });
@@ -1111,17 +1113,28 @@ export default function Movements({ user }) {
 
                 <div className="form-group autocomplete-container m-col-id">
                   <label htmlFor="codigoMov">ID Producto *</label>
-                  <input 
-                    type="text" 
-                    id="codigoMov" 
-                    placeholder="Escriba código..." 
-                    value={codigo}
-                    onChange={(e) => handleCodigoChange(e.target.value)}
-                    onFocus={handleCodigoFocus}
-                    readOnly={codigoReadOnly}
-                    required 
-                    autoComplete="off"
-                  />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input 
+                      type="text" 
+                      id="codigoMov" 
+                      placeholder="Escriba código..." 
+                      value={codigo}
+                      onChange={(e) => handleCodigoChange(e.target.value)}
+                      onFocus={handleCodigoFocus}
+                      readOnly={codigoReadOnly}
+                      required 
+                      autoComplete="off"
+                    />
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      onClick={() => setShowScanner(true)}
+                      title="Escanear Código"
+                      style={{ padding: '10px 14px', flexShrink: 0 }}
+                    >
+                      <Scan size={16} />
+                    </button>
+                  </div>
                   {showCodigoDropdown && (
                     <div className="autocomplete-dropdown">
                       {codigoSuggestions.map((p) => (
@@ -1676,16 +1689,16 @@ export default function Movements({ user }) {
 
                         return (
                           <tr key={m.id}>
-                            <td>{m.fecha}</td>
-                            <td><strong>{m.codigo}</strong></td>
-                            <td>{m.producto}</td>
-                            <td>{m.unidad}</td>
-                            <td>{m.cantidad}</td>
-                            <td className={tipoClass}><strong>{tipoText}</strong></td>
-                            <td><small>{m.key}</small></td>
-                            <td><small>{m.usuario}</small></td>
-                            <td>{m.tipo === 'SALIDA' ? (getAlmaceneroFromObs(m.observaciones) || '-') : '-'}</td>
-                            <td style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                            <td data-label="Fecha">{m.fecha}</td>
+                            <td data-label="ID Producto"><strong>{m.codigo}</strong></td>
+                            <td data-label="Producto">{m.producto}</td>
+                            <td data-label="Unidad">{m.unidad}</td>
+                            <td data-label="Cantidad">{m.cantidad}</td>
+                            <td data-label="Tipo" className={tipoClass}><strong>{tipoText}</strong></td>
+                            <td data-label="Transaction Key"><small>{m.key}</small></td>
+                            <td data-label="Usuario"><small>{m.usuario}</small></td>
+                            <td data-label="Almacenero">{m.tipo === 'SALIDA' ? (getAlmaceneroFromObs(m.observaciones) || '-') : '-'}</td>
+                            <td data-label="Acciones" style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                               <button 
                                 className="btn btn-secondary" 
                                 style={{ padding: '4px 8px', fontSize: '0.75rem' }} 
@@ -1897,6 +1910,12 @@ export default function Movements({ user }) {
             </div>
           </div>
         </div>
+      )}
+      {showScanner && (
+        <BarcodeScanner 
+          onClose={() => setShowScanner(false)} 
+          onScanSuccess={(code) => handleCodigoChange(code)} 
+        />
       )}
     </div>
   );

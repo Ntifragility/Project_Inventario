@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabase';
-import { Plus, Upload, List, AlertCircle, CheckCircle2, Info, Pencil, Trash2, X, Save, Search } from 'lucide-react';
+import { Plus, Upload, List, AlertCircle, CheckCircle2, Info, Pencil, Trash2, X, Save, Search, Scan } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import BarcodeScanner from './BarcodeScanner';
 
 export default function Products() {
   // Form states
@@ -41,6 +42,7 @@ export default function Products() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [filterText, setFilterText] = useState('');
+  const [showScanner, setShowScanner] = useState(false);
 
   // Reset page when filter changes
   useEffect(() => {
@@ -461,15 +463,26 @@ export default function Products() {
             <div className="form-grid">
               <div className="form-group">
                 <label htmlFor="codigoProd">ID Producto *</label>
-                <input 
-                  type="text" 
-                  id="codigoProd" 
-                  placeholder="ID único del producto" 
-                  value={codigo}
-                  onChange={(e) => setCodigo(e.target.value)}
-                  maxLength={50}
-                  required 
-                />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input 
+                    type="text" 
+                    id="codigoProd" 
+                    placeholder="ID único del producto" 
+                    value={codigo}
+                    onChange={(e) => setCodigo(e.target.value)}
+                    maxLength={50}
+                    required 
+                  />
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    onClick={() => setShowScanner(true)}
+                    title="Escanear Código"
+                    style={{ padding: '10px 14px', flexShrink: 0 }}
+                  >
+                    <Scan size={16} />
+                  </button>
+                </div>
               </div>
               <div className="form-group">
                 <label htmlFor="nombreProd">Producto *</label>
@@ -676,13 +689,13 @@ export default function Products() {
 
                     return (
                       <tr key={p.codigo} className={statusClass}>
-                        <td><strong>{p.codigo}</strong></td>
-                        <td>{p.nombre}</td>
-                        <td>{p.unidad}</td>
-                        <td>{p.grupo}</td>
-                        <td>{p.stockMin}</td>
-                        <td>{p.cantidad}</td>
-                        <td>
+                        <td data-label="ID Producto"><strong>{p.codigo}</strong></td>
+                        <td data-label="Producto">{p.nombre}</td>
+                        <td data-label="Unidad">{p.unidad}</td>
+                        <td data-label="Grupo">{p.grupo}</td>
+                        <td data-label="Stock Mín.">{p.stockMin}</td>
+                        <td data-label="Stock Actual">{p.cantidad}</td>
+                        <td data-label="Acciones">
                           <div style={{ display: 'flex', gap: '6px' }}>
                             <button
                               className="btn btn-secondary"
@@ -892,6 +905,12 @@ export default function Products() {
             </div>
           </div>
         </div>
+      )}
+      {showScanner && (
+        <BarcodeScanner 
+          onClose={() => setShowScanner(false)} 
+          onScanSuccess={(code) => setCodigo(code)} 
+        />
       )}
     </div>
   );

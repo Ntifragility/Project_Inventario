@@ -10,10 +10,11 @@ import {
   LogOut, 
   Sun, 
   Moon,
-  Package
+  Package,
+  X
 } from 'lucide-react';
 
-export default function Sidebar({ activeTab, setActiveTab, user, onLogout, isDark, toggleTheme }) {
+export default function Sidebar({ activeTab, setActiveTab, user, onLogout, isDark, toggleTheme, isOpen, onClose }) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart2 },
     { id: 'productos', label: 'Productos', icon: Package },
@@ -24,13 +25,16 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, isDar
   ];
 
   return (
-    <nav className="sidebar">
+    <nav className={`sidebar ${isOpen ? 'open' : ''}`}>
       <div className="nav-menu-container">
         <div className="sidebar-header">
           <h1>
             <img src="/favicon.svg" alt="Favicon" style={{ width: '20px', height: '20px' }} />
             <span>CCP - Materiales</span>
           </h1>
+          <button onClick={onClose} className="sidebar-close-btn" aria-label="Cerrar menú">
+            <X size={20} />
+          </button>
         </div>
 
         <ul className="nav-menu">
@@ -41,7 +45,10 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, isDar
               <li className="nav-item" key={item.id}>
                 <a 
                   className={`nav-link ${isActive ? 'active' : ''}`}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    if (onClose) onClose();
+                  }}
                 >
                   <IconComponent size={18} />
                   <span>{item.label}</span>

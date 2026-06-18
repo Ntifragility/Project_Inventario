@@ -235,16 +235,16 @@ export default function Inventory() {
 
                     return (
                       <tr key={p.codigo} className={statusClass}>
-                        <td><strong>{p.codigo}</strong></td>
-                        <td>{p.nombre}</td>
-                        <td><strong>{p.cantidad}</strong></td>
-                        <td>{p.unidad}</td>
-                        <td>{p.grupo}</td>
-                        <td>{p.stockMin}</td>
-                        <td>
+                        <td data-label="ID Producto"><strong>{p.codigo}</strong></td>
+                        <td data-label="Producto">{p.nombre}</td>
+                        <td data-label="Cantidad"><strong>{p.cantidad}</strong></td>
+                        <td data-label="Unidad">{p.unidad}</td>
+                        <td data-label="Grupo">{p.grupo}</td>
+                        <td data-label="Stock Mín.">{p.stockMin}</td>
+                        <td data-label="Estado">
                           <span className={`badge ${badgeClass}`}>{estado}</span>
                         </td>
-                        <td>
+                        <td data-label="Acciones">
                           <button 
                             className="btn btn-secondary" 
                             style={{ padding: '6px 12px', fontSize: '0.75rem' }}
@@ -362,11 +362,11 @@ export default function Inventory() {
 
                         return (
                           <tr key={idx}>
-                            <td>{formattedFecha}</td>
-                            <td className={textClass}><strong>{typeText}</strong></td>
-                            <td>{m.cantidad}</td>
-                            <td>{m.usuario}</td>
-                            <td><small>{m.key || 'N/A'}</small></td>
+                            <td data-label="Fecha">{formattedFecha}</td>
+                            <td data-label="Tipo" className={textClass}><strong>{typeText}</strong></td>
+                            <td data-label="Cantidad">{m.cantidad}</td>
+                            <td data-label="Responsable">{m.usuario}</td>
+                            <td data-label="Clave"><small>{m.key || 'N/A'}</small></td>
                           </tr>
                         );
                       })}
