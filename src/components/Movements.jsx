@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase';
-import { Save, Upload, AlertCircle, CheckCircle2, Info, X, Eye, Clock, Scan, Pencil, Trash2 } from 'lucide-react';
+import { Save, Upload, AlertCircle, CheckCircle2, Info, X, Eye, Clock, Scan, Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import BarcodeScanner from './BarcodeScanner';
 
@@ -24,6 +24,8 @@ export default function Movements({ user }) {
   // Manual key input
   const [transactionKey, setTransactionKey] = useState('Automatico');
   const [showScanner, setShowScanner] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(window.innerWidth > 768);
+  const [isListOpen, setIsListOpen] = useState(true);
   
   // Messages and submitting
   const [formMsg, setFormMsg] = useState({ text: '', type: '' });
@@ -1092,10 +1094,18 @@ export default function Movements({ user }) {
   return (
     <div id="movimientos" className="tab-content active">
       <div className="card">
-        <div className="card-header">
+        <div 
+          className="card-header collapsible-header" 
+          onClick={() => setIsFormOpen(!isFormOpen)}
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        >
           <span>Nuevo Movimiento de Inventario</span>
+          <div className="collapse-icon">
+            {isFormOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </div>
         </div>
-        <div className="card-body">
+        {isFormOpen && (
+          <div className="card-body">
           <form onSubmit={handleSubmit}>
             <div className="form-grid">
               {/* Row 1: All 6 main fields on the same row */}
@@ -1304,6 +1314,7 @@ export default function Movements({ user }) {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {showImportModal && !importPreview && (
@@ -1542,13 +1553,21 @@ export default function Movements({ user }) {
 
       {/* Historial de Movimientos */}
       <div className="card" style={{ marginTop: '24px' }}>
-        <div className="card-header">
+        <div 
+          className="card-header collapsible-header" 
+          onClick={() => setIsListOpen(!isListOpen)}
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Clock size={18} />
             <span>Historial de Movimientos</span>
           </div>
+          <div className="collapse-icon">
+            {isListOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </div>
         </div>
-        <div className="card-body">
+        {isListOpen && (
+          <div className="card-body">
           {/* Filters */}
           <div className="form-grid" style={{ marginBottom: '16px' }}>
             <div className="form-group">
@@ -1748,6 +1767,7 @@ export default function Movements({ user }) {
             </>
           )}
         </div>
+        )}
       </div>
 
       {/* Edit Movement Modal */}

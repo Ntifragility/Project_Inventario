@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabase';
-import { Plus, Upload, List, AlertCircle, CheckCircle2, Info, Pencil, Trash2, X, Save, Search, Scan } from 'lucide-react';
+import { Plus, Upload, List, AlertCircle, CheckCircle2, Info, Pencil, Trash2, X, Save, Search, Scan, ChevronDown, ChevronUp } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import BarcodeScanner from './BarcodeScanner';
 
@@ -43,6 +43,8 @@ export default function Products() {
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [filterText, setFilterText] = useState('');
   const [showScanner, setShowScanner] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(window.innerWidth > 768);
+  const [isListOpen, setIsListOpen] = useState(true);
 
   // Reset page when filter changes
   useEffect(() => {
@@ -452,13 +454,21 @@ export default function Products() {
   return (
     <div id="productos" className="tab-content active">
       <div className="card">
-        <div className="card-header">
+        <div 
+          className="card-header collapsible-header" 
+          onClick={() => setIsFormOpen(!isFormOpen)}
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Plus size={18} />
             <span>Registrar Nuevo Producto</span>
           </div>
+          <div className="collapse-icon">
+            {isFormOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </div>
         </div>
-        <div className="card-body">
+        {isFormOpen && (
+          <div className="card-body">
           <form onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
@@ -567,6 +577,7 @@ export default function Products() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {showImportModal && (
@@ -618,13 +629,21 @@ export default function Products() {
       )}
 
       <div className="card">
-        <div className="card-header">
+        <div 
+          className="card-header collapsible-header" 
+          onClick={() => setIsListOpen(!isListOpen)}
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <List size={18} />
             <span>Productos Registrados</span>
           </div>
+          <div className="collapse-icon">
+            {isListOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </div>
         </div>
-        <div className="card-body">
+        {isListOpen && (
+          <div className="card-body">
           {!loadingList && productsList.length > 0 && (
             <div className="search-filter-group">
               <Search size={18} style={{ color: 'var(--text-muted)' }} />
@@ -748,6 +767,7 @@ export default function Products() {
             </>
           )}
         </div>
+        )}
       </div>
 
       {/* Edit Product Modal (FUNC-1) */}

@@ -1627,3 +1627,32 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
   border-top: 1px solid var(--border-color);
 }
 
+/* ==========================================
+   COLLAPSIBLE CARD SECTIONS (ACCORDIONS)
+   ========================================== */
+.collapsible-header {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s ease;
+}
+
+.collapsible-header:hover {
+  background: rgba(15, 23, 42, 0.04) !important;
+}
+
+.dark-theme .collapsible-header:hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.collapse-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.collapsible-header:hover .collapse-icon {
+  color: var(--text-primary);
+}
+
