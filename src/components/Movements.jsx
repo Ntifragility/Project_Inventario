@@ -1546,12 +1546,12 @@ export default function Movements({ user }) {
         </div>
       )}
 
-      {/* Historial y Administración de Movimientos */}
+      {/* Historial de Movimientos */}
       <div className="card" style={{ marginTop: '24px' }}>
         <div className="card-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Clock size={18} />
-            <span>Historial y Administración de Movimientos</span>
+            <span>Historial de Movimientos</span>
           </div>
         </div>
         <div className="card-body">
