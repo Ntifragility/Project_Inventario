@@ -181,18 +181,11 @@ export default function Config() {
       {showResetModal && (
         <div className="dialog-overlay">
           <div className="dialog-card" style={{ maxWidth: '520px', width: '90%' }}>
-            <div className="card-header" style={{ borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <ShieldAlert size={18} style={{ color: 'var(--danger)' }} />
                 <span style={{ fontWeight: '700', letterSpacing: '0.3px' }}>Advertencia de Restablecimiento</span>
               </div>
-              <button 
-                onClick={() => setShowResetModal(false)}
-                style={{ position: 'absolute', right: '16px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', padding: '4px' }}
-                disabled={resetting}
-              >
-                <X size={20} />
-              </button>
             </div>
 
             <div className="card-body" style={{ padding: '24px', textAlign: 'center' }}>

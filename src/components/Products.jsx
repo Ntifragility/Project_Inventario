@@ -573,20 +573,11 @@ export default function Products() {
       {showImportModal && (
         <div className="dialog-overlay">
           <div className="dialog-card" style={{ maxWidth: '500px', width: '90%' }}>
-            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Upload size={18} style={{ color: 'var(--primary)' }} />
                 <span>Importar Productos desde Excel / CSV</span>
               </div>
-              <button 
-                onClick={() => {
-                  setShowImportModal(false);
-                  setCsvMsg({ text: '', type: '' });
-                }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
-              >
-                <X size={20} />
-              </button>
             </div>
             <div className="card-body" style={{ padding: '24px' }}>
               <p style={{ marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
@@ -764,18 +755,11 @@ export default function Products() {
       {editingProduct && (
         <div className="dialog-overlay">
           <div className="dialog-card" style={{ maxWidth: '520px', width: '90%' }}>
-            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Pencil size={16} style={{ color: 'var(--primary)' }} />
                 <span>Editar Producto: {editingProduct.codigo}</span>
               </div>
-              <button 
-                onClick={() => setEditingProduct(null)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
-                disabled={editSubmitting}
-              >
-                <X size={20} />
-              </button>
             </div>
             <div className="card-body" style={{ padding: '24px' }}>
               <div className="form-grid">
@@ -849,18 +833,11 @@ export default function Products() {
       {deleteTarget && (
         <div className="dialog-overlay">
           <div className="dialog-card" style={{ maxWidth: '480px', width: '90%' }}>
-            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Trash2 size={16} style={{ color: 'var(--danger)' }} />
                 <span>Eliminar Producto</span>
               </div>
-              <button 
-                onClick={() => setDeleteTarget(null)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
-                disabled={deleting}
-              >
-                <X size={20} />
-              </button>
             </div>
             <div className="card-body" style={{ padding: '24px' }}>
               <p style={{ color: 'var(--text-primary)', marginBottom: '16px', lineHeight: '1.6' }}>

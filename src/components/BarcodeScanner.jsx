@@ -76,21 +76,11 @@ export default function BarcodeScanner({ onClose, onScanSuccess }) {
   return (
     <div className="dialog-overlay barcode-scanner-overlay">
       <div className="dialog-card barcode-scanner-card">
-        <div className="card-header barcode-scanner-header">
+        <div className="card-header barcode-scanner-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Camera size={18} />
             <span>Escanear Código de Barras / QR</span>
           </div>
-          <button 
-            onClick={() => {
-              cleanupScanner();
-              onClose();
-            }}
-            className="scanner-close-btn"
-            aria-label="Cerrar"
-          >
-            <X size={20} />
-          </button>
         </div>
 
         <div className="card-body scanner-body">

@@ -1310,22 +1310,11 @@ export default function Movements({ user }) {
       {showImportModal && !importPreview && (
         <div className="dialog-overlay">
           <div className="dialog-card" style={{ maxWidth: '600px', width: '90%' }}>
-            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Upload size={18} style={{ color: 'var(--primary)' }} />
                 <span>Importar desde Excel / CSV</span>
               </div>
-              <button 
-                onClick={() => {
-                  setShowImportModal(false);
-                  setImportOption(null);
-                  setCsvMsg({ text: '', type: '' });
-                  setExcelMsg({ text: '', type: '' });
-                }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
-              >
-                <X size={20} />
-              </button>
             </div>
             <div className="card-body" style={{ padding: '24px' }}>
               
@@ -1473,18 +1462,11 @@ export default function Movements({ user }) {
       {importPreview && (
         <div className="dialog-overlay">
           <div className="dialog-card" style={{ maxWidth: '700px', width: '90%' }}>
-            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Eye size={18} style={{ color: 'var(--primary)' }} />
                 <span>Vista Previa de Importación ({importPreview.type === 'ingreso' ? 'Ingresos' : 'Salidas'})</span>
               </div>
-              <button
-                onClick={() => { setImportPreview(null); if (importPreview.inputRef) importPreview.inputRef.value = ''; }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
-                disabled={importExecuting}
-              >
-                <X size={20} />
-              </button>
             </div>
             <div className="card-body" style={{ padding: '24px' }}>
               {/* Summary */}
@@ -1771,15 +1753,8 @@ export default function Movements({ user }) {
       {showEditModal && actionTarget && (
         <div className="dialog-overlay">
           <div className="dialog-card" style={{ maxWidth: '450px', width: '90%' }}>
-            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
               <span>✏️ Editar Cantidad de Movimiento</span>
-              <button 
-                onClick={() => setShowEditModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
-                disabled={actionLoading}
-              >
-                <X size={20} />
-              </button>
             </div>
             <div className="card-body" style={{ padding: '24px' }}>
               <p style={{ marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
@@ -1846,15 +1821,8 @@ export default function Movements({ user }) {
       {showDeleteModal && actionTarget && (
         <div className="dialog-overlay">
           <div className="dialog-card" style={{ maxWidth: '450px', width: '90%' }}>
-            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--danger-text)' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'var(--danger-text)' }}>
               <span>⚠️ Confirmar Eliminación de Movimiento</span>
-              <button 
-                onClick={() => setShowDeleteModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
-                disabled={actionLoading}
-              >
-                <X size={20} />
-              </button>
             </div>
             <div className="card-body" style={{ padding: '24px' }}>
               <p style={{ marginBottom: '16px', lineHeight: '1.5', fontSize: '0.9rem' }}>

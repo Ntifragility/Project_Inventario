@@ -303,17 +303,11 @@ export default function Inventory() {
       {selectedProduct && (
         <div className="dialog-overlay">
           <div className="dialog-card" style={{ maxWidth: '700px', width: '90%' }}>
-            <div className="card-header" style={{ padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="card-header" style={{ padding: '16px 24px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <History size={18} style={{ color: 'var(--primary)' }} />
                 <span>Kardex de {selectedProduct.codigo}</span>
               </div>
-              <button 
-                onClick={() => setSelectedProduct(null)} 
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
-              >
-                <X size={20} />
-              </button>
             </div>
             <div className="card-body" style={{ maxHeight: '400px', overflowY: 'auto', padding: '20px' }}>
               <div style={{ marginBottom: '16px', fontSize: '0.9rem' }}>
