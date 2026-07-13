@@ -137,6 +137,7 @@ CREATE POLICY "movimientos_update" ON movimientos FOR UPDATE TO authenticated US
 CREATE TABLE IF NOT EXISTS administradores (
     dni VARCHAR(20) PRIMARY KEY,
     nombre VARCHAR(100),
+    email VARCHAR(255) UNIQUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
@@ -555,6 +556,25 @@ BEGIN
     VALUES (p_nuevo_dni, p_nuevo_nombre)
     ON CONFLICT (dni) DO UPDATE 
     SET nombre = p_nuevo_nombre;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- Migration: Add email column if updating an existing deployment
+ALTER TABLE administradores ADD COLUMN IF NOT EXISTS email VARCHAR(255) UNIQUE;
+
+
+-- RPC Function to check if email is admin and return their DNI
+CREATE OR REPLACE FUNCTION obtener_dni_administrador(p_email TEXT)
+RETURNS TEXT AS $$
+DECLARE
+    v_dni TEXT;
+BEGIN
+    SELECT dni INTO v_dni 
+    FROM administradores 
+    WHERE LOWER(email) = LOWER(p_email);
+    
+    RETURN v_dni;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

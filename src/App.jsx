@@ -140,7 +140,7 @@ export default function App() {
       case 'reportes':
         return <Reports />;
       case 'configuracion':
-        return <Config />;
+        return <Config user={session.user} />;
       default:
         return <Dashboard />;
     }
