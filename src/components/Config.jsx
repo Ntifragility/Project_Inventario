@@ -24,7 +24,11 @@ export default function Config() {
   const [newAdminNombre, setNewAdminNombre] = useState('');
   const [userMsg, setUserMsg] = useState({ text: '', type: '' });
   const [creatingUser, setCreatingUser] = useState(false);
-
+  // User management unlock states
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [unlockDni, setUnlockDni] = useState('');
+  const [unlockError, setUnlockError] = useState('');
+  const [unlocking, setUnlocking] = useState(false);
   // Validate integrity via server-side RPC
   const handleValidateIntegrity = async () => {
     setResultMsg({ text: '', type: '' });
@@ -137,6 +141,37 @@ export default function Config() {
       }
     } finally {
       setResetting(false);
+    }
+  };
+
+  // Verify administrator DNI to unlock user management section
+  const handleUnlockUserManagement = async (e) => {
+    e.preventDefault();
+    setUnlockError('');
+    setUnlocking(true);
+
+    const cleanDni = unlockDni.trim();
+    if (!cleanDni) {
+      setUnlockError('El DNI es obligatorio.');
+      setUnlocking(false);
+      return;
+    }
+
+    try {
+      const { data: isAdmin, error: adminErr } = await supabase.rpc('es_administrador', { p_dni: cleanDni });
+      if (adminErr) throw adminErr;
+
+      if (isAdmin) {
+        setIsUnlocked(true);
+        setUserAdminDni(cleanDni); // Pre-fill authorizing DNI
+      } else {
+        setUnlockError('El DNI ingresado no está registrado como administrador.');
+      }
+    } catch (err) {
+      console.error('Error unlocking user management:', err);
+      setUnlockError('Error de verificación: ' + (err.message || 'Error desconocido'));
+    } finally {
+      setUnlocking(false);
     }
   };
 
@@ -283,131 +318,180 @@ export default function Config() {
         </div>
       </div>
 
-      {/* New User Account Assignment Card */}
+      {/* User Account Assignment Card */}
       <div className="card" style={{ marginTop: '24px' }}>
         <div className="card-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <UserPlus size={18} />
-            <span>Crear Cuenta de Usuario</span>
+            <span>Gestión de Usuarios</span>
           </div>
         </div>
         <div className="card-body">
-          <p style={{ marginBottom: '20px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            Registre una nueva cuenta de usuario en el sistema. Debe autorizar la creación ingresando su DNI de administrador.
-          </p>
-
-          <form onSubmit={handleCreateUser}>
-            <div className="form-grid">
-              <div className="form-group">
-                <label htmlFor="authAdminDni" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Shield size={16} style={{ color: 'var(--danger)' }} />
-                  <span>Tu DNI de Administrador *</span>
-                </label>
-                <input 
-                  type="text" 
-                  id="authAdminDni" 
-                  placeholder="Ingrese su DNI para autorizar"
-                  value={userAdminDni}
-                  onChange={(e) => setUserAdminDni(e.target.value.replace(/\D/g, ''))}
-                  maxLength={8}
-                  required 
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="newUserEmail" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Mail size={16} style={{ color: 'var(--primary)' }} />
-                  <span>Correo Electrónico *</span>
-                </label>
-                <input 
-                  type="email" 
-                  id="newUserEmail" 
-                  placeholder="correo@ejemplo.com"
-                  value={newUserEmail}
-                  onChange={(e) => setNewUserEmail(e.target.value)}
-                  required 
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="newUserPassword" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <KeyRound size={16} style={{ color: 'var(--primary)' }} />
-                  <span>Contraseña *</span>
-                </label>
-                <input 
-                  type="password" 
-                  id="newUserPassword" 
-                  placeholder="Mínimo 6 caracteres"
-                  value={newUserPassword}
-                  onChange={(e) => setNewUserPassword(e.target.value)}
-                  required 
-                />
-              </div>
-            </div>
-
-            <div className="form-group" style={{ margin: '20px 0' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
-                <input 
-                  type="checkbox" 
-                  checked={makeAdmin}
-                  onChange={(e) => setMakeAdmin(e.target.checked)}
-                  style={{ width: 'auto', margin: 0 }}
-                />
-                <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>¿Registrar también como Administrador?</span>
-              </label>
-            </div>
-
-            {makeAdmin && (
-              <div className="form-grid" style={{ 
-                background: 'var(--bg-card-header)', 
-                padding: '16px', 
-                borderRadius: 'var(--radius-md)', 
-                border: '1px solid var(--border-color)',
-                marginBottom: '20px',
-                animation: 'fadeIn 0.3s ease'
-              }}>
-                <div className="form-group">
-                  <label htmlFor="newAdminDni">DNI del Nuevo Administrador *</label>
+          {!isUnlocked ? (
+            <div style={{ maxWidth: '400px', margin: '0 auto', padding: '12px 0', textAlign: 'center' }}>
+              <p style={{ marginBottom: '20px', color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                La creación de cuentas de usuario está restringida. Ingrese su DNI de administrador para desbloquear esta sección.
+              </p>
+              <form onSubmit={handleUnlockUserManagement}>
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <label htmlFor="unlockDniInput" style={{ fontWeight: '600', marginBottom: '8px', display: 'block' }}>
+                    DNI de Administrador
+                  </label>
                   <input 
                     type="text" 
-                    id="newAdminDni" 
-                    placeholder="8 dígitos"
-                    value={newAdminDni}
-                    onChange={(e) => setNewAdminDni(e.target.value.replace(/\D/g, ''))}
+                    id="unlockDniInput" 
+                    placeholder="8 dígitos" 
+                    value={unlockDni}
+                    onChange={(e) => setUnlockDni(e.target.value.replace(/\D/g, ''))}
                     maxLength={8}
-                    required={makeAdmin}
+                    style={{ textAlign: 'center', fontSize: '1rem', padding: '10px' }}
+                    required
                   />
                 </div>
-                <div className="form-group">
-                  <label htmlFor="newAdminNombre">Nombre del Nuevo Administrador *</label>
-                  <input 
-                    type="text" 
-                    id="newAdminNombre" 
-                    placeholder="Nombre Completo"
-                    value={newAdminNombre}
-                    onChange={(e) => setNewAdminNombre(e.target.value)}
-                    required={makeAdmin}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="actions">
-              <button 
-                type="submit" 
-                className="btn btn-success" 
-                disabled={creatingUser}
-              >
-                <UserPlus size={16} />
-                <span>{creatingUser ? 'Registrando...' : 'Crear Usuario'}</span>
-              </button>
+                {unlockError && (
+                  <div className="message error" style={{ marginBottom: '16px' }}>
+                    <AlertCircle size={16} />
+                    <span>{unlockError}</span>
+                  </div>
+                )}
+                <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={unlocking}>
+                  {unlocking ? 'Verificando...' : 'Desbloquear Gestión'}
+                </button>
+              </form>
             </div>
-          </form>
+          ) : (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--success)' }}>
+                  ✓ Sección desbloqueada (Admin DNI: {userAdminDni})
+                </span>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  style={{ padding: '4px 10px', fontSize: '0.75rem' }} 
+                  onClick={() => {
+                    setIsUnlocked(false);
+                    setUnlockDni('');
+                    setUserAdminDni('');
+                  }}
+                >
+                  Volver a bloquear
+                </button>
+              </div>
 
-          {userMsg.text && (
-            <div className={`message ${userMsg.type}`} style={{ marginTop: '20px' }}>
-              {userMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-              <span>{userMsg.text}</span>
+              <form onSubmit={handleCreateUser}>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label htmlFor="authAdminDni" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Shield size={16} style={{ color: 'var(--danger)' }} />
+                      <span>DNI Autorizador *</span>
+                    </label>
+                    <input 
+                      type="text" 
+                      id="authAdminDni" 
+                      placeholder="DNI de Administrador"
+                      value={userAdminDni}
+                      readOnly
+                      required 
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="newUserEmail" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Mail size={16} style={{ color: 'var(--primary)' }} />
+                      <span>Correo Electrónico *</span>
+                    </label>
+                    <input 
+                      type="email" 
+                      id="newUserEmail" 
+                      placeholder="correo@ejemplo.com"
+                      value={newUserEmail}
+                      onChange={(e) => setNewUserEmail(e.target.value)}
+                      required 
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="newUserPassword" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <KeyRound size={16} style={{ color: 'var(--primary)' }} />
+                      <span>Contraseña *</span>
+                    </label>
+                    <input 
+                      type="password" 
+                      id="newUserPassword" 
+                      placeholder="Mínimo 6 caracteres"
+                      value={newUserPassword}
+                      onChange={(e) => setNewUserPassword(e.target.value)}
+                      required 
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ margin: '20px 0' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={makeAdmin}
+                      onChange={(e) => setMakeAdmin(e.target.checked)}
+                      style={{ width: 'auto', margin: 0 }}
+                    />
+                    <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>¿Registrar también como Administrador?</span>
+                  </label>
+                </div>
+
+                {makeAdmin && (
+                  <div className="form-grid" style={{ 
+                    background: 'var(--bg-card-header)', 
+                    padding: '16px', 
+                    borderRadius: 'var(--radius-md)', 
+                    border: '1px solid var(--border-color)',
+                    marginBottom: '20px',
+                    animation: 'fadeIn 0.3s ease'
+                  }}>
+                    <div className="form-group">
+                      <label htmlFor="newAdminDni">DNI del Nuevo Administrador *</label>
+                      <input 
+                        type="text" 
+                        id="newAdminDni" 
+                        placeholder="8 dígitos"
+                        value={newAdminDni}
+                        onChange={(e) => setNewAdminDni(e.target.value.replace(/\D/g, ''))}
+                        maxLength={8}
+                        required={makeAdmin}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="newAdminNombre">Nombre del Nuevo Administrador *</label>
+                      <input 
+                        type="text" 
+                        id="newAdminNombre" 
+                        placeholder="Nombre Completo"
+                        value={newAdminNombre}
+                        onChange={(e) => setNewAdminNombre(e.target.value)}
+                        required={makeAdmin}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="actions">
+                  <button 
+                    type="submit" 
+                    className="btn btn-success" 
+                    disabled={creatingUser}
+                  >
+                    <UserPlus size={16} />
+                    <span>{creatingUser ? 'Registrando...' : 'Crear Usuario'}</span>
+                  </button>
+                </div>
+              </form>
+
+              {userMsg.text && (
+                <div className={`message ${userMsg.type}`} style={{ marginTop: '20px' }}>
+                  {userMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                  <span>{userMsg.text}</span>
+                </div>
+              )}
             </div>
           )}
         </div>
