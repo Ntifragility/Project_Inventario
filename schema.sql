@@ -518,3 +518,43 @@ BEGIN
     WHERE id = p_movimiento_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- 12. ADMIN USER ASSIGNMENT RPCs
+-- ═══════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION es_administrador(p_dni TEXT)
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS(SELECT 1 FROM administradores WHERE dni = p_dni);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+CREATE OR REPLACE FUNCTION crear_administrador_autorizado(
+    p_admin_dni_autorizador TEXT,
+    p_nuevo_dni TEXT,
+    p_nuevo_nombre TEXT
+)
+RETURNS VOID AS $$
+DECLARE
+    is_authorized BOOLEAN;
+BEGIN
+    -- 1. Validate that the person initiating the request is an admin
+    SELECT EXISTS(
+        SELECT 1 FROM administradores WHERE dni = p_admin_dni_autorizador
+    ) INTO is_authorized;
+
+    IF NOT is_authorized THEN
+        RAISE EXCEPTION 'Operación cancelada: El DNI autorizador no tiene permisos de administrador.';
+    END IF;
+
+    -- 2. Insert new admin
+    INSERT INTO administradores (dni, nombre)
+    VALUES (p_nuevo_dni, p_nuevo_nombre)
+    ON CONFLICT (dni) DO UPDATE 
+    SET nombre = p_nuevo_nombre;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabase';
-import { Settings, ShieldAlert, CheckCircle2, AlertCircle, X, HelpCircle } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
+import { Settings, ShieldAlert, CheckCircle2, AlertCircle, X, HelpCircle, UserPlus, Shield, Mail, KeyRound } from 'lucide-react';
 
 export default function Config() {
   const [resultMsg, setResultMsg] = useState({ text: '', type: '' });
@@ -13,6 +14,16 @@ export default function Config() {
   const [dniError, setDniError] = useState('');
   const [resetError, setResetError] = useState('');
   const [resetting, setResetting] = useState(false);
+
+  // User creation states
+  const [userAdminDni, setUserAdminDni] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [makeAdmin, setMakeAdmin] = useState(false);
+  const [newAdminDni, setNewAdminDni] = useState('');
+  const [newAdminNombre, setNewAdminNombre] = useState('');
+  const [userMsg, setUserMsg] = useState({ text: '', type: '' });
+  const [creatingUser, setCreatingUser] = useState(false);
 
   // Validate integrity via server-side RPC
   const handleValidateIntegrity = async () => {
@@ -129,6 +140,101 @@ export default function Config() {
     }
   };
 
+  // Create user account from Web
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setUserMsg({ text: '', type: '' });
+    setCreatingUser(true);
+
+    const authorizingDni = userAdminDni.trim();
+    const email = newUserEmail.trim();
+    const password = newUserPassword;
+    const adminDniVal = newAdminDni.trim();
+    const adminNombreVal = newAdminNombre.trim();
+
+    if (!authorizingDni) {
+      setUserMsg({ text: 'Debe ingresar su DNI de administrador para autorizar.', type: 'error' });
+      setCreatingUser(false);
+      return;
+    }
+
+    if (!email || !password) {
+      setUserMsg({ text: 'El correo y la contraseña son obligatorios.', type: 'error' });
+      setCreatingUser(false);
+      return;
+    }
+
+    if (makeAdmin && (!adminDniVal || !adminNombreVal)) {
+      setUserMsg({ text: 'Si el usuario es administrador, debe ingresar el DNI y el nombre del nuevo administrador.', type: 'error' });
+      setCreatingUser(false);
+      return;
+    }
+
+    try {
+      // 1. Validate authorizing DNI using RPC 'es_administrador'
+      const { data: isAdmin, error: adminErr } = await supabase.rpc('es_administrador', { p_dni: authorizingDni });
+      if (adminErr) throw adminErr;
+      if (!isAdmin) {
+        setUserMsg({ text: 'El DNI ingresado no tiene permisos de administrador para autorizar.', type: 'error' });
+        setCreatingUser(false);
+        return;
+      }
+
+      // 2. Create a temporary client to sign up the new user without breaking the current session
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      if (!supabaseUrl || !supabaseKey) {
+        throw new Error('Las credenciales de Supabase no están configuradas.');
+      }
+
+      const tempClient = createClient(supabaseUrl, supabaseKey, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false
+        }
+      });
+
+      const { error: signUpError } = await tempClient.auth.signUp({
+        email,
+        password
+      });
+
+      if (signUpError) throw signUpError;
+
+      // 3. If "makeAdmin" is checked, insert the new admin in the DB via RPC 'crear_administrador_autorizado'
+      if (makeAdmin) {
+        const { error: makeAdminError } = await supabase.rpc('crear_administrador_autorizado', {
+          p_admin_dni_autorizador: authorizingDni,
+          p_nuevo_dni: adminDniVal,
+          p_nuevo_nombre: adminNombreVal
+        });
+        if (makeAdminError) throw makeAdminError;
+      }
+
+      setUserMsg({
+        text: `Usuario ${email} registrado con éxito.${makeAdmin ? ' Registrado como administrador.' : ''}`,
+        type: 'success'
+      });
+
+      // Clear fields
+      setUserAdminDni('');
+      setNewUserEmail('');
+      setNewUserPassword('');
+      setMakeAdmin(false);
+      setNewAdminDni('');
+      setNewAdminNombre('');
+    } catch (err) {
+      console.error('Error creating user:', err);
+      setUserMsg({
+        text: 'Error al registrar usuario: ' + (err.message || 'Error desconocido'),
+        type: 'error'
+      });
+    } finally {
+      setCreatingUser(false);
+    }
+  };
+
   return (
     <div id="configuracion" className="tab-content active">
       <div className="card">
@@ -172,6 +278,136 @@ export default function Config() {
             <div className={`message ${resultMsg.type}`} style={{ marginTop: '20px' }}>
               {resultMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
               <span>{resultMsg.text}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* New User Account Assignment Card */}
+      <div className="card" style={{ marginTop: '24px' }}>
+        <div className="card-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <UserPlus size={18} />
+            <span>Crear Cuenta de Usuario</span>
+          </div>
+        </div>
+        <div className="card-body">
+          <p style={{ marginBottom: '20px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+            Registre una nueva cuenta de usuario en el sistema. Debe autorizar la creación ingresando su DNI de administrador.
+          </p>
+
+          <form onSubmit={handleCreateUser}>
+            <div className="form-grid">
+              <div className="form-group">
+                <label htmlFor="authAdminDni" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Shield size={16} style={{ color: 'var(--danger)' }} />
+                  <span>Tu DNI de Administrador *</span>
+                </label>
+                <input 
+                  type="text" 
+                  id="authAdminDni" 
+                  placeholder="Ingrese su DNI para autorizar"
+                  value={userAdminDni}
+                  onChange={(e) => setUserAdminDni(e.target.value.replace(/\D/g, ''))}
+                  maxLength={8}
+                  required 
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="newUserEmail" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Mail size={16} style={{ color: 'var(--primary)' }} />
+                  <span>Correo Electrónico *</span>
+                </label>
+                <input 
+                  type="email" 
+                  id="newUserEmail" 
+                  placeholder="correo@ejemplo.com"
+                  value={newUserEmail}
+                  onChange={(e) => setNewUserEmail(e.target.value)}
+                  required 
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="newUserPassword" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <KeyRound size={16} style={{ color: 'var(--primary)' }} />
+                  <span>Contraseña *</span>
+                </label>
+                <input 
+                  type="password" 
+                  id="newUserPassword" 
+                  placeholder="Mínimo 6 caracteres"
+                  value={newUserPassword}
+                  onChange={(e) => setNewUserPassword(e.target.value)}
+                  required 
+                />
+              </div>
+            </div>
+
+            <div className="form-group" style={{ margin: '20px 0' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
+                <input 
+                  type="checkbox" 
+                  checked={makeAdmin}
+                  onChange={(e) => setMakeAdmin(e.target.checked)}
+                  style={{ width: 'auto', margin: 0 }}
+                />
+                <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>¿Registrar también como Administrador?</span>
+              </label>
+            </div>
+
+            {makeAdmin && (
+              <div className="form-grid" style={{ 
+                background: 'var(--bg-card-header)', 
+                padding: '16px', 
+                borderRadius: 'var(--radius-md)', 
+                border: '1px solid var(--border-color)',
+                marginBottom: '20px',
+                animation: 'fadeIn 0.3s ease'
+              }}>
+                <div className="form-group">
+                  <label htmlFor="newAdminDni">DNI del Nuevo Administrador *</label>
+                  <input 
+                    type="text" 
+                    id="newAdminDni" 
+                    placeholder="8 dígitos"
+                    value={newAdminDni}
+                    onChange={(e) => setNewAdminDni(e.target.value.replace(/\D/g, ''))}
+                    maxLength={8}
+                    required={makeAdmin}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="newAdminNombre">Nombre del Nuevo Administrador *</label>
+                  <input 
+                    type="text" 
+                    id="newAdminNombre" 
+                    placeholder="Nombre Completo"
+                    value={newAdminNombre}
+                    onChange={(e) => setNewAdminNombre(e.target.value)}
+                    required={makeAdmin}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="actions">
+              <button 
+                type="submit" 
+                className="btn btn-success" 
+                disabled={creatingUser}
+              >
+                <UserPlus size={16} />
+                <span>{creatingUser ? 'Registrando...' : 'Crear Usuario'}</span>
+              </button>
+            </div>
+          </form>
+
+          {userMsg.text && (
+            <div className={`message ${userMsg.type}`} style={{ marginTop: '20px' }}>
+              {userMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+              <span>{userMsg.text}</span>
             </div>
           )}
         </div>

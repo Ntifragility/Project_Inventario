@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase';
-import { Save, Upload, AlertCircle, CheckCircle2, Info, X, Eye, Clock, Scan, Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Save, Upload, AlertCircle, CheckCircle2, Info, X, Eye, Clock, Scan, Pencil, Trash2, ChevronDown, ChevronUp, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import BarcodeScanner from './BarcodeScanner';
 
@@ -624,6 +624,7 @@ export default function Movements({ user }) {
         let insertCount = 0;
         let updateCount = 0;
         const seenKeysInSheet = new Set();
+        const skippedRows = [];
 
         for (let i = 1; i < rows.length; i++) {
           const row = rows[i];
@@ -652,6 +653,7 @@ export default function Movements({ user }) {
           // Validation: Product existence
           if (!productUnitMap.has(codigoVal)) {
             skippedInvalidProduct++;
+            skippedRows.push({ row: i + 1, key: keyVal, codigo: codigoVal, reason: 'Producto inexistente' });
             continue;
           }
 
@@ -661,11 +663,13 @@ export default function Movements({ user }) {
           const baseUnit = productUnitMap.get(codigoVal);
           if (umVal && baseUnit && umVal !== baseUnit) {
             skippedInconsistentUnit++;
+            skippedRows.push({ row: i + 1, key: keyVal, codigo: codigoVal, reason: `Unidad inconsistente (Archivo: '${umVal}', Sistema: '${baseUnit}')` });
             continue;
           }
 
           // Validation: Duplicate keys within the same sheet
           if (seenKeysInSheet.has(upperKey)) {
+            skippedRows.push({ row: i + 1, key: keyVal, codigo: codigoVal, reason: 'Clave de transacción duplicada en el archivo' });
             continue;
           }
           seenKeysInSheet.add(upperKey);
@@ -673,6 +677,7 @@ export default function Movements({ user }) {
           // Validation: Valid amount
           if (cantidadVal <= 0) {
             skippedInvalidAmount++;
+            skippedRows.push({ row: i + 1, key: keyVal, codigo: codigoVal, reason: `Cantidad inválida (${cantidadRaw})` });
             continue;
           }
 
@@ -731,6 +736,7 @@ export default function Movements({ user }) {
           insertCount,
           updateCount,
           skippedInfo: skippedList.join(', '),
+          skippedRows,
           inputRef: event.target
         });
         setCsvMsg({ text: '', type: '' });
@@ -823,6 +829,7 @@ export default function Movements({ user }) {
         let skippedInconsistentUnit = 0;
         let emptyCount = 0;
         const seenKeysInExcel = new Set();
+        const skippedRows = [];
         
         // Keep track of stock updates locally to prevent double-spending in the same sheet
         const localStockMap = new Map(resProductos.data.map(p => [p.codigo.trim().toUpperCase(), parseFloat(p.cantidad) || 0]));
@@ -854,6 +861,7 @@ export default function Movements({ user }) {
           // Validation: Product existence
           if (!productDataMap.has(codigoVal)) {
             skippedInvalidProduct++;
+            skippedRows.push({ row: i + 1, key: keyVal, codigo: codigoVal, reason: 'Producto inexistente' });
             continue;
           }
 
@@ -864,12 +872,20 @@ export default function Movements({ user }) {
           const umVal = umRaw ? String(umRaw).trim().toUpperCase() : '';
           if (umVal && baseProduct.unit && umVal !== baseProduct.unit) {
             skippedInconsistentUnit++;
+            skippedRows.push({ row: i + 1, key: keyVal, codigo: codigoVal, reason: `Unidad inconsistente (Archivo: '${umVal}', Sistema: '${baseProduct.unit}')` });
             continue;
           }
 
           // Validation: Duplicate keys
           if (existingKeys.has(upperKey) || seenKeysInExcel.has(upperKey)) {
             skippedDuplicateKey++;
+            const isExist = existingKeys.has(upperKey);
+            skippedRows.push({ 
+              row: i + 1, 
+              key: keyVal, 
+              codigo: codigoVal, 
+              reason: isExist ? 'Clave de transacción ya existe en el sistema' : 'Clave de transacción duplicada en el archivo' 
+            });
             continue;
           }
           seenKeysInExcel.add(upperKey);
@@ -877,6 +893,7 @@ export default function Movements({ user }) {
           // Validation: Valid amount
           if (cantEntregadaVal <= 0) {
             skippedInvalidAmount++;
+            skippedRows.push({ row: i + 1, key: keyVal, codigo: codigoVal, reason: `Cantidad inválida (${cantEntregadaRaw})` });
             continue;
           }
 
@@ -884,6 +901,7 @@ export default function Movements({ user }) {
           const stockActual = localStockMap.get(codigoVal);
           if (stockActual < cantEntregadaVal) {
             skippedInsufficientStock++;
+            skippedRows.push({ row: i + 1, key: keyVal, codigo: codigoVal, reason: `Stock insuficiente (Disponible: ${stockActual}, Solicitado: ${cantEntregadaVal})` });
             continue;
           }
 
@@ -947,6 +965,7 @@ export default function Movements({ user }) {
           insertCount: movementsToInsert.length,
           updateCount: 0,
           skippedInfo: skippedList.join(', '),
+          skippedRows,
           inputRef: event.target
         });
         setExcelMsg({ text: '', type: '' });
@@ -971,6 +990,32 @@ export default function Movements({ user }) {
     document.addEventListener('click', handleOutsideClick);
     return () => document.removeEventListener('click', handleOutsideClick);
   }, []);
+
+  // Download CSV of errors/skipped items
+  const handleDownloadErrors = () => {
+    if (!importPreview || !importPreview.skippedRows || importPreview.skippedRows.length === 0) return;
+
+    const headers = ['Fila', 'Clave Transaccion', 'ID Producto', 'Motivo / Error'];
+    const csvContent = [
+      headers.join(','),
+      ...importPreview.skippedRows.map(r => [
+        r.row,
+        `"${r.key || ''}"`,
+        `"${r.codigo || ''}"`,
+        `"${r.reason || ''}"`
+      ].join(','))
+    ].join('\n');
+
+    // Add BOM for Excel compatibility in UTF-8
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `errores_importacion_${importPreview.type}_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Handle confirmed import execution (FUNC-3)
   const handleConfirmImport = async () => {
@@ -1489,9 +1534,22 @@ export default function Movements({ user }) {
               </div>
 
               {importPreview.skippedInfo && (
-                <div className="message warning" style={{ marginBottom: '16px' }}>
-                  <AlertCircle size={16} />
-                  <span>Omitidos: {importPreview.skippedInfo}</span>
+                <div className="message warning" style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <AlertCircle size={16} />
+                    <span>Omitidos: {importPreview.skippedInfo}</span>
+                  </div>
+                  {importPreview.skippedRows && importPreview.skippedRows.length > 0 && (
+                    <button
+                      className="btn btn-secondary"
+                      onClick={handleDownloadErrors}
+                      style={{ padding: '6px 12px', fontSize: '0.8rem', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}
+                      title="Descargar reporte de errores (.csv)"
+                    >
+                      <Download size={14} />
+                      <span>Descargar Errores</span>
+                    </button>
+                  )}
                 </div>
               )}
 
