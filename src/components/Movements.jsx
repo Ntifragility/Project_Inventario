@@ -1868,7 +1868,7 @@ export default function Movements({ user }) {
                         const isSelected = selectedIds.includes(m.id);
 
                         return (
-                          <tr key={m.id} style={{ background: isSelected ? 'rgba(59, 130, 246, 0.08)' : '' }}>
+                          <tr key={m.id} className={isSelected ? 'selected-row-highlight' : ''} style={{ transition: 'background-color 0.2s ease, border-left-color 0.25s ease' }}>
                             <td style={{ textAlign: 'center' }} data-label="Seleccionar">
                               <input 
                                 type="checkbox" 
@@ -1920,70 +1920,139 @@ export default function Movements({ user }) {
 
               {/* Floating Action Bar */}
               {selectedIds.length > 0 && (
-                <div style={{
-                  position: 'fixed',
-                  bottom: '24px',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--primary)',
-                  boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
-                  padding: '12px 24px',
-                  borderRadius: '30px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '20px',
-                  zIndex: 1000,
-                  boxSizing: 'border-box'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ 
-                      background: 'rgba(59, 130, 246, 0.15)', 
-                      color: 'var(--primary)', 
-                      padding: '4px 10px', 
-                      borderRadius: '12px', 
-                      fontSize: '0.8rem',
-                      fontWeight: '700'
-                    }}>
-                      {selectedIds.length}
-                    </span>
-                    <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)' }}>seleccionados</span>
-                  </div>
+                <>
+                  <style>{`
+                    @keyframes floatInBar {
+                      0% {
+                        transform: translate(-50%, 30px);
+                        opacity: 0;
+                      }
+                      100% {
+                        transform: translate(-50%, 0);
+                        opacity: 1;
+                      }
+                    }
+                    .premium-floating-bar {
+                      position: fixed;
+                      bottom: 28px;
+                      left: 50%;
+                      transform: translateX(-50%);
+                      background: rgba(17, 24, 39, 0.85); /* Slate 900 Glassmorphism */
+                      backdrop-filter: blur(12px);
+                      -webkit-backdrop-filter: blur(12px);
+                      border: 1px solid rgba(255, 255, 255, 0.12);
+                      padding: 10px 24px;
+                      border-radius: 50px;
+                      display: flex;
+                      align-items: center;
+                      gap: 20px;
+                      z-index: 1000;
+                      animation: floatInBar 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.6);
+                      box-sizing: border-box;
+                    }
+                    .btn-floating-action {
+                      border-radius: 30px;
+                      padding: 8px 16px;
+                      font-size: 0.8rem;
+                      font-weight: 600;
+                      display: flex;
+                      align-items: center;
+                      gap: 6px;
+                      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                      cursor: pointer;
+                    }
+                    .btn-floating-edit {
+                      background: rgba(59, 130, 246, 0.15);
+                      color: #60a5fa;
+                      border: 1px solid rgba(59, 130, 246, 0.3);
+                    }
+                    .btn-floating-edit:hover:not(:disabled) {
+                      background: #3b82f6;
+                      color: #ffffff;
+                      transform: translateY(-2px);
+                      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+                    }
+                    .btn-floating-delete {
+                      background: rgba(239, 68, 68, 0.15);
+                      color: #f87171;
+                      border: 1px solid rgba(239, 68, 68, 0.3);
+                    }
+                    .btn-floating-delete:hover {
+                      background: #ef4444;
+                      color: #ffffff;
+                      transform: translateY(-2px);
+                      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+                    }
+                    .btn-floating-clear {
+                      background: transparent;
+                      color: var(--text-secondary);
+                      border: none;
+                      transition: color 0.2s;
+                      cursor: pointer;
+                      display: flex;
+                      align-items: center;
+                      gap: 4px;
+                      font-weight: 500;
+                    }
+                    .btn-floating-clear:hover {
+                      color: var(--text-primary);
+                    }
+                    .selected-row-highlight {
+                      background: rgba(59, 130, 246, 0.08) !important;
+                      border-left: 3px solid #3b82f6 !important;
+                      transition: background-color 0.2s ease, border-left-color 0.25s ease;
+                    }
+                  `}</style>
+                  <div className="premium-floating-bar">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ 
+                        background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)', 
+                        color: '#ffffff', 
+                        padding: '4px 12px', 
+                        borderRadius: '20px', 
+                        fontSize: '0.8rem',
+                        fontWeight: '700',
+                        boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)'
+                      }}>
+                        {selectedIds.length}
+                      </span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#e2e8f0' }}>seleccionados</span>
+                    </div>
 
-                  <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }}></div>
+                    <div style={{ width: '1px', height: '24px', background: 'rgba(255, 255, 255, 0.15)' }}></div>
 
-                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button 
+                        className="btn-floating-action btn-floating-edit" 
+                        style={{ opacity: selectedIds.length === 1 ? 1 : 0.4, cursor: selectedIds.length === 1 ? 'pointer' : 'not-allowed' }}
+                        onClick={handleBulkEditClick}
+                        disabled={selectedIds.length !== 1}
+                        title={selectedIds.length === 1 ? "Editar movimiento" : "Seleccione exactamente 1 elemento para editar"}
+                      >
+                        <Pencil size={14} />
+                        <span>Editar</span>
+                      </button>
+                      <button 
+                        className="btn-floating-action btn-floating-delete" 
+                        onClick={handleBulkDeleteClick}
+                      >
+                        <Trash2 size={14} />
+                        <span>Eliminar</span>
+                      </button>
+                    </div>
+
+                    <div style={{ width: '1px', height: '24px', background: 'rgba(255, 255, 255, 0.15)' }}></div>
+
                     <button 
-                      className="btn btn-secondary" 
-                      style={{ padding: '6px 12px', fontSize: '0.8rem', opacity: selectedIds.length === 1 ? 1 : 0.5, cursor: selectedIds.length === 1 ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: '6px' }}
-                      onClick={handleBulkEditClick}
-                      disabled={selectedIds.length !== 1}
-                      title={selectedIds.length === 1 ? "Editar movimiento" : "Seleccione exactamente 1 elemento para editar"}
+                      className="btn-floating-clear" 
+                      onClick={() => setSelectedIds([])}
                     >
-                      <Pencil size={14} />
-                      <span>Editar</span>
-                    </button>
-                    <button 
-                      className="btn btn-danger" 
-                      style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-                      onClick={handleBulkDeleteClick}
-                    >
-                      <Trash2 size={14} />
-                      <span>Eliminar</span>
+                      <X size={14} />
+                      <span style={{ fontSize: '0.8rem' }}>Desmarcar todo</span>
                     </button>
                   </div>
-
-                  <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }}></div>
-
-                  <button 
-                    className="btn btn-secondary" 
-                    style={{ padding: '4px 8px', fontSize: '0.8rem', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
-                    onClick={() => setSelectedIds([])}
-                  >
-                    <X size={14} />
-                    <span>Desmarcar todo</span>
-                  </button>
-                </div>
+                </>
               )}
 
               {/* Pagination Controls */}
