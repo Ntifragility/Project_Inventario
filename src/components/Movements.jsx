@@ -1411,11 +1411,27 @@ export default function Movements({ user }) {
               {/* Instructions and File Selector based on selected option */}
               {importOption === 'ingreso' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
-                    Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo Ingreso en lote. El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>Fecha</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Cant. Recepcionada</strong>, y <strong>Unidad</strong>.
-                    <br /><br />
-                    <strong>Nota importante:</strong> Los productos a importar ya deben existir en el sistema.
-                  </p>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                    <p style={{ marginBottom: '12px' }}>
+                      Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo Ingreso en lote. El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>Fecha</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Cant. Recepcionada</strong>, y <strong>Unidad</strong>.
+                    </p>
+                    <div style={{ 
+                      background: 'var(--bg-card-header)', 
+                      padding: '12px 16px', 
+                      borderRadius: 'var(--radius-sm)', 
+                      borderLeft: '4px solid var(--primary)', 
+                      fontSize: '0.85rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px'
+                    }}>
+                      <div>💡 <strong>Guías del Archivo:</strong></div>
+                      <div>• <strong>Productos:</strong> Deben estar previamente registrados en el sistema.</div>
+                      <div>• <strong>Columnas extra:</strong> Se ignoran de forma segura; no es necesario eliminarlas.</div>
+                      <div>• <strong>Datos vacíos:</strong> Si falta el ID Producto, Clave o Cantidad, la fila se omitirá.</div>
+                      <div>• <strong>Fecha vacía:</strong> Si no se incluye, se usará la fecha seleccionada en el panel o el día de hoy.</div>
+                    </div>
+                  </div>
                   
                   <div className="actions" style={{ marginBottom: 0 }}>
                     <label className="btn btn-primary" style={{ cursor: 'pointer', padding: '12px' }}>
@@ -1453,11 +1469,27 @@ export default function Movements({ user }) {
 
               {importOption === 'salida' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
-                    Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo Salida en lote. El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>Fecha</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Cant. Entregada</strong>, <strong>Unidad</strong>, y <strong>Cód.Almacenero</strong>.
-                    <br /><br />
-                    <strong>Nota importante:</strong> El sistema verificará que exista stock suficiente para cada salida. De lo contrario, se omitirán esas filas.
-                  </p>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                    <p style={{ marginBottom: '12px' }}>
+                      Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo Salida en lote. El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>Fecha</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Cant. Entregada</strong>, <strong>Unidad</strong>, y <strong>Cód.Almacenero</strong>.
+                    </p>
+                    <div style={{ 
+                      background: 'var(--bg-card-header)', 
+                      padding: '12px 16px', 
+                      borderRadius: 'var(--radius-sm)', 
+                      borderLeft: '4px solid var(--primary)', 
+                      fontSize: '0.85rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px'
+                    }}>
+                      <div>💡 <strong>Guías del Archivo:</strong></div>
+                      <div>• <strong>Control de Stock:</strong> Se omitirán las filas donde no haya stock suficiente para la salida.</div>
+                      <div>• <strong>Columnas extra:</strong> Se ignoran de forma segura; no es necesario eliminarlas.</div>
+                      <div>• <strong>Datos vacíos:</strong> Si falta el ID Producto, Clave o Cantidad, la fila se omitirá.</div>
+                      <div>• <strong>Fecha vacía:</strong> Si no se incluye, se usará la fecha seleccionada en el panel o el día de hoy.</div>
+                    </div>
+                  </div>
                   
                   <div className="actions" style={{ marginBottom: 0 }}>
                     <label className="btn btn-primary" style={{ cursor: 'pointer', padding: '12px' }}>
