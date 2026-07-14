@@ -1892,7 +1892,7 @@ export default function Movements({ user }) {
                             <td data-label="Transaction Key"><small>{m.key}</small></td>
                             <td data-label="Usuario"><small>{m.usuario}</small></td>
                             <td data-label="Almacenero"><span>{m.tipo === 'SALIDA' ? (getAlmaceneroFromObs(m.observaciones) || '-') : '-'}</span></td>
-                            <td data-label="Acciones" style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                            <td data-label="Acciones" className="row-actions-cell" style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                               <button 
                                 className="btn btn-secondary" 
                                 style={{ padding: '4px 8px', fontSize: '0.75rem' }} 
@@ -1937,10 +1937,8 @@ export default function Movements({ user }) {
                       bottom: 28px;
                       left: 50%;
                       transform: translateX(-50%);
-                      background: rgba(17, 24, 39, 0.85); /* Slate 900 Glassmorphism */
-                      backdrop-filter: blur(12px);
-                      -webkit-backdrop-filter: blur(12px);
-                      border: 1px solid rgba(255, 255, 255, 0.12);
+                      background: var(--bg-card); /* Solid background, no glassmorphism */
+                      border: 2px solid var(--primary); /* Accent solid border */
                       padding: 10px 24px;
                       border-radius: 50px;
                       display: flex;
@@ -1948,7 +1946,7 @@ export default function Movements({ user }) {
                       gap: 20px;
                       z-index: 1000;
                       animation: floatInBar 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-                      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.6);
+                      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
                       box-sizing: border-box;
                     }
                     .btn-floating-action {
@@ -2003,6 +2001,18 @@ export default function Movements({ user }) {
                       border-left: 3px solid #3b82f6 !important;
                       transition: background-color 0.2s ease, border-left-color 0.25s ease;
                     }
+                    .row-actions-cell {
+                      opacity: 0;
+                      transition: opacity 0.15s ease;
+                    }
+                    tr:hover .row-actions-cell {
+                      opacity: 1;
+                    }
+                    @media (max-width: 768px) {
+                      .row-actions-cell {
+                        opacity: 1 !important;
+                      }
+                    }
                   `}</style>
                   <div className="premium-floating-bar">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -2017,10 +2027,10 @@ export default function Movements({ user }) {
                       }}>
                         {selectedIds.length}
                       </span>
-                      <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#e2e8f0' }}>seleccionados</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)' }}>seleccionados</span>
                     </div>
 
-                    <div style={{ width: '1px', height: '24px', background: 'rgba(255, 255, 255, 0.15)' }}></div>
+                    <div style={{ width: '1px', height: '24px', background: 'var(--border-color)' }}></div>
 
                     <div style={{ display: 'flex', gap: '10px' }}>
                       <button 
@@ -2042,7 +2052,7 @@ export default function Movements({ user }) {
                       </button>
                     </div>
 
-                    <div style={{ width: '1px', height: '24px', background: 'rgba(255, 255, 255, 0.15)' }}></div>
+                    <div style={{ width: '1px', height: '24px', background: 'var(--border-color)' }}></div>
 
                     <button 
                       className="btn-floating-clear" 
