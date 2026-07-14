@@ -1425,7 +1425,7 @@ export default function Movements({ user }) {
                       flexDirection: 'column',
                       gap: '6px'
                     }}>
-                      <div>💡 <strong>Guías del Archivo:</strong></div>
+                      <div><strong>Guías del Archivo:</strong></div>
                       <div>• <strong>Productos:</strong> Deben estar previamente registrados en el sistema.</div>
                       <div>• <strong>Columnas extra:</strong> Se ignoran de forma segura; no es necesario eliminarlas.</div>
                       <div>• <strong>Datos vacíos:</strong> Si falta el ID Producto, Clave o Cantidad, la fila se omitirá.</div>
@@ -1483,7 +1483,7 @@ export default function Movements({ user }) {
                       flexDirection: 'column',
                       gap: '6px'
                     }}>
-                      <div>💡 <strong>Guías del Archivo:</strong></div>
+                      <div><strong>Guías del Archivo:</strong></div>
                       <div>• <strong>Control de Stock:</strong> Se omitirán las filas donde no haya stock suficiente para la salida.</div>
                       <div>• <strong>Columnas extra:</strong> Se ignoran de forma segura; no es necesario eliminarlas.</div>
                       <div>• <strong>Datos vacíos:</strong> Si falta el ID Producto, Clave o Cantidad, la fila se omitirá.</div>
