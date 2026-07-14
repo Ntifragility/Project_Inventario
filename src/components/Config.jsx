@@ -35,6 +35,10 @@ export default function Config({ user }) {
   const [promoError, setPromoError] = useState('');
   const [promotingAction, setPromotingAction] = useState(false);
 
+  // Audit log states
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [loadingAuditLogs, setLoadingAuditLogs] = useState(false);
+
   // User management auto-unlock states
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [checkingAdmin, setCheckingAdmin] = useState(true);
@@ -151,6 +155,56 @@ export default function Config({ user }) {
     } finally {
       setResetting(false);
     }
+  };
+
+  const fetchAuditLogs = async () => {
+    setLoadingAuditLogs(true);
+    try {
+      const { data, error } = await supabase.rpc('obtener_logs_auditoria');
+      if (error) throw error;
+      setAuditLogs(data || []);
+    } catch (err) {
+      console.error('Error fetching audit logs:', err);
+    } finally {
+      setLoadingAuditLogs(false);
+    }
+  };
+
+  const renderAuditDetails = (log) => {
+    const { operacion, datos_anteriores, datos_nuevos } = log;
+    
+    if (operacion === 'INSERT') {
+      if (!datos_nuevos) return 'Datos no disponibles';
+      const items = Object.entries(datos_nuevos)
+        .filter(([_, v]) => v !== null && v !== '')
+        .map(([k, v]) => `${k}: ${JSON.stringify(v)}`);
+      return `Registrado: { ${items.join(', ')} }`;
+    }
+    
+    if (operacion === 'DELETE') {
+      if (!datos_anteriores) return 'Datos no disponibles';
+      const items = Object.entries(datos_anteriores)
+        .filter(([_, v]) => v !== null && v !== '')
+        .map(([k, v]) => `${k}: ${JSON.stringify(v)}`);
+      return `Eliminado: { ${items.join(', ')} }`;
+    }
+    
+    if (operacion === 'UPDATE') {
+      if (!datos_anteriores || !datos_nuevos) return 'Modificación general';
+      const changes = [];
+      for (const key in datos_nuevos) {
+        const oldVal = datos_anteriores[key];
+        const newVal = datos_nuevos[key];
+        if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+          const oldStr = oldVal === null ? 'NULL' : typeof oldVal === 'object' ? JSON.stringify(oldVal) : String(oldVal);
+          const newStr = newVal === null ? 'NULL' : typeof newVal === 'object' ? JSON.stringify(newVal) : String(newVal);
+          changes.push(`${key}: "${oldStr}" ➔ "${newStr}"`);
+        }
+      }
+      return changes.length > 0 ? `Modificado: ${changes.join(' | ')}` : 'Sin cambios detectables';
+    }
+    
+    return 'Acción desconocida';
   };
 
   const fetchUsers = async () => {
@@ -270,6 +324,7 @@ export default function Config({ user }) {
           setIsAdminUser(true);
           setUserAdminDni(adminDni); // Pre-fill authorizing DNI
           fetchUsers();
+          fetchAuditLogs();
         } else {
           setIsAdminUser(false);
         }
@@ -433,7 +488,8 @@ export default function Config({ user }) {
 
       {/* User Account Assignment Card */}
       {!checkingAdmin && isAdminUser && (
-        <div className="card" style={{ marginTop: '24px' }}>
+        <>
+          <div className="card" style={{ marginTop: '24px' }}>
           <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <UserPlus size={18} />
@@ -705,6 +761,92 @@ export default function Config({ user }) {
             )}
           </div>
         </div>
+
+        {/* Audit Log Card */}
+        <div className="card" style={{ marginTop: '24px' }}>
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Settings size={18} />
+              <span>Historial de Auditoría (Logs de Cambios)</span>
+            </div>
+            <button 
+              className="btn btn-secondary" 
+              style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+              onClick={fetchAuditLogs}
+              disabled={loadingAuditLogs}
+            >
+              {loadingAuditLogs ? 'Cargando...' : 'Actualizar Logs'}
+            </button>
+          </div>
+          <div className="card-body">
+            <p style={{ marginBottom: '20px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+              Registro de las últimas 100 modificaciones de productos y movimientos realizadas en el sistema.
+            </p>
+
+            {loadingAuditLogs ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-secondary)' }}>
+                <span className="spinner" style={{ display: 'inline-block', marginRight: '8px' }}></span>
+                Cargando historial de auditoría...
+              </div>
+            ) : auditLogs.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-secondary)' }}>
+                No se han registrado eventos de auditoría aún.
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                      <th style={{ padding: '10px 6px' }}>Fecha</th>
+                      <th style={{ padding: '10px 6px' }}>Usuario</th>
+                      <th style={{ padding: '10px 6px' }}>Tabla</th>
+                      <th style={{ padding: '10px 6px' }}>Acción</th>
+                      <th style={{ padding: '10px 6px' }}>ID Registro</th>
+                      <th style={{ padding: '10px 6px' }}>Cambios / Detalles</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLogs.map((log) => {
+                      let opBadgeStyle = {
+                        display: 'inline-block',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        fontWeight: '600'
+                      };
+
+                      if (log.operacion === 'INSERT') {
+                        opBadgeStyle = { ...opBadgeStyle, background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)' };
+                      } else if (log.operacion === 'DELETE') {
+                        opBadgeStyle = { ...opBadgeStyle, background: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)' };
+                      } else {
+                        opBadgeStyle = { ...opBadgeStyle, background: 'rgba(59, 130, 246, 0.15)', color: 'var(--primary)' };
+                      }
+
+                      return (
+                        <tr key={log.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '10px 6px', color: 'var(--text-secondary)' }}>
+                            {log.fecha ? new Date(log.fecha).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}
+                          </td>
+                          <td style={{ padding: '10px 6px', fontWeight: '500' }}>{log.usuario_email}</td>
+                          <td style={{ padding: '10px 6px', textTransform: 'capitalize' }}>{log.tabla}</td>
+                          <td style={{ padding: '10px 6px' }}>
+                            <span style={opBadgeStyle}>{log.operacion}</span>
+                          </td>
+                          <td style={{ padding: '10px 6px', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{log.registro_id}</td>
+                          <td style={{ padding: '10px 6px', fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '400px', wordBreak: 'break-word' }}>
+                            {renderAuditDetails(log)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+        </>
       )}
 
       {/* Reusable step-by-step Reset Confirmation Modal */}

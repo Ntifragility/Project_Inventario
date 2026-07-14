@@ -650,3 +650,34 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
+-- RPC to fetch system audit logs joined with user emails
+CREATE OR REPLACE FUNCTION obtener_logs_auditoria()
+RETURNS TABLE (
+    id BIGINT,
+    tabla VARCHAR,
+    operacion VARCHAR,
+    registro_id TEXT,
+    datos_anteriores JSONB,
+    datos_nuevos JSONB,
+    fecha TIMESTAMPTZ,
+    usuario_email TEXT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        a.id,
+        a.tabla::VARCHAR,
+        a.operacion::VARCHAR,
+        a.registro_id,
+        a.datos_anteriores,
+        a.datos_nuevos,
+        a.fecha,
+        COALESCE(u.email, 'Sistema/Anónimo')::TEXT AS usuario_email
+    FROM audit_log a
+    LEFT JOIN auth.users u ON a.usuario_id = u.id
+    ORDER BY a.fecha DESC
+    LIMIT 100;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
