@@ -436,7 +436,7 @@ export default function Movements({ user }) {
     setSubmitting(true);
 
     try {
-      const activeUserEmail = user ? user.email : 'Usuario Sistema';
+      const activeUserEmail = user ? (user.user_metadata?.name || user.user_metadata?.full_name || user.email) : 'Usuario Sistema';
       const keyToSend = transactionKey.trim() || 'Automatico';
 
       const { data, error } = await supabase.rpc('registrar_movimiento', {
@@ -2026,13 +2026,12 @@ export default function Movements({ user }) {
                 <div className="premium-floating-bar">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ 
-                      background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)', 
+                      background: '#3b82f6', 
                       color: '#ffffff', 
                       padding: '4px 12px', 
                       borderRadius: '20px', 
                       fontSize: '0.8rem',
-                      fontWeight: '700',
-                      boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)'
+                      fontWeight: '700'
                     }}>
                       {selectedIds.length}
                     </span>
