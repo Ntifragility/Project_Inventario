@@ -659,7 +659,7 @@ ALTER TABLE respaldos_seguridad ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "respaldos_select_policy" ON respaldos_seguridad;
 CREATE POLICY "respaldos_select_policy" ON respaldos_seguridad 
     FOR SELECT TO authenticated 
-    USING (EXISTS (SELECT 1 FROM administradores WHERE email = auth.jwt() ->> 'email'));
+    USING (EXISTS (SELECT 1 FROM administradores WHERE LOWER(email) = LOWER(auth.jwt() ->> 'email')));
 
 -- 2. Create the snapshot function
 CREATE OR REPLACE FUNCTION crear_respaldo_seguridad(p_creado_por TEXT DEFAULT 'Sistema (Automático)')
