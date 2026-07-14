@@ -760,7 +760,7 @@ export default function Movements({ user }) {
             fecha: fechaVal,
             tipo: 'INGRESO',
             cantidad: cantidadVal,
-            usuario: 'Usuario Sistema',
+            usuario: user?.email || 'Usuario Sistema',
             observaciones: obsVal,
             key: keyVal
           });
@@ -985,7 +985,7 @@ export default function Movements({ user }) {
             fecha: fechaVal,
             tipo: 'SALIDA',
             cantidad: cantEntregadaVal,
-            usuario: 'Usuario Sistema',
+            usuario: user?.email || 'Usuario Sistema',
             observaciones: obsVal,
             key: keyVal
           });
@@ -1202,16 +1202,35 @@ export default function Movements({ user }) {
   return (
     <div id="movimientos" className="tab-content active">
       <style>{`
-        .row-actions-cell {
+        .row-actions-hover {
+          position: absolute;
+          right: 8px;
+          top: 50%;
+          transform: translateY(-50%);
           opacity: 0;
+          pointer-events: none;
           transition: opacity 0.15s ease;
+          background: #ffffff; /* Solid light theme background */
+          padding-left: 8px;
+          display: flex;
+          gap: 6px;
         }
-        tr:hover .row-actions-cell {
+        .dark-theme .row-actions-hover {
+          background: #121212; /* Solid dark theme background (pure black match) */
+        }
+        tr:hover .row-actions-hover {
           opacity: 1;
+          pointer-events: auto;
         }
         @media (max-width: 768px) {
-          .row-actions-cell {
+          .row-actions-hover {
+            position: static;
+            transform: none;
             opacity: 1 !important;
+            pointer-events: auto;
+            margin-top: 6px;
+            background: transparent !important;
+            padding-left: 0;
           }
         }
         @keyframes floatInBar {
@@ -1229,7 +1248,7 @@ export default function Movements({ user }) {
           bottom: 28px;
           left: 50%;
           transform: translateX(-50%);
-          background: var(--bg-card); /* Solid background, no glassmorphism */
+          background: #ffffff; /* Solid opaque light background */
           border: 2px solid var(--primary); /* Accent solid border */
           padding: 10px 24px;
           border-radius: 50px;
@@ -1240,6 +1259,9 @@ export default function Movements({ user }) {
           animation: floatInBar 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
           box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
           box-sizing: border-box;
+        }
+        .dark-theme .premium-floating-bar {
+          background: #121212; /* Solid opaque dark background (pure black match) */
         }
         .btn-floating-action {
           border-radius: 30px;
@@ -1925,7 +1947,6 @@ export default function Movements({ user }) {
                       <th>Transaction Key</th>
                       <th>Usuario</th>
                       <th>Almacenero</th>
-                      <th style={{ width: '120px', textAlign: 'center' }}>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1984,24 +2005,26 @@ export default function Movements({ user }) {
                             <td data-label="Tipo" className={tipoClass}><strong>{tipoText}</strong></td>
                             <td data-label="Transaction Key"><small>{m.key}</small></td>
                             <td data-label="Usuario"><small>{m.usuario}</small></td>
-                            <td data-label="Almacenero"><span>{m.tipo === 'SALIDA' ? (getAlmaceneroFromObs(m.observaciones) || '-') : '-'}</span></td>
-                            <td data-label="Acciones" className="row-actions-cell" style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                              <button 
-                                className="btn btn-secondary" 
-                                style={{ padding: '4px 8px', fontSize: '0.75rem' }} 
-                                onClick={() => handleEditClick(m)}
-                              >
-                                <Pencil size={12} />
-                                <span>Editar</span>
-                              </button>
-                              <button 
-                                className="btn btn-danger" 
-                                style={{ padding: '4px 8px', fontSize: '0.75rem' }} 
-                                onClick={() => handleDeleteClick(m)}
-                              >
-                                <Trash2 size={12} />
-                                <span>Borrar</span>
-                              </button>
+                            <td data-label="Almacenero" style={{ position: 'relative' }}>
+                              <span>{m.tipo === 'SALIDA' ? (getAlmaceneroFromObs(m.observaciones) || '-') : '-'}</span>
+                              <div className="row-actions-hover">
+                                <button 
+                                  className="btn btn-secondary" 
+                                  style={{ padding: '2px 6px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }} 
+                                  onClick={(e) => { e.stopPropagation(); handleEditClick(m); }}
+                                  title="Editar"
+                                >
+                                  <Pencil size={11} />
+                                </button>
+                                <button 
+                                  className="btn btn-danger" 
+                                  style={{ padding: '2px 6px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }} 
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteClick(m); }}
+                                  title="Borrar"
+                                >
+                                  <Trash2 size={11} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
