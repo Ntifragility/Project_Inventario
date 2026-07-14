@@ -991,30 +991,37 @@ export default function Movements({ user }) {
     return () => document.removeEventListener('click', handleOutsideClick);
   }, []);
 
-  // Download CSV of errors/skipped items
+  // Download Excel of errors/skipped items
   const handleDownloadErrors = () => {
     if (!importPreview || !importPreview.skippedRows || importPreview.skippedRows.length === 0) return;
 
-    const headers = ['Fila', 'Clave Transaccion', 'ID Producto', 'Motivo / Error'];
-    const csvContent = [
-      headers.join(','),
-      ...importPreview.skippedRows.map(r => [
-        r.row,
-        `"${r.key || ''}"`,
-        `"${r.codigo || ''}"`,
-        `"${r.reason || ''}"`
-      ].join(','))
-    ].join('\n');
+    try {
+      const dataToExport = importPreview.skippedRows.map(r => ({
+        'Fila': r.row,
+        'Clave Transacción': r.key || '',
+        'ID Producto': r.codigo || '',
+        'Motivo / Error': r.reason || ''
+      }));
 
-    // Add BOM for Excel compatibility in UTF-8
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `errores_importacion_${importPreview.type}_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Errores de Importación');
+
+      // Auto-fit column widths
+      const maxLens = {};
+      dataToExport.forEach(row => {
+        Object.entries(row).forEach(([colName, val]) => {
+          const cellLen = Math.max(String(colName).length, String(val ?? '').length);
+          maxLens[colName] = Math.max(maxLens[colName] || 0, cellLen);
+        });
+      });
+      worksheet['!cols'] = Object.keys(maxLens).map(colName => ({ wch: maxLens[colName] + 3 }));
+
+      XLSX.writeFile(workbook, `errores_importacion_${importPreview.type}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (err) {
+      console.error('Error downloading error log Excel:', err);
+      alert('Error al descargar el log de errores: ' + err.message);
+    }
   };
 
   // Handle confirmed import execution (FUNC-3)
@@ -1544,7 +1551,7 @@ export default function Movements({ user }) {
                       className="btn btn-secondary"
                       onClick={handleDownloadErrors}
                       style={{ padding: '6px 12px', fontSize: '0.8rem', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}
-                      title="Descargar reporte de errores (.csv)"
+                      title="Descargar reporte de errores (.xlsx)"
                     >
                       <Download size={14} />
                       <span>Descargar Errores</span>
