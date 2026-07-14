@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { FileText, Play, Download, AlertCircle, CheckCircle2 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 // CSV injection sanitization helper (SEC-4)
 const sanitizeCsvCell = (val) => {
@@ -96,28 +97,39 @@ export default function Reports() {
   };
 
   // Export report logic
-  const handleExportCSV = () => {
+  const handleExportExcel = () => {
     if (reportData.length === 0) return;
 
     try {
-      let csv = "\uFEFF"; // BOM
-      csv += "Fecha de mov.,Transaction Key,ID Producto,Producto,Unidad,Cantidad,Tipo,Observaciones,Usuario\n";
+      const dataToExport = reportData.map(m => ({
+        'Fecha de mov.': m.fecha,
+        'Transaction Key': m.productKey,
+        'ID Producto': m.codigo,
+        'Producto': m.producto,
+        'Unidad': m.unidad,
+        'Cantidad': parseFloat(m.cantidad) || 0,
+        'Tipo': m.tipo,
+        'Observaciones': m.observaciones || '',
+        'Usuario': m.usuario
+      }));
 
-      reportData.forEach(m => {
-        csv += `"${sanitizeCsvCell(m.fecha)}","${sanitizeCsvCell(m.productKey)}","${sanitizeCsvCell(m.codigo)}","${sanitizeCsvCell(m.producto)}","${sanitizeCsvCell(m.unidad)}",${m.cantidad},"${sanitizeCsvCell(m.tipo)}","${sanitizeCsvCell(m.observaciones)}","${sanitizeCsvCell(m.usuario)}"\n`;
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Movimientos');
+
+      // Auto-fit column widths
+      const maxLens = {};
+      dataToExport.forEach(row => {
+        Object.entries(row).forEach(([colName, val]) => {
+          const cellLen = Math.max(String(colName).length, String(val ?? '').length);
+          maxLens[colName] = Math.max(maxLens[colName] || 0, cellLen);
+        });
       });
+      worksheet['!cols'] = Object.keys(maxLens).map(colName => ({ wch: maxLens[colName] + 3 }));
 
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = `Reporte_Movimientos_${fechaDesde}_${fechaHasta}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
+      XLSX.writeFile(workbook, `Reporte_Movimientos_${fechaDesde}_${fechaHasta}.xlsx`);
     } catch (err) {
-      console.error('Error exporting report to CSV:', err);
+      console.error('Error exporting report to Excel:', err);
     }
   };
 
@@ -175,11 +187,11 @@ export default function Reports() {
             </button>
             <button 
               className="btn btn-success" 
-              onClick={handleExportCSV} 
+              onClick={handleExportExcel} 
               disabled={reportData.length === 0 || loading}
             >
               <Download size={16} />
-              <span>Exportar Reporte</span>
+              <span>Exportar a Excel</span>
             </button>
           </div>
 

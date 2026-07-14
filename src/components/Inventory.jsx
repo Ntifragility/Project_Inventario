@@ -9,6 +9,7 @@ import {
   History, 
   Layers 
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 // CSV injection sanitization helper (SEC-4)
 const sanitizeCsvCell = (val) => {
@@ -80,13 +81,10 @@ export default function Inventory() {
     }
   };
 
-  // Export to CSV helper
-  const handleExportCSV = () => {
+  // Export to Excel helper
+  const handleExportExcel = () => {
     try {
-      let csv = "\uFEFF"; // Byte Order Mark for Excel encoding compatibility
-      csv += "ID Producto,Producto,Cantidad,Unidad,Grupo,Stock Mín.,Estado\n";
-
-      stockData.forEach(p => {
+      const dataToExport = stockData.map(p => {
         let estado = 'Normal';
         const qty = parseFloat(p.cantidad) || 0;
         const min = parseFloat(p.stockMin) || 0;
@@ -94,20 +92,34 @@ export default function Inventory() {
         if (qty <= 0) estado = 'Sin Stock';
         else if (qty <= min && min > 0) estado = 'Stock Bajo';
 
-        csv += `"${sanitizeCsvCell(p.codigo)}","${sanitizeCsvCell(p.nombre)}",${qty},"${sanitizeCsvCell(p.unidad)}","${sanitizeCsvCell(p.grupo)}",${min},"${estado}"\n`;
+        return {
+          'ID Producto': p.codigo,
+          'Producto': p.nombre,
+          'Cantidad': qty,
+          'Unidad': p.unidad,
+          'Grupo': p.grupo,
+          'Stock Mín.': min,
+          'Estado': estado
+        };
       });
 
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = `Inventario_Stock_${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Stock Actual');
+      
+      // Auto-fit column widths
+      const maxLens = {};
+      dataToExport.forEach(row => {
+        Object.entries(row).forEach(([colName, val]) => {
+          const cellLen = Math.max(String(colName).length, String(val ?? '').length);
+          maxLens[colName] = Math.max(maxLens[colName] || 0, cellLen);
+        });
+      });
+      worksheet['!cols'] = Object.keys(maxLens).map(colName => ({ wch: maxLens[colName] + 3 }));
+
+      XLSX.writeFile(workbook, `Inventario_Stock_${new Date().toISOString().slice(0, 10)}.xlsx`);
     } catch (err) {
-      console.error('CSV export failed:', err);
+      console.error('Excel export failed:', err);
     }
   };
 
@@ -156,9 +168,9 @@ export default function Inventory() {
               <RefreshCw size={16} />
               <span>Actualizar Stock</span>
             </button>
-            <button className="btn btn-success" onClick={handleExportCSV} disabled={stockData.length === 0}>
+            <button className="btn btn-success" onClick={handleExportExcel} disabled={stockData.length === 0}>
               <Download size={16} />
-              <span>Exportar CSV</span>
+              <span>Exportar a Excel</span>
             </button>
             <button 
               className={`btn ${onlyAlerts ? 'btn-warning' : 'btn-secondary'}`} 
