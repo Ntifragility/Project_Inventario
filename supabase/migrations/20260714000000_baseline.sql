@@ -641,3 +641,42 @@ BEGIN
     LIMIT 100;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- 1. Create the security backups table
+CREATE TABLE IF NOT EXISTS respaldos_seguridad (
+    id SERIAL PRIMARY KEY,
+    fecha TIMESTAMPTZ DEFAULT NOW(),
+    creado_por TEXT DEFAULT 'Sistema (Automático)',
+    productos_snapshot JSONB NOT NULL,
+    movimientos_snapshot JSONB NOT NULL
+);
+
+-- Enable RLS on backing table
+ALTER TABLE respaldos_seguridad ENABLE ROW LEVEL SECURITY;
+
+-- Allow only authenticated administrators to select backups
+DROP POLICY IF EXISTS "respaldos_select_policy" ON respaldos_seguridad;
+CREATE POLICY "respaldos_select_policy" ON respaldos_seguridad 
+    FOR SELECT TO authenticated 
+    USING (EXISTS (SELECT 1 FROM administradores WHERE email = auth.jwt() ->> 'email'));
+
+-- 2. Create the snapshot function
+CREATE OR REPLACE FUNCTION crear_respaldo_seguridad(p_creado_por TEXT DEFAULT 'Sistema (Automático)')
+RETURNS VOID AS $$
+DECLARE
+    v_prod_json JSONB;
+    v_mov_json JSONB;
+BEGIN
+    -- Capture snapshots as JSONB arrays
+    SELECT COALESCE(jsonb_agg(p), '[]'::jsonb) INTO v_prod_json FROM productos p;
+    SELECT COALESCE(jsonb_agg(m), '[]'::jsonb) INTO v_mov_json FROM movimientos m;
+
+    INSERT INTO respaldos_seguridad (creado_por, productos_snapshot, movimientos_snapshot)
+    VALUES (p_creado_por, v_prod_json, v_mov_json);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 3. Enable pg_cron and schedule it weekly on Sunday at midnight (00:00)
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+SELECT cron.schedule('weekly-inventory-backup', '0 0 * * 0', 'SELECT crear_respaldo_seguridad()');

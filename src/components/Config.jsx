@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabase';
 import { createClient } from '@supabase/supabase-js';
-import { Settings, ShieldAlert, CheckCircle2, AlertCircle, X, HelpCircle, UserPlus, Shield, Mail, KeyRound, Trash2, ShieldCheck, User, UserMinus } from 'lucide-react';
+import { Settings, ShieldAlert, CheckCircle2, AlertCircle, X, HelpCircle, UserPlus, Shield, Mail, KeyRound, Trash2, ShieldCheck, User, UserMinus, Download, Database } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export default function Config({ user }) {
   const [resultMsg, setResultMsg] = useState({ text: '', type: '' });
@@ -38,6 +39,11 @@ export default function Config({ user }) {
   // Audit log states
   const [auditLogs, setAuditLogs] = useState([]);
   const [loadingAuditLogs, setLoadingAuditLogs] = useState(false);
+
+  // Backup states
+  const [backupsList, setBackupsList] = useState([]);
+  const [loadingBackups, setLoadingBackups] = useState(false);
+  const [creatingBackup, setCreatingBackup] = useState(false);
 
   // User management auto-unlock states
   const [isAdminUser, setIsAdminUser] = useState(false);
@@ -207,6 +213,105 @@ export default function Config({ user }) {
     return 'Acción desconocida';
   };
 
+  const fetchBackups = async () => {
+    setLoadingBackups(true);
+    try {
+      const { data, error } = await supabase
+        .from('respaldos_seguridad')
+        .select('id, fecha, creado_por')
+        .order('fecha', { ascending: false });
+      if (error) throw error;
+      setBackupsList(data || []);
+    } catch (err) {
+      console.error('Error fetching backups list:', err);
+    } finally {
+      setLoadingBackups(false);
+    }
+  };
+
+  const handleManualBackup = async () => {
+    setCreatingBackup(true);
+    try {
+      const creatorName = `Manual (${user?.email || 'Admin'})`;
+      const { error } = await supabase.rpc('crear_respaldo_seguridad', { p_creado_por: creatorName });
+      if (error) throw error;
+      fetchBackups();
+    } catch (err) {
+      console.error('Error generating manual backup:', err);
+      alert('Error al generar respaldo: ' + err.message);
+    } finally {
+      setCreatingBackup(false);
+    }
+  };
+
+  const downloadBackupAsExcel = async (backupId, backupFecha) => {
+    try {
+      const { data, error } = await supabase
+        .from('respaldos_seguridad')
+        .select('productos_snapshot, movimientos_snapshot')
+        .eq('id', backupId)
+        .single();
+      if (error) throw error;
+      if (!data) throw new Error('No se encontró el respaldo.');
+
+      const prods = data.productos_snapshot || [];
+      const movs = data.movimientos_snapshot || [];
+
+      // Format Products Sheet Data
+      const formattedProds = prods.map(p => ({
+        'Código': p.codigo,
+        'Nombre': p.nombre,
+        'Stock Actual': p.cantidad,
+        'Unidad': p.unidad,
+        'Grupo': p.grupo,
+        'Stock Mínimo': p.stock_min,
+        'F. Registro': p.created_at
+      }));
+
+      // Format Movements Sheet Data
+      const formattedMovs = movs.map(m => ({
+        'ID': m.id,
+        'Fecha': m.fecha,
+        'ID Producto': m.producto_codigo,
+        'Cantidad': m.cantidad,
+        'Tipo': m.tipo,
+        'Usuario': m.usuario,
+        'Observaciones': m.observaciones || '',
+        'Transaction Key': m.key || ''
+      }));
+
+      const workbook = XLSX.utils.book_new();
+
+      // Products Sheet
+      const wsProds = XLSX.utils.json_to_sheet(formattedProds);
+      const maxLensProds = {};
+      formattedProds.forEach(row => {
+        Object.entries(row).forEach(([col, val]) => {
+          maxLensProds[col] = Math.max(maxLensProds[col] || 0, String(col).length, String(val ?? '').length);
+        });
+      });
+      wsProds['!cols'] = Object.keys(maxLensProds).map(col => ({ wch: maxLensProds[col] + 3 }));
+      XLSX.utils.book_append_sheet(workbook, wsProds, 'Productos Snapshot');
+
+      // Movements Sheet
+      const wsMovs = XLSX.utils.json_to_sheet(formattedMovs);
+      const maxLensMovs = {};
+      formattedMovs.forEach(row => {
+        Object.entries(row).forEach(([col, val]) => {
+          maxLensMovs[col] = Math.max(maxLensMovs[col] || 0, String(col).length, String(val ?? '').length);
+        });
+      });
+      wsMovs['!cols'] = Object.keys(maxLensMovs).map(col => ({ wch: maxLensMovs[col] + 3 }));
+      XLSX.utils.book_append_sheet(workbook, wsMovs, 'Movimientos Snapshot');
+
+      const dateStr = new Date(backupFecha).toISOString().slice(0, 10);
+      XLSX.writeFile(workbook, `Respaldo_Seguridad_${dateStr}.xlsx`);
+    } catch (err) {
+      console.error('Error downloading backup:', err);
+      alert('Error al descargar el respaldo: ' + err.message);
+    }
+  };
+
   const fetchUsers = async () => {
     setLoadingUsers(true);
     try {
@@ -325,6 +430,7 @@ export default function Config({ user }) {
           setUserAdminDni(adminDni); // Pre-fill authorizing DNI
           fetchUsers();
           fetchAuditLogs();
+          fetchBackups();
         } else {
           setIsAdminUser(false);
         }
@@ -840,6 +946,82 @@ export default function Config({ user }) {
                         </tr>
                       );
                     })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Security Backups Card */}
+        <div className="card" style={{ marginTop: '24px' }}>
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Database size={18} />
+              <span>Respaldos de Seguridad</span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                className="btn btn-success" 
+                style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                onClick={handleManualBackup}
+                disabled={creatingBackup}
+              >
+                {creatingBackup ? 'Respaldando...' : 'Generar Respaldo Manual'}
+              </button>
+              <button 
+                className="btn btn-secondary" 
+                style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                onClick={fetchBackups}
+                disabled={loadingBackups}
+              >
+                {loadingBackups ? 'Cargando...' : 'Actualizar'}
+              </button>
+            </div>
+          </div>
+          <div className="card-body">
+            <p style={{ marginBottom: '20px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+              Historial de respaldos automáticos semanales (domingos) y manuales. Cada respaldo captura el estado de los productos y movimientos.
+            </p>
+
+            {loadingBackups ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-secondary)' }}>
+                <span className="spinner" style={{ display: 'inline-block', marginRight: '8px' }}></span>
+                Cargando historial de respaldos...
+              </div>
+            ) : backupsList.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-secondary)' }}>
+                No se han registrado respaldos de seguridad.
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                      <th style={{ padding: '10px 6px' }}>Fecha de Respaldo</th>
+                      <th style={{ padding: '10px 6px' }}>Creado Por</th>
+                      <th style={{ padding: '10px 6px', textAlign: 'right' }}>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {backupsList.map((b) => (
+                      <tr key={b.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '10px 6px', fontWeight: '500' }}>
+                          {b.fecha ? new Date(b.fecha).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                        </td>
+                        <td style={{ padding: '10px 6px', color: 'var(--text-secondary)' }}>{b.creado_por}</td>
+                        <td style={{ padding: '10px 6px', textAlign: 'right' }}>
+                          <button
+                            className="btn btn-primary"
+                            style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            onClick={() => downloadBackupAsExcel(b.id, b.fecha)}
+                          >
+                            <Download size={12} />
+                            <span>Descargar Excel</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
