@@ -680,3 +680,54 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 3. Enable pg_cron and schedule it weekly on Sunday at midnight (00:00)
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 SELECT cron.schedule('weekly-inventory-backup', '0 0 * * 0', 'SELECT crear_respaldo_seguridad()');
+
+
+-- RPC to list backups (SECURITY DEFINER)
+CREATE OR REPLACE FUNCTION listar_respaldos_seguridad(p_email TEXT)
+RETURNS TABLE (
+    id INT,
+    fecha TIMESTAMPTZ,
+    creado_por TEXT
+) AS $$
+DECLARE
+    is_admin BOOLEAN;
+BEGIN
+    SELECT EXISTS(
+        SELECT 1 FROM public.administradores WHERE LOWER(email) = LOWER(p_email)
+    ) INTO is_admin;
+
+    IF NOT is_admin THEN
+        RAISE EXCEPTION 'Acceso denegado: El usuario no es administrador.';
+    END IF;
+
+    RETURN QUERY
+    SELECT r.id, r.fecha, r.creado_por 
+    FROM public.respaldos_seguridad r
+    ORDER BY r.fecha DESC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- RPC to fetch backup snapshots (SECURITY DEFINER)
+CREATE OR REPLACE FUNCTION obtener_respaldo_seguridad_detalle(p_email TEXT, p_respaldo_id INT)
+RETURNS TABLE (
+    productos_snapshot JSONB,
+    movimientos_snapshot JSONB
+) AS $$
+DECLARE
+    is_admin BOOLEAN;
+BEGIN
+    SELECT EXISTS(
+        SELECT 1 FROM public.administradores WHERE LOWER(email) = LOWER(p_email)
+    ) INTO is_admin;
+
+    IF NOT is_admin THEN
+        RAISE EXCEPTION 'Acceso denegado: El usuario no es administrador.';
+    END IF;
+
+    RETURN QUERY
+    SELECT r.productos_snapshot, r.movimientos_snapshot 
+    FROM public.respaldos_seguridad r
+    WHERE r.id = p_respaldo_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

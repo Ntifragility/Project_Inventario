@@ -216,14 +216,12 @@ export default function Config({ user }) {
   const fetchBackups = async () => {
     setLoadingBackups(true);
     try {
-      const { data, error } = await supabase
-        .from('respaldos_seguridad')
-        .select('id, fecha, creado_por')
-        .order('fecha', { ascending: false });
+      const { data, error } = await supabase.rpc('listar_respaldos_seguridad', { p_email: user?.email });
       if (error) throw error;
       setBackupsList(data || []);
     } catch (err) {
       console.error('Error fetching backups list:', err);
+      alert('Error al listar respaldos: ' + err.message);
     } finally {
       setLoadingBackups(false);
     }
@@ -246,16 +244,16 @@ export default function Config({ user }) {
 
   const downloadBackupAsExcel = async (backupId, backupFecha) => {
     try {
-      const { data, error } = await supabase
-        .from('respaldos_seguridad')
-        .select('productos_snapshot, movimientos_snapshot')
-        .eq('id', backupId)
-        .single();
+      const { data, error } = await supabase.rpc('obtener_respaldo_seguridad_detalle', {
+        p_email: user?.email,
+        p_respaldo_id: backupId
+      });
       if (error) throw error;
-      if (!data) throw new Error('No se encontró el respaldo.');
+      if (!data || data.length === 0) throw new Error('No se encontró el respaldo.');
 
-      const prods = data.productos_snapshot || [];
-      const movs = data.movimientos_snapshot || [];
+      const backupObj = data[0];
+      const prods = backupObj.productos_snapshot || [];
+      const movs = backupObj.movimientos_snapshot || [];
 
       // Format Products Sheet Data
       const formattedProds = prods.map(p => ({
