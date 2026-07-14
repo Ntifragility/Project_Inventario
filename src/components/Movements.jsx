@@ -2056,16 +2056,6 @@ export default function Movements({ user }) {
 
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <button 
-                      className="btn-floating-action btn-floating-edit" 
-                      style={{ opacity: selectedIds.length === 1 ? 1 : 0.4, cursor: selectedIds.length === 1 ? 'pointer' : 'not-allowed' }}
-                      onClick={handleBulkEditClick}
-                      disabled={selectedIds.length !== 1}
-                      title={selectedIds.length === 1 ? "Editar movimiento" : "Seleccione exactamente 1 elemento para editar"}
-                    >
-                      <Pencil size={14} />
-                      <span>Editar</span>
-                    </button>
-                    <button 
                       className="btn-floating-action btn-floating-delete" 
                       onClick={handleBulkDeleteClick}
                     >
