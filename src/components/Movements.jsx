@@ -48,6 +48,7 @@ export default function Movements({ user }) {
   // Movements History Admin States
   const [adminDni, setAdminDni] = useState('');
   const [ledgerMovements, setLedgerMovements] = useState([]);
+  const [selectedIds, setSelectedIds] = useState([]);
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [ledgerError, setLedgerError] = useState('');
   const [ledgerMsg, setLedgerMsg] = useState({ text: '', type: '' });
@@ -131,6 +132,7 @@ export default function Movements({ user }) {
       }
 
       setLedgerMovements(formatted);
+      setSelectedIds([]); // Clear selection when list is updated
       setLedgerPage(1);
     } catch (err) {
       console.error('Error fetching movements ledger:', err);
@@ -164,6 +166,25 @@ export default function Movements({ user }) {
     setShowDeleteModal(true);
   };
 
+  // Handle Bulk Delete Click
+  const handleBulkDeleteClick = () => {
+    const selectedMovs = ledgerMovements.filter(m => selectedIds.includes(m.id));
+    if (selectedMovs.length === 0) return;
+    setActionTarget(selectedMovs);
+    setActionDni(adminDni);
+    setActionError('');
+    setShowDeleteModal(true);
+  };
+
+  // Handle Bulk Edit Click
+  const handleBulkEditClick = () => {
+    if (selectedIds.length !== 1) return;
+    const targetMov = ledgerMovements.find(m => m.id === selectedIds[0]);
+    if (targetMov) {
+      handleEditClick(targetMov);
+    }
+  };
+
   // Confirm Delete Action
   const handleConfirmDelete = async () => {
     if (!actionTarget) return;
@@ -176,15 +197,50 @@ export default function Movements({ user }) {
     setActionLoading(true);
     setActionError('');
     try {
-      const { error } = await supabase.rpc('eliminar_movimiento_autorizado', {
-        p_movimiento_id: actionTarget.id,
-        p_admin_dni: finalDni
-      });
+      const isBulk = Array.isArray(actionTarget);
+      const targets = isBulk ? actionTarget : [actionTarget];
+      
+      let successCount = 0;
+      let failCount = 0;
+      let lastErrorMessage = '';
 
-      if (error) throw error;
+      for (const mov of targets) {
+        try {
+          const { error } = await supabase.rpc('eliminar_movimiento_autorizado', {
+            p_movimiento_id: mov.id,
+            p_admin_dni: finalDni
+          });
+          if (error) throw error;
+          successCount++;
+        } catch (err) {
+          console.error(`Error deleting movement ${mov.id}:`, err);
+          failCount++;
+          lastErrorMessage = err.message || 'Error desconocido';
+        }
+      }
 
       setAdminDni(finalDni);
-      setLedgerMsg({ text: 'Movimiento eliminado correctamente. El stock ha sido recalculado.', type: 'success' });
+      
+      if (isBulk) {
+        if (failCount === 0) {
+          setLedgerMsg({ 
+            text: `${successCount} movimientos eliminados correctamente. El stock ha sido recalculado.`, 
+            type: 'success' 
+          });
+          setSelectedIds([]);
+        } else {
+          setLedgerMsg({ 
+            text: `${successCount} eliminados con éxito. ${failCount} fallaron (Último error: ${lastErrorMessage}). El stock ha sido recalculado.`, 
+            type: 'warning' 
+          });
+          const successfulIds = targets.slice(0, successCount).map(t => t.id);
+          setSelectedIds(prev => prev.filter(id => !successfulIds.includes(id)));
+        }
+      } else {
+        if (failCount > 0) throw new Error(lastErrorMessage);
+        setLedgerMsg({ text: 'Movimiento eliminado correctamente. El stock ha sido recalculado.', type: 'success' });
+      }
+
       setShowDeleteModal(false);
       setActionTarget(null);
       fetchLedgerMovements();
@@ -1742,6 +1798,31 @@ export default function Movements({ user }) {
                 <table>
                   <thead>
                     <tr>
+                      <th style={{ width: '40px', textAlign: 'center' }}>
+                        {(() => {
+                          const totalPages = Math.max(1, Math.ceil(ledgerMovements.length / ledgerRowsPerPage));
+                          const safePage = Math.min(ledgerPage, totalPages);
+                          const startIdx = (safePage - 1) * ledgerRowsPerPage;
+                          const pageData = ledgerMovements.slice(startIdx, startIdx + ledgerRowsPerPage);
+                          const isAllSelected = pageData.length > 0 && pageData.every(m => selectedIds.includes(m.id));
+                          return (
+                            <input 
+                              type="checkbox" 
+                              checked={isAllSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  const newIds = Array.from(new Set([...selectedIds, ...pageData.map(m => m.id)]));
+                                  setSelectedIds(newIds);
+                                } else {
+                                  const pageIds = pageData.map(m => m.id);
+                                  setSelectedIds(selectedIds.filter(id => !pageIds.includes(id)));
+                                }
+                              }}
+                              style={{ margin: 0, cursor: 'pointer' }}
+                            />
+                          );
+                        })()}
+                      </th>
                       <th>Fecha</th>
                       <th>ID Producto</th>
                       <th>Producto</th>
@@ -1784,8 +1865,24 @@ export default function Movements({ user }) {
                             tipoClass = 'text-info';
                         }
 
+                        const isSelected = selectedIds.includes(m.id);
+
                         return (
-                          <tr key={m.id}>
+                          <tr key={m.id} style={{ background: isSelected ? 'rgba(59, 130, 246, 0.08)' : '' }}>
+                            <td style={{ textAlign: 'center' }} data-label="Seleccionar">
+                              <input 
+                                type="checkbox" 
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedIds([...selectedIds, m.id]);
+                                  } else {
+                                    setSelectedIds(selectedIds.filter(id => id !== m.id));
+                                  }
+                                }}
+                                style={{ margin: 0, cursor: 'pointer' }}
+                              />
+                            </td>
                             <td data-label="Fecha"><span>{m.fecha}</span></td>
                             <td data-label="ID Producto"><strong>{m.codigo}</strong></td>
                             <td data-label="Producto"><span>{m.producto}</span></td>
@@ -1820,6 +1917,74 @@ export default function Movements({ user }) {
                   </tbody>
                 </table>
               </div>
+
+              {/* Floating Action Bar */}
+              {selectedIds.length > 0 && (
+                <div style={{
+                  position: 'fixed',
+                  bottom: '24px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--primary)',
+                  boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
+                  padding: '12px 24px',
+                  borderRadius: '30px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '20px',
+                  zIndex: 1000,
+                  boxSizing: 'border-box'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ 
+                      background: 'rgba(59, 130, 246, 0.15)', 
+                      color: 'var(--primary)', 
+                      padding: '4px 10px', 
+                      borderRadius: '12px', 
+                      fontSize: '0.8rem',
+                      fontWeight: '700'
+                    }}>
+                      {selectedIds.length}
+                    </span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)' }}>seleccionados</span>
+                  </div>
+
+                  <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }}></div>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button 
+                      className="btn btn-secondary" 
+                      style={{ padding: '6px 12px', fontSize: '0.8rem', opacity: selectedIds.length === 1 ? 1 : 0.5, cursor: selectedIds.length === 1 ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: '6px' }}
+                      onClick={handleBulkEditClick}
+                      disabled={selectedIds.length !== 1}
+                      title={selectedIds.length === 1 ? "Editar movimiento" : "Seleccione exactamente 1 elemento para editar"}
+                    >
+                      <Pencil size={14} />
+                      <span>Editar</span>
+                    </button>
+                    <button 
+                      className="btn btn-danger" 
+                      style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                      onClick={handleBulkDeleteClick}
+                    >
+                      <Trash2 size={14} />
+                      <span>Eliminar</span>
+                    </button>
+                  </div>
+
+                  <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }}></div>
+
+                  <button 
+                    className="btn btn-secondary" 
+                    style={{ padding: '4px 8px', fontSize: '0.8rem', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                    onClick={() => setSelectedIds([])}
+                  >
+                    <X size={14} />
+                    <span>Desmarcar todo</span>
+                  </button>
+                </div>
+              )}
 
               {/* Pagination Controls */}
               {(() => {
@@ -1944,15 +2109,25 @@ export default function Movements({ user }) {
             </div>
             <div className="card-body" style={{ padding: '24px' }}>
               <p style={{ marginBottom: '16px', lineHeight: '1.5', fontSize: '0.9rem' }}>
-                ¿Está seguro de que desea eliminar permanentemente este registro de movimiento?
-                <br /><br />
-                <strong>Detalles:</strong>
-                <br />
-                • Producto: <strong>{actionTarget.codigo}</strong> - {actionTarget.producto}
-                <br />
-                • Tipo: {actionTarget.tipo} | Cantidad: {actionTarget.cantidad}
-                <br />
-                • Clave: {actionTarget.key}
+                {Array.isArray(actionTarget) ? (
+                  <>
+                    ¿Está seguro de que desea eliminar permanentemente los <strong>{actionTarget.length}</strong> registros de movimiento seleccionados?
+                    <br /><br />
+                    <strong>Esta acción es irreversible y recalculará el stock de todos los productos afectados.</strong>
+                  </>
+                ) : (
+                  <>
+                    ¿Está seguro de que desea eliminar permanentemente este registro de movimiento?
+                    <br /><br />
+                    <strong>Detalles:</strong>
+                    <br />
+                    • Producto: <strong>{actionTarget.codigo}</strong> - {actionTarget.producto}
+                    <br />
+                    • Tipo: {actionTarget.tipo} | Cantidad: {actionTarget.cantidad}
+                    <br />
+                    • Clave: {actionTarget.key}
+                  </>
+                )}
               </p>
 
               {!adminDni && (
