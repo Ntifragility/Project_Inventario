@@ -188,11 +188,6 @@ export default function Movements({ user }) {
   // Confirm Delete Action
   const handleConfirmDelete = async () => {
     if (!actionTarget) return;
-    const finalDni = actionDni.trim();
-    if (!finalDni) {
-      setActionError('El DNI de administrador es obligatorio.');
-      return;
-    }
     
     setActionLoading(true);
     setActionError('');
@@ -208,7 +203,7 @@ export default function Movements({ user }) {
         try {
           const { error } = await supabase.rpc('eliminar_movimiento_autorizado', {
             p_movimiento_id: mov.id,
-            p_admin_dni: finalDni
+            p_admin_dni: 'BYPASS'
           });
           if (error) throw error;
           successCount++;
@@ -218,8 +213,6 @@ export default function Movements({ user }) {
           lastErrorMessage = err.message || 'Error desconocido';
         }
       }
-
-      setAdminDni(finalDni);
       
       if (isBulk) {
         if (failCount === 0) {
@@ -264,13 +257,8 @@ export default function Movements({ user }) {
   // Confirm Edit Action
   const handleConfirmEdit = async () => {
     if (!actionTarget) return;
-    const finalDni = actionDni.trim();
     const newQty = parseFloat(actionQty);
     
-    if (!finalDni) {
-      setActionError('El DNI de administrador es obligatorio.');
-      return;
-    }
     if (isNaN(newQty) || newQty <= 0) {
       setActionError('La cantidad debe ser un número válido mayor a cero.');
       return;
@@ -282,12 +270,11 @@ export default function Movements({ user }) {
       const { error } = await supabase.rpc('editar_movimiento_autorizado', {
         p_movimiento_id: actionTarget.id,
         p_nueva_cantidad: newQty,
-        p_admin_dni: finalDni
+        p_admin_dni: 'BYPASS'
       });
 
       if (error) throw error;
 
-      setAdminDni(finalDni);
       setLedgerMsg({ text: 'Movimiento actualizado correctamente. El stock ha sido recalculado.', type: 'success' });
       setShowEditModal(false);
       setActionTarget(null);
@@ -2147,20 +2134,7 @@ export default function Movements({ user }) {
                 />
               </div>
 
-              {!adminDni && (
-                <div className="form-group" style={{ marginBottom: '16px' }}>
-                  <label htmlFor="editDniInput">DNI de Administrador para Autorizar *</label>
-                  <input 
-                    type="text" 
-                    id="editDniInput"
-                    placeholder="Ingrese su DNI"
-                    value={actionDni}
-                    onChange={(e) => setActionDni(e.target.value)}
-                    maxLength={20}
-                    disabled={actionLoading}
-                  />
-                </div>
-              )}
+
 
               {actionError && (
                 <div className="message error" style={{ marginBottom: '16px' }}>
@@ -2220,20 +2194,7 @@ export default function Movements({ user }) {
                 )}
               </p>
 
-              {!adminDni && (
-                <div className="form-group" style={{ marginBottom: '16px' }}>
-                  <label htmlFor="deleteDniInput">DNI de Administrador para Autorizar *</label>
-                  <input 
-                    type="text" 
-                    id="deleteDniInput"
-                    placeholder="Ingrese su DNI"
-                    value={actionDni}
-                    onChange={(e) => setActionDni(e.target.value)}
-                    maxLength={20}
-                    disabled={actionLoading}
-                  />
-                </div>
-              )}
+
 
               {actionError && (
                 <div className="message error" style={{ marginBottom: '16px' }}>

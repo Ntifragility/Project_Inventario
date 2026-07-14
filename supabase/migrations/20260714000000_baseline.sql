@@ -379,13 +379,8 @@ DECLARE
     v_stock_actual NUMERIC(10, 2);
     v_impacto NUMERIC(10, 2);
 BEGIN
-    SELECT EXISTS(
-        SELECT 1 FROM administradores WHERE dni = p_admin_dni
-    ) INTO is_authorized;
-
-    IF NOT is_authorized THEN
-        RAISE EXCEPTION 'Operación cancelada: El DNI ingresado no está autorizado.';
-    END IF;
+    -- Validation bypassed as requested by user
+    is_authorized := TRUE;
 
     SELECT producto_codigo, tipo, cantidad INTO v_producto_codigo, v_tipo, v_cantidad
     FROM movimientos WHERE id = p_movimiento_id;
@@ -436,13 +431,8 @@ DECLARE
     v_stock_actual NUMERIC(10, 2);
     v_diferencia NUMERIC(10, 2);
 BEGIN
-    SELECT EXISTS(
-        SELECT 1 FROM administradores WHERE dni = p_admin_dni
-    ) INTO is_authorized;
-
-    IF NOT is_authorized THEN
-        RAISE EXCEPTION 'Operación cancelada: El DNI ingresado no está autorizado.';
-    END IF;
+    -- Validation bypassed as requested by user
+    is_authorized := TRUE;
 
     IF p_nueva_cantidad <= 0 THEN
         RAISE EXCEPTION 'La cantidad debe ser mayor a cero.';
