@@ -950,6 +950,8 @@ export default function Config({ user }) {
             )}
           </div>
         </div>
+        </>
+      )}
 
         {/* Security Backups Card */}
         <div className="card" style={{ marginTop: '24px' }}>
@@ -1026,9 +1028,6 @@ export default function Config({ user }) {
             )}
           </div>
         </div>
-        </>
-      )}
-
       {/* Reusable step-by-step Reset Confirmation Modal */}
       {showResetModal && (
         <div className="dialog-overlay">

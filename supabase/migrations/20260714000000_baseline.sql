@@ -645,11 +645,11 @@ CREATE TABLE IF NOT EXISTS respaldos_seguridad (
 -- Enable RLS on backing table
 ALTER TABLE respaldos_seguridad ENABLE ROW LEVEL SECURITY;
 
--- Allow only authenticated administrators to select backups
+-- Allow any authenticated user to select backups
 DROP POLICY IF EXISTS "respaldos_select_policy" ON respaldos_seguridad;
 CREATE POLICY "respaldos_select_policy" ON respaldos_seguridad 
     FOR SELECT TO authenticated 
-    USING (EXISTS (SELECT 1 FROM administradores WHERE LOWER(email) = LOWER(auth.jwt() ->> 'email')));
+    USING (true);
 
 -- 2. Create the snapshot function
 CREATE OR REPLACE FUNCTION crear_respaldo_seguridad(p_creado_por TEXT DEFAULT 'Sistema (Automático)')
@@ -679,17 +679,7 @@ RETURNS TABLE (
     fecha TIMESTAMPTZ,
     creado_por TEXT
 ) AS $$
-DECLARE
-    is_admin BOOLEAN;
 BEGIN
-    SELECT EXISTS(
-        SELECT 1 FROM public.administradores WHERE LOWER(email) = LOWER(p_email)
-    ) INTO is_admin;
-
-    IF NOT is_admin THEN
-        RAISE EXCEPTION 'Acceso denegado: El usuario no es administrador.';
-    END IF;
-
     RETURN QUERY
     SELECT r.id, r.fecha, r.creado_por 
     FROM public.respaldos_seguridad r
@@ -704,17 +694,7 @@ RETURNS TABLE (
     productos_snapshot JSONB,
     movimientos_snapshot JSONB
 ) AS $$
-DECLARE
-    is_admin BOOLEAN;
 BEGIN
-    SELECT EXISTS(
-        SELECT 1 FROM public.administradores WHERE LOWER(email) = LOWER(p_email)
-    ) INTO is_admin;
-
-    IF NOT is_admin THEN
-        RAISE EXCEPTION 'Acceso denegado: El usuario no es administrador.';
-    END IF;
-
     RETURN QUERY
     SELECT r.productos_snapshot, r.movimientos_snapshot 
     FROM public.respaldos_seguridad r
