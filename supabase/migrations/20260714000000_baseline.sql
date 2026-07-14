@@ -96,7 +96,6 @@ DROP POLICY IF EXISTS "Allow anonymous access on unidades" ON unidades;
 DROP POLICY IF EXISTS "Allow authenticated access on unidades" ON unidades;
 DROP POLICY IF EXISTS "unidades_select" ON unidades;
 CREATE POLICY "unidades_select" ON unidades FOR SELECT TO authenticated USING (true);
--- INSERT/UPDATE/DELETE blocked by RLS (only manageable via Supabase dashboard / service key)
 
 -- ── 4b. grupos: Read-only for all authenticated users (lookup table) ──
 DROP POLICY IF EXISTS "Allow anonymous access on grupos" ON grupos;
@@ -115,7 +114,6 @@ DROP POLICY IF EXISTS "productos_delete" ON productos;
 CREATE POLICY "productos_select" ON productos FOR SELECT TO authenticated USING (true);
 CREATE POLICY "productos_insert" ON productos FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY "productos_update" ON productos FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
--- DELETE is intentionally not granted via RLS; only SECURITY DEFINER functions (like reset) can delete.
 
 -- ── 4d. movimientos: SELECT + INSERT for all authenticated; no direct UPDATE/DELETE ──
 DROP POLICY IF EXISTS "Allow anonymous access on movimientos" ON movimientos;
@@ -126,9 +124,7 @@ DROP POLICY IF EXISTS "movimientos_update" ON movimientos;
 
 CREATE POLICY "movimientos_select" ON movimientos FOR SELECT TO authenticated USING (true);
 CREATE POLICY "movimientos_insert" ON movimientos FOR INSERT TO authenticated WITH CHECK (true);
--- UPDATE is allowed only for upsert operations (import ingresos uses upsert on 'key' conflict)
 CREATE POLICY "movimientos_update" ON movimientos FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
--- DELETE is intentionally not granted; only SECURITY DEFINER functions can delete.
 
 -- ═══════════════════════════════════════════════════════════════
 -- 5. ADMINISTRATORS TABLE (for secure DNI verification)
@@ -142,7 +138,6 @@ CREATE TABLE IF NOT EXISTS administradores (
 );
 
 ALTER TABLE administradores ENABLE ROW LEVEL SECURITY;
--- No policies = no direct client access (secure by default)
 
 INSERT INTO administradores (dni, nombre) VALUES
 ('48204199', 'Administrador Principal 1'),
@@ -166,7 +161,6 @@ DROP POLICY IF EXISTS "Allow anonymous access on historial_resets" ON historial_
 DROP POLICY IF EXISTS "Allow authenticated access on historial_resets" ON historial_resets;
 DROP POLICY IF EXISTS "historial_resets_select" ON historial_resets;
 CREATE POLICY "historial_resets_select" ON historial_resets FOR SELECT TO authenticated USING (true);
--- INSERT only via SECURITY DEFINER functions
 
 -- ═══════════════════════════════════════════════════════════════
 -- 7. RATE-LIMITED RESET RPC (SEC-3)
@@ -178,7 +172,6 @@ DECLARE
     is_authorized BOOLEAN;
     recent_attempts INT;
 BEGIN
-    -- Rate limit: max 3 reset attempts per hour
     SELECT COUNT(*) INTO recent_attempts
     FROM historial_resets
     WHERE fecha > (NOW() - INTERVAL '1 hour');
@@ -187,21 +180,17 @@ BEGIN
         RAISE EXCEPTION 'Demasiados intentos de restablecimiento. Intente nuevamente en 1 hora.';
     END IF;
 
-    -- Validate DNI against secure database table
     SELECT EXISTS(
         SELECT 1 FROM administradores WHERE dni = admin_dni
     ) INTO is_authorized;
 
     IF NOT is_authorized THEN
-        -- Still log the failed attempt to count towards rate limit
         INSERT INTO historial_resets (dni, user_id) VALUES (admin_dni, auth.uid());
         RAISE EXCEPTION 'Operación cancelada: El DNI ingresado no está autorizado.';
     END IF;
 
-    -- Log the authorized reset with user identity
     INSERT INTO historial_resets (dni, user_id) VALUES (admin_dni, auth.uid());
 
-    -- Delete movements and products safely
     DELETE FROM movimientos WHERE id IS NOT NULL;
     DELETE FROM productos WHERE codigo IS NOT NULL;
 END;
@@ -226,13 +215,11 @@ DECLARE
     final_key VARCHAR(50);
     result JSONB;
 BEGIN
-    -- Validate product exists (with row-level lock to prevent concurrent modifications)
     PERFORM 1 FROM productos WHERE codigo = p_producto_codigo FOR UPDATE;
     IF NOT FOUND THEN
         RETURN jsonb_build_object('success', false, 'error', 'El producto no existe.');
     END IF;
 
-    -- Calculate current stock atomically
     SELECT COALESCE(SUM(
         CASE 
             WHEN tipo IN ('INGRESO', 'AJUSTE_POSITIVO', 'AJUSTE') THEN cantidad
@@ -243,7 +230,6 @@ BEGIN
     FROM movimientos
     WHERE producto_codigo = p_producto_codigo;
 
-    -- Validate stock for outgoing movements
     IF p_tipo IN ('SALIDA', 'AJUSTE_NEGATIVO') AND stock_actual < p_cantidad THEN
         RETURN jsonb_build_object(
             'success', false,
@@ -251,22 +237,18 @@ BEGIN
         );
     END IF;
 
-    -- Handle transaction key
     IF p_key IS NOT NULL AND p_key != '' AND p_key != 'Automatico' THEN
-        -- Check for duplicate key
         PERFORM 1 FROM movimientos WHERE key = p_key;
         IF FOUND THEN
             RETURN jsonb_build_object('success', false, 'error', 'Esta clave de transacción ya ha sido registrada.');
         END IF;
         final_key := p_key;
     ELSE
-        -- Generate a unique key
         final_key := upper(substr(md5(random()::text || clock_timestamp()::text), 1, 10))
                   || '-' || upper(substr(md5(random()::text), 1, 3))
                   || '-' || upper(substr(md5(random()::text), 1, 2));
     END IF;
 
-    -- Insert the movement
     INSERT INTO movimientos (producto_codigo, fecha, tipo, cantidad, usuario, observaciones, key)
     VALUES (p_producto_codigo, p_fecha, p_tipo, p_cantidad, p_usuario, p_observaciones, final_key);
 
@@ -294,9 +276,7 @@ ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "audit_log_select" ON audit_log;
 CREATE POLICY "audit_log_select" ON audit_log FOR SELECT TO authenticated USING (true);
--- INSERT only via triggers (SECURITY DEFINER context)
 
--- Trigger function for productos
 CREATE OR REPLACE FUNCTION audit_productos_trigger()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -322,7 +302,6 @@ CREATE TRIGGER audit_productos
     AFTER INSERT OR UPDATE OR DELETE ON productos
     FOR EACH ROW EXECUTE FUNCTION audit_productos_trigger();
 
--- Trigger function for movimientos
 CREATE OR REPLACE FUNCTION audit_movimientos_trigger()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -360,17 +339,14 @@ DECLARE
     invalid_tipo_count INT;
     result JSONB;
 BEGIN
-    -- Check for orphaned movements (producto_codigo not in productos)
     SELECT COUNT(*) INTO orphaned_movements
     FROM movimientos m
     WHERE NOT EXISTS (SELECT 1 FROM productos p WHERE p.codigo = m.producto_codigo);
 
-    -- Check for products with negative calculated stock
     SELECT COUNT(*) INTO negative_stock_count
     FROM v_productos_stock
     WHERE cantidad < 0;
 
-    -- Check for movements with invalid tipo values
     SELECT COUNT(*) INTO invalid_tipo_count
     FROM movimientos
     WHERE tipo NOT IN ('INGRESO', 'SALIDA', 'AJUSTE_POSITIVO', 'AJUSTE_NEGATIVO', 'AJUSTE');
@@ -403,7 +379,6 @@ DECLARE
     v_stock_actual NUMERIC(10, 2);
     v_impacto NUMERIC(10, 2);
 BEGIN
-    -- 1. Validate DNI against administrators table
     SELECT EXISTS(
         SELECT 1 FROM administradores WHERE dni = p_admin_dni
     ) INTO is_authorized;
@@ -412,7 +387,6 @@ BEGIN
         RAISE EXCEPTION 'Operación cancelada: El DNI ingresado no está autorizado.';
     END IF;
 
-    -- 2. Get movement details and lock product row
     SELECT producto_codigo, tipo, cantidad INTO v_producto_codigo, v_tipo, v_cantidad
     FROM movimientos WHERE id = p_movimiento_id;
     
@@ -422,7 +396,6 @@ BEGIN
 
     PERFORM 1 FROM productos WHERE codigo = v_producto_codigo FOR UPDATE;
 
-    -- 3. Calculate current stock
     SELECT COALESCE(SUM(
         CASE 
             WHEN tipo IN ('INGRESO', 'AJUSTE_POSITIVO', 'AJUSTE') THEN cantidad
@@ -433,20 +406,17 @@ BEGIN
     FROM movimientos
     WHERE producto_codigo = v_producto_codigo;
 
-    -- 4. Calculate stock impact if deleted
     IF v_tipo IN ('INGRESO', 'AJUSTE_POSITIVO', 'AJUSTE') THEN
         v_impacto := -v_cantidad;
     ELSE
         v_impacto := v_cantidad;
     END IF;
 
-    -- 5. Block deletion if remaining stock would be negative
     IF (v_stock_actual + v_impacto) < 0 THEN
         RAISE EXCEPTION 'No se puede eliminar el movimiento: dejaría al producto % con stock negativo (Disponible: %, Reducción: %).', 
             v_producto_codigo, v_stock_actual, ABS(v_impacto);
     END IF;
 
-    -- 6. Execute delete
     DELETE FROM movimientos WHERE id = p_movimiento_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -466,7 +436,6 @@ DECLARE
     v_stock_actual NUMERIC(10, 2);
     v_diferencia NUMERIC(10, 2);
 BEGIN
-    -- 1. Validate DNI
     SELECT EXISTS(
         SELECT 1 FROM administradores WHERE dni = p_admin_dni
     ) INTO is_authorized;
@@ -479,7 +448,6 @@ BEGIN
         RAISE EXCEPTION 'La cantidad debe ser mayor a cero.';
     END IF;
 
-    -- 2. Get current movement details and lock product row
     SELECT producto_codigo, tipo, cantidad INTO v_producto_codigo, v_tipo, v_cantidad_anterior
     FROM movimientos WHERE id = p_movimiento_id;
 
@@ -489,7 +457,6 @@ BEGIN
 
     PERFORM 1 FROM productos WHERE codigo = v_producto_codigo FOR UPDATE;
 
-    -- 3. Calculate current stock
     SELECT COALESCE(SUM(
         CASE 
             WHEN tipo IN ('INGRESO', 'AJUSTE_POSITIVO', 'AJUSTE') THEN cantidad
@@ -500,20 +467,17 @@ BEGIN
     FROM movimientos
     WHERE producto_codigo = v_producto_codigo;
 
-    -- 4. Calculate net difference
     IF v_tipo IN ('INGRESO', 'AJUSTE_POSITIVO', 'AJUSTE') THEN
         v_diferencia := p_nueva_cantidad - v_cantidad_anterior;
     ELSE
         v_diferencia := v_cantidad_anterior - p_nueva_cantidad;
     END IF;
 
-    -- 5. Validate stock safety
     IF (v_stock_actual + v_diferencia) < 0 THEN
         RAISE EXCEPTION 'No se puede editar el movimiento: el cambio dejaría al producto % con stock negativo (Stock actual: %, Impacto neto: %).', 
             v_producto_codigo, v_stock_actual, v_diferencia;
     END IF;
 
-    -- 6. Perform update
     UPDATE movimientos 
     SET cantidad = p_nueva_cantidad
     WHERE id = p_movimiento_id;
@@ -543,7 +507,6 @@ RETURNS VOID AS $$
 DECLARE
     is_authorized BOOLEAN;
 BEGIN
-    -- 1. Validate that the person initiating the request is an admin
     SELECT EXISTS(
         SELECT 1 FROM administradores WHERE dni = p_admin_dni_autorizador
     ) INTO is_authorized;
@@ -552,7 +515,6 @@ BEGIN
         RAISE EXCEPTION 'Operación cancelada: El DNI autorizador no tiene permisos de administrador.';
     END IF;
 
-    -- 2. Insert new admin
     INSERT INTO administradores (dni, nombre, email)
     VALUES (p_nuevo_dni, p_nuevo_nombre, LOWER(p_nuevo_email))
     ON CONFLICT (dni) DO UPDATE 
@@ -648,5 +610,3 @@ BEGIN
     DELETE FROM auth.users WHERE id = p_user_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
-

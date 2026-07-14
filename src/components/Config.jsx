@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabase';
 import { createClient } from '@supabase/supabase-js';
-import { Settings, ShieldAlert, CheckCircle2, AlertCircle, X, HelpCircle, UserPlus, Shield, Mail, KeyRound } from 'lucide-react';
+import { Settings, ShieldAlert, CheckCircle2, AlertCircle, X, HelpCircle, UserPlus, Shield, Mail, KeyRound, Trash2, ShieldCheck, User, UserMinus } from 'lucide-react';
 
 export default function Config({ user }) {
   const [resultMsg, setResultMsg] = useState({ text: '', type: '' });
@@ -24,6 +24,16 @@ export default function Config({ user }) {
   const [newAdminNombre, setNewAdminNombre] = useState('');
   const [userMsg, setUserMsg] = useState({ text: '', type: '' });
   const [creatingUser, setCreatingUser] = useState(false);
+
+  // New user management states
+  const [usersList, setUsersList] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [promotingUser, setPromotingUser] = useState(null);
+  const [promoDni, setPromoDni] = useState('');
+  const [promoNombre, setPromoNombre] = useState('');
+  const [promoError, setPromoError] = useState('');
+  const [promotingAction, setPromotingAction] = useState(false);
 
   // User management auto-unlock states
   const [isAdminUser, setIsAdminUser] = useState(false);
@@ -143,6 +153,106 @@ export default function Config({ user }) {
     }
   };
 
+  const fetchUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const { data, error } = await supabase.rpc('listar_usuarios_sistema');
+      if (error) throw error;
+      setUsersList(data || []);
+    } catch (err) {
+      console.error('Error fetching users:', err);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const handlePromoteSubmit = async (e) => {
+    e.preventDefault();
+    setPromoError('');
+    setPromotingAction(true);
+
+    const dniVal = promoDni.trim();
+    const nombreVal = promoNombre.trim();
+
+    if (!dniVal || dniVal.length !== 8 || !/^\d+$/.test(dniVal)) {
+      setPromoError('El DNI debe tener exactamente 8 dígitos.');
+      setPromotingAction(false);
+      return;
+    }
+
+    if (!nombreVal) {
+      setPromoError('El nombre es obligatorio.');
+      setPromotingAction(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.rpc('asignar_administrador', {
+        p_user_email: promotingUser.email,
+        p_dni: dniVal,
+        p_nombre: nombreVal
+      });
+
+      if (error) throw error;
+
+      setPromotingUser(null);
+      setPromoDni('');
+      setPromoNombre('');
+      fetchUsers();
+    } catch (err) {
+      console.error('Error promoting user:', err);
+      setPromoError('Error al asignar administrador: ' + err.message);
+    } finally {
+      setPromotingAction(false);
+    }
+  };
+
+  const handleDemoteUser = async (adminDni, adminEmail) => {
+    if (adminEmail.toLowerCase() === user?.email?.toLowerCase()) {
+      alert('No puedes quitarte los privilegios de administrador a ti mismo.');
+      return;
+    }
+
+    if (!window.confirm(`¿Está seguro de que desea quitar los privilegios de administrador a ${adminEmail}?`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase.rpc('revocar_administrador', {
+        p_dni: adminDni
+      });
+
+      if (error) throw error;
+      fetchUsers();
+    } catch (err) {
+      console.error('Error demoting user:', err);
+      alert('Error al quitar privilegios: ' + err.message);
+    }
+  };
+
+  const handleDeleteUser = async (userId, email) => {
+    if (email.toLowerCase() === user?.email?.toLowerCase()) {
+      alert('No puedes eliminar tu propia cuenta.');
+      return;
+    }
+
+    if (!window.confirm(`¿Está seguro de que desea eliminar permanentemente al usuario ${email}? Esta acción es irreversible.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase.rpc('eliminar_usuario_sistema', {
+        p_user_id: userId
+      });
+
+      if (error) throw error;
+      fetchUsers();
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      alert('Error al eliminar usuario: ' + err.message);
+    }
+  };
+
   // Effect to automatically verify if the logged-in user is an administrator
   React.useEffect(() => {
     const checkAdminStatus = async () => {
@@ -159,6 +269,7 @@ export default function Config({ user }) {
         if (adminDni) {
           setIsAdminUser(true);
           setUserAdminDni(adminDni); // Pre-fill authorizing DNI
+          fetchUsers();
         } else {
           setIsAdminUser(false);
         }
@@ -240,7 +351,8 @@ export default function Config({ user }) {
         const { error: makeAdminError } = await supabase.rpc('crear_administrador_autorizado', {
           p_admin_dni_autorizador: authorizingDni,
           p_nuevo_dni: adminDniVal,
-          p_nuevo_nombre: adminNombreVal
+          p_nuevo_nombre: adminNombreVal,
+          p_nuevo_email: email
         });
         if (makeAdminError) throw makeAdminError;
       }
@@ -250,8 +362,11 @@ export default function Config({ user }) {
         type: 'success'
       });
 
+      // Refresh list
+      fetchUsers();
+      setShowCreateForm(false); // Auto-close form to show list
+
       // Clear fields
-      setUserAdminDni('');
       setNewUserEmail('');
       setNewUserPassword('');
       setMakeAdmin(false);
@@ -319,119 +434,268 @@ export default function Config({ user }) {
       {/* User Account Assignment Card */}
       {!checkingAdmin && isAdminUser && (
         <div className="card" style={{ marginTop: '24px' }}>
-          <div className="card-header">
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <UserPlus size={18} />
               <span>Gestión de Usuarios</span>
             </div>
+            <button 
+              className="btn btn-primary" 
+              style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+              onClick={() => {
+                setShowCreateForm(!showCreateForm);
+                setUserMsg({ text: '', type: '' });
+              }}
+            >
+              {showCreateForm ? 'Ver Lista de Usuarios' : 'Registrar Nuevo Usuario'}
+            </button>
           </div>
           <div className="card-body">
-            <form onSubmit={handleCreateUser}>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label htmlFor="authAdminDni" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Shield size={16} style={{ color: 'var(--danger)' }} />
-                    <span>DNI Autorizador *</span>
-                  </label>
-                  <input 
-                    type="text" 
-                    id="authAdminDni" 
-                    placeholder="DNI de Administrador"
-                    value={userAdminDni}
-                    readOnly
-                    required 
-                  />
-                </div>
+            
+            {showCreateForm ? (
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: '600', marginBottom: '16px' }}>Crear Nuevo Usuario</h3>
+                <form onSubmit={handleCreateUser}>
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label htmlFor="authAdminDni" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Shield size={16} style={{ color: 'var(--danger)' }} />
+                        <span>DNI Autorizador *</span>
+                      </label>
+                      <input 
+                        type="text" 
+                        id="authAdminDni" 
+                        placeholder="DNI de Administrador"
+                        value={userAdminDni}
+                        readOnly
+                        required 
+                      />
+                    </div>
 
-                <div className="form-group">
-                  <label htmlFor="newUserEmail" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Mail size={16} style={{ color: 'var(--primary)' }} />
-                    <span>Correo Electrónico *</span>
-                  </label>
-                  <input 
-                    type="email" 
-                    id="newUserEmail" 
-                    placeholder="correo@ejemplo.com"
-                    value={newUserEmail}
-                    onChange={(e) => setNewUserEmail(e.target.value)}
-                    required 
-                  />
-                </div>
+                    <div className="form-group">
+                      <label htmlFor="newUserEmail" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Mail size={16} style={{ color: 'var(--primary)' }} />
+                        <span>Correo Electrónico *</span>
+                      </label>
+                      <input 
+                        type="email" 
+                        id="newUserEmail" 
+                        placeholder="correo@ejemplo.com"
+                        value={newUserEmail}
+                        onChange={(e) => setNewUserEmail(e.target.value)}
+                        required 
+                      />
+                    </div>
 
-                <div className="form-group">
-                  <label htmlFor="newUserPassword" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <KeyRound size={16} style={{ color: 'var(--primary)' }} />
-                    <span>Contraseña *</span>
-                  </label>
-                  <input 
-                    type="password" 
-                    id="newUserPassword" 
-                    placeholder="Mínimo 6 caracteres"
-                    value={newUserPassword}
-                    onChange={(e) => setNewUserPassword(e.target.value)}
-                    required 
-                  />
-                </div>
-              </div>
-
-              <div className="form-group" style={{ margin: '20px 0' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={makeAdmin}
-                    onChange={(e) => setMakeAdmin(e.target.checked)}
-                    style={{ width: 'auto', margin: 0 }}
-                  />
-                  <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>¿Registrar también como Administrador?</span>
-                </label>
-              </div>
-
-              {makeAdmin && (
-                <div className="form-grid" style={{ 
-                  background: 'var(--bg-card-header)', 
-                  padding: '16px', 
-                  borderRadius: 'var(--radius-md)', 
-                  border: '1px solid var(--border-color)',
-                  marginBottom: '20px',
-                  animation: 'fadeIn 0.3s ease'
-                }}>
-                  <div className="form-group">
-                    <label htmlFor="newAdminDni">DNI del Nuevo Administrador *</label>
-                    <input 
-                      type="text" 
-                      id="newAdminDni" 
-                      placeholder="8 dígitos"
-                      value={newAdminDni}
-                      onChange={(e) => setNewAdminDni(e.target.value.replace(/\D/g, ''))}
-                      maxLength={8}
-                      required={makeAdmin}
-                    />
+                    <div className="form-group">
+                      <label htmlFor="newUserPassword" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <KeyRound size={16} style={{ color: 'var(--primary)' }} />
+                        <span>Contraseña *</span>
+                      </label>
+                      <input 
+                        type="password" 
+                        id="newUserPassword" 
+                        placeholder="Mínimo 6 caracteres"
+                        value={newUserPassword}
+                        onChange={(e) => setNewUserPassword(e.target.value)}
+                        required 
+                      />
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label htmlFor="newAdminNombre">Nombre del Nuevo Administrador *</label>
-                    <input 
-                      type="text" 
-                      id="newAdminNombre" 
-                      placeholder="Nombre Completo"
-                      value={newAdminNombre}
-                      onChange={(e) => setNewAdminNombre(e.target.value)}
-                      required={makeAdmin}
-                    />
-                  </div>
-                </div>
-              )}
 
-              <div className="actions">
-                <button 
-                  type="submit" 
-                  className="btn btn-success" 
-                  disabled={creatingUser}
-                >
-                  <UserPlus size={16} />
-                  <span>{creatingUser ? 'Registrando...' : 'Crear Usuario'}</span>
-                </button>
+                  <div className="form-group" style={{ margin: '20px 0' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={makeAdmin}
+                        onChange={(e) => setMakeAdmin(e.target.checked)}
+                        style={{ width: 'auto', margin: 0 }}
+                      />
+                      <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>¿Registrar también como Administrador?</span>
+                    </label>
+                  </div>
+
+                  {makeAdmin && (
+                    <div className="form-grid" style={{ 
+                      background: 'var(--bg-card-header)', 
+                      padding: '16px', 
+                      borderRadius: 'var(--radius-md)', 
+                      border: '1px solid var(--border-color)',
+                      marginBottom: '20px',
+                      animation: 'fadeIn 0.3s ease'
+                    }}>
+                      <div className="form-group">
+                        <label htmlFor="newAdminDni">DNI del Nuevo Administrador *</label>
+                        <input 
+                          type="text" 
+                          id="newAdminDni" 
+                          placeholder="8 dígitos"
+                          value={newAdminDni}
+                          onChange={(e) => setNewAdminDni(e.target.value.replace(/\D/g, ''))}
+                          maxLength={8}
+                          required={makeAdmin}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="newAdminNombre">Nombre del Nuevo Administrador *</label>
+                        <input 
+                          type="text" 
+                          id="newAdminNombre" 
+                          placeholder="Nombre Completo"
+                          value={newAdminNombre}
+                          onChange={(e) => setNewAdminNombre(e.target.value)}
+                          required={makeAdmin}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="actions">
+                    <button 
+                      type="submit" 
+                      className="btn btn-success" 
+                      disabled={creatingUser}
+                    >
+                      <UserPlus size={16} />
+                      <span>{creatingUser ? 'Registrando...' : 'Crear Usuario'}</span>
+                    </button>
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      onClick={() => setShowCreateForm(false)}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+
               </div>
-            </form>
+            ) : (
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: '600', marginBottom: '16px' }}>Lista de Usuarios Registrados</h3>
+                {loadingUsers ? (
+                  <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-secondary)' }}>
+                    <span className="spinner" style={{ display: 'inline-block', marginRight: '8px' }}></span>
+                    Cargando usuarios...
+                  </div>
+                ) : usersList.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-secondary)' }}>
+                    No se encontraron usuarios registrados.
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', textAlign: 'left' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                          <th style={{ padding: '12px 8px' }}>Correo Electrónico</th>
+                          <th style={{ padding: '12px 8px' }}>Rol</th>
+                          <th style={{ padding: '12px 8px' }}>DNI / Nombre Admin</th>
+                          <th style={{ padding: '12px 8px' }}>F. Registro</th>
+                          <th style={{ padding: '12px 8px', textAlign: 'right' }}>Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {usersList.map((u) => {
+                          const isCurrentUser = u.email?.toLowerCase() === user?.email?.toLowerCase();
+                          return (
+                            <tr key={u.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'all 0.2s ease' }} className="table-row-hover">
+                              <td style={{ padding: '12px 8px', fontWeight: '500' }}>
+                                {u.email} {isCurrentUser && <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontStyle: 'italic' }}>(Tú)</span>}
+                              </td>
+                              <td style={{ padding: '12px 8px' }}>
+                                {u.es_admin ? (
+                                  <span style={{ 
+                                    display: 'inline-flex', 
+                                    alignItems: 'center', 
+                                    gap: '4px', 
+                                    background: 'rgba(16, 185, 129, 0.15)', 
+                                    color: 'var(--success)', 
+                                    padding: '4px 8px', 
+                                    borderRadius: '12px', 
+                                    fontSize: '0.8rem', 
+                                    fontWeight: '600' 
+                                  }}>
+                                    <ShieldCheck size={13} />
+                                    Admin
+                                  </span>
+                                ) : (
+                                  <span style={{ 
+                                    display: 'inline-flex', 
+                                    alignItems: 'center', 
+                                    gap: '4px', 
+                                    background: 'rgba(107, 114, 128, 0.15)', 
+                                    color: 'var(--text-secondary)', 
+                                    padding: '4px 8px', 
+                                    borderRadius: '12px', 
+                                    fontSize: '0.8rem', 
+                                    fontWeight: '600' 
+                                  }}>
+                                    <User size={13} />
+                                    Operario
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ padding: '12px 8px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                {u.es_admin ? (
+                                  <div>
+                                    <div style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{u.admin_nombre}</div>
+                                    <div>DNI: {u.admin_dni}</div>
+                                  </div>
+                                ) : (
+                                  <span style={{ color: 'var(--text-muted)' }}>—</span>
+                                )}
+                              </td>
+                              <td style={{ padding: '12px 8px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                {u.created_at ? new Date(u.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
+                              </td>
+                              <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                                <div style={{ display: 'inline-flex', gap: '8px' }}>
+                                  {u.es_admin ? (
+                                    <button
+                                      className="btn btn-secondary"
+                                      style={{ padding: '4px 8px', fontSize: '0.75rem', minWidth: '100px', display: 'inline-flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}
+                                      onClick={() => handleDemoteUser(u.admin_dni, u.email)}
+                                      disabled={isCurrentUser}
+                                      title={isCurrentUser ? "No puedes quitarte los permisos a ti mismo" : "Quitar Administrador"}
+                                    >
+                                      <UserMinus size={12} />
+                                      <span>Quitar Admin</span>
+                                    </button>
+                                  ) : (
+                                    <button
+                                      className="btn btn-primary"
+                                      style={{ padding: '4px 8px', fontSize: '0.75rem', minWidth: '100px', display: 'inline-flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}
+                                      onClick={() => {
+                                        setPromoDni('');
+                                        setPromoNombre('');
+                                        setPromoError('');
+                                        setPromotingUser(u);
+                                      }}
+                                    >
+                                      <ShieldCheck size={12} />
+                                      <span>Hacer Admin</span>
+                                    </button>
+                                  )}
+                                  <button
+                                    className="btn btn-danger"
+                                    style={{ padding: '4px 8px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: isCurrentUser ? 'not-allowed' : 'pointer' }}
+                                    onClick={() => handleDeleteUser(u.id, u.email)}
+                                    disabled={isCurrentUser}
+                                    title={isCurrentUser ? "No puedes eliminar tu cuenta" : "Eliminar Usuario"}
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
 
             {userMsg.text && (
               <div className={`message ${userMsg.type}`} style={{ marginTop: '20px' }}>
@@ -653,6 +917,78 @@ export default function Config({ user }) {
               )}
 
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Promotion Modal */}
+      {promotingUser && (
+        <div className="dialog-overlay">
+          <div className="dialog-card" style={{ maxWidth: '420px', width: '90%' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ShieldCheck size={18} style={{ color: 'var(--primary)' }} />
+                <span style={{ fontWeight: '700' }}>Asignar Rol Administrador</span>
+              </div>
+              <button 
+                type="button" 
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                onClick={() => setPromotingUser(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handlePromoteSubmit}>
+              <div className="card-body" style={{ padding: '20px' }}>
+                <p style={{ marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  El usuario <strong>{promotingUser.email}</strong> tendrá permisos completos de administración. Ingrese sus datos personales.
+                </p>
+
+                <div className="form-group" style={{ marginBottom: '12px' }}>
+                  <label htmlFor="promoDni" style={{ fontWeight: '600', display: 'block', marginBottom: '6px' }}>DNI *</label>
+                  <input 
+                    type="text" 
+                    id="promoDni" 
+                    placeholder="8 dígitos" 
+                    value={promoDni}
+                    onChange={(e) => setPromoDni(e.target.value.replace(/\D/g, ''))}
+                    maxLength={8}
+                    required
+                    style={{ width: '100%' }}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <label htmlFor="promoNombre" style={{ fontWeight: '600', display: 'block', marginBottom: '6px' }}>Nombre Completo *</label>
+                  <input 
+                    type="text" 
+                    id="promoNombre" 
+                    placeholder="Nombres y Apellidos" 
+                    value={promoNombre}
+                    onChange={(e) => setPromoNombre(e.target.value)}
+                    required
+                    style={{ width: '100%' }}
+                  />
+                </div>
+
+                {promoError && (
+                  <div className="message error" style={{ marginBottom: '12px' }}>
+                    <AlertCircle size={14} />
+                    <span style={{ fontSize: '0.8rem' }}>{promoError}</span>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setPromotingUser(null)} disabled={promotingAction}>
+                    Cancelar
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={promotingAction}>
+                    {promotingAction ? 'Guardando...' : 'Asignar'}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}
