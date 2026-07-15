@@ -267,16 +267,24 @@ export default function Config({ user }) {
       }));
 
       // Format Movements Sheet Data
-      const formattedMovs = movs.map(m => ({
-        'ID': m.id,
-        'Fecha': m.fecha,
-        'ID Producto': m.producto_codigo,
-        'Cantidad': m.cantidad,
-        'Tipo': m.tipo,
-        'Usuario': m.usuario,
-        'Observaciones': m.observaciones || '',
-        'Transaction Key': m.key || ''
-      }));
+      const formattedMovs = movs.map(m => {
+        const prod = prods.find(p => p.codigo === m.producto_codigo);
+        // Ensure date is DD/MM/YYYY to match report, handling potential timestamp strings
+        const rawDate = m.fecha ? m.fecha.split('T')[0] : '';
+        const formattedDate = rawDate ? rawDate.split('-').reverse().join('/') : '';
+        
+        return {
+          'Fecha de mov.': formattedDate,
+          'Transaction Key': m.key || '',
+          'ID Producto': m.producto_codigo,
+          'Producto': prod ? prod.nombre : 'Producto no encontrado',
+          'Unidad': prod ? prod.unidad : '',
+          'Cantidad': parseFloat(m.cantidad) || 0,
+          'Tipo': m.tipo,
+          'Observaciones': m.observaciones || '',
+          'Usuario': m.usuario
+        };
+      });
 
       const workbook = XLSX.utils.book_new();
 
