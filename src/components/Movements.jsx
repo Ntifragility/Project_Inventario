@@ -622,7 +622,7 @@ export default function Movements({ user }) {
 
         if (colCodigo === -1 || colCantidad === -1 || colKey === -1) {
           setCsvMsg({ 
-            text: 'Formato de archivo incorrecto. Debe contener al menos las columnas: "Transaction Key", "ID Producto", y "Cant. Recepcionada".', 
+            text: 'Formato de archivo incorrecto. Debe contener al menos las columnas: "Transaction Key", "ID Producto", y "Cantidad".', 
             type: 'error' 
           });
           event.target.value = '';
@@ -823,7 +823,7 @@ export default function Movements({ user }) {
 
         if (colCodigo === -1 || colCantidad === -1 || colKey === -1) {
           setExcelMsg({ 
-            text: 'Formato de archivo incorrecto. Debe contener al menos las columnas: "Transaction Key", "ID Producto", y "Cant. Entregada".', 
+            text: 'Formato de archivo incorrecto. Debe contener al menos las columnas: "Transaction Key", "ID Producto", y "Cantidad".', 
             type: 'error' 
           });
           event.target.value = '';
@@ -1571,7 +1571,7 @@ export default function Movements({ user }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
                     <p style={{ marginBottom: '12px' }}>
-                      Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo Ingreso en lote. El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>Fecha</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Cant. Recepcionada</strong>, y <strong>Unidad</strong>.
+                      Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo Ingreso en lote. El archivo debe incluir las cabeceras: <strong>Fecha</strong>, <strong>Transaction Key</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Cantidad</strong>, y <strong>Unidad</strong>.
                     </p>
                     <div style={{ 
                       background: 'var(--bg-card-header)', 
@@ -1629,7 +1629,7 @@ export default function Movements({ user }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
                     <p style={{ marginBottom: '12px' }}>
-                      Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo Salida en lote. El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>Fecha</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Cant. Entregada</strong>, <strong>Unidad</strong>, y <strong>Cód.Almacenero</strong>.
+                      Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo Salida en lote. El archivo debe incluir las cabeceras: <strong>Fecha</strong>, <strong>Transaction Key</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Cantidad</strong>, <strong>Unidad</strong>, y <strong>Cód.Almacenero</strong>.
                     </p>
                     <div style={{ 
                       background: 'var(--bg-card-header)', 
@@ -1926,12 +1926,12 @@ export default function Movements({ user }) {
                         })()}
                       </th>
                       <th>Fecha</th>
+                      <th>Transaction Key</th>
                       <th>ID Producto</th>
                       <th>Producto</th>
-                      <th>Unidad</th>
                       <th>Cantidad</th>
+                      <th>Unidad</th>
                       <th>Tipo</th>
-                      <th>Transaction Key</th>
                       <th>Usuario</th>
                       <th>Almacenero</th>
                     </tr>
@@ -1985,12 +1985,12 @@ export default function Movements({ user }) {
                               />
                             </td>
                             <td data-label="Fecha"><span>{m.fecha}</span></td>
+                            <td data-label="Transaction Key"><small>{m.key}</small></td>
                             <td data-label="ID Producto"><strong>{m.codigo}</strong></td>
                             <td data-label="Producto"><span>{m.producto}</span></td>
-                            <td data-label="Unidad"><span>{m.unidad}</span></td>
                             <td data-label="Cantidad"><span>{m.cantidad}</span></td>
+                            <td data-label="Unidad"><span>{m.unidad}</span></td>
                             <td data-label="Tipo" className={tipoClass}><strong>{tipoText}</strong></td>
-                            <td data-label="Transaction Key"><small>{m.key}</small></td>
                             <td data-label="Usuario"><small>{m.usuario}</small></td>
                             <td data-label="Almacenero" style={{ position: 'relative' }}>
                               <span>{m.tipo === 'SALIDA' ? (getAlmaceneroFromObs(m.observaciones) || '-') : '-'}</span>

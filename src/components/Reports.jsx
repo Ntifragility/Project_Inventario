@@ -102,12 +102,12 @@ export default function Reports() {
 
     try {
       const dataToExport = reportData.map(m => ({
-        'Fecha de mov.': m.fecha,
+        'Fecha': m.fecha,
         'Transaction Key': m.productKey,
         'ID Producto': m.codigo,
         'Producto': m.producto,
-        'Unidad': m.unidad,
         'Cantidad': parseFloat(m.cantidad) || 0,
+        'Unidad': m.unidad,
         'Tipo': m.tipo,
         'Observaciones': m.observaciones || '',
         'Usuario': m.usuario
@@ -224,10 +224,11 @@ export default function Reports() {
                     <th>Transaction Key</th>
                     <th>ID Producto</th>
                     <th>Producto</th>
-                    <th>Unidad</th>
                     <th>Cantidad</th>
+                    <th>Unidad</th>
                     <th>Tipo</th>
                     <th>Observaciones</th>
+                    <th>Usuario</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -267,10 +268,11 @@ export default function Reports() {
                         <td><small>{m.productKey}</small></td>
                         <td><strong>{m.codigo}</strong></td>
                         <td>{m.producto}</td>
-                        <td>{m.unidad}</td>
                         <td>{m.cantidad}</td>
+                        <td>{m.unidad}</td>
                         <td className={tipoClass}><strong>{tipoText}</strong></td>
                         <td><small>{m.observaciones}</small></td>
+                        <td><small>{m.usuario}</small></td>
                       </tr>
                     );
                   });

@@ -274,12 +274,12 @@ export default function Config({ user }) {
         const formattedDate = rawDate ? rawDate.split('-').reverse().join('/') : '';
         
         return {
-          'Fecha de mov.': formattedDate,
+          'Fecha': formattedDate,
           'Transaction Key': m.key || '',
           'ID Producto': m.producto_codigo,
           'Producto': prod ? prod.nombre : 'Producto no encontrado',
-          'Unidad': prod ? prod.unidad : '',
           'Cantidad': parseFloat(m.cantidad) || 0,
+          'Unidad': prod ? prod.unidad : '',
           'Tipo': m.tipo,
           'Observaciones': m.observaciones || '',
           'Usuario': m.usuario
