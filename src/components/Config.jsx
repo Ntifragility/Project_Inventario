@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabase';
 import { createClient } from '@supabase/supabase-js';
-import { Settings, ShieldAlert, CheckCircle2, AlertCircle, X, HelpCircle, UserPlus, Shield, Mail, KeyRound, Trash2, ShieldCheck, User, UserMinus, Download, Database } from 'lucide-react';
+import { Settings, ShieldAlert, CheckCircle2, AlertCircle, X, HelpCircle, UserPlus, Shield, Mail, KeyRound, Trash2, ShieldCheck, User, UserMinus, Download, Database, Pencil } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function Config({ user }) {
@@ -56,6 +56,211 @@ export default function Config({ user }) {
   // User management auto-unlock states
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [checkingAdmin, setCheckingAdmin] = useState(true);
+
+  // ── Equivalences / Synonym Dictionary States ──
+  const [synonymsList, setSynonymsList] = useState([]);
+  const [synPage, setSynPage] = useState(1);
+  const [synTotalCount, setSynTotalCount] = useState(0);
+  const [synLoading, setSynLoading] = useState(false);
+  const [synSearch, setSynSearch] = useState('');
+  const [synTypeFilter, setSynTypeFilter] = useState('ALL');
+  
+  // Add/Edit Form States
+  const [synShowForm, setSynShowForm] = useState(false);
+  const [synFormId, setSynFormId] = useState(null); // null when adding
+  const [synFormText, setSynFormText] = useState('');
+  const [synFormType, setSynFormType] = useState('DESCRIPCION');
+  const [synFormProductSearch, setSynFormProductSearch] = useState('');
+  const [synFormProductSuggestions, setSynFormProductSuggestions] = useState([]);
+  const [synFormSelectedProduct, setSynFormSelectedProduct] = useState(null); // { codigo, nombre }
+  const [synFormMsg, setSynFormMsg] = useState({ text: '', type: '' });
+  const [synFormSaving, setSynFormSaving] = useState(false);
+
+  const autocompleteTimeoutSyn = useRef(null);
+  const SYN_ROWS_PER_PAGE = 10;
+
+  const fetchSynonyms = async () => {
+    setSynLoading(true);
+    try {
+      let query = supabase
+        .from('productos_sinonimos')
+        .select(`
+          id,
+          producto_codigo,
+          texto_sinonimo,
+          tipo_columna,
+          created_at,
+          producto:productos(nombre)
+        `, { count: 'exact' });
+
+      if (synTypeFilter !== 'ALL') {
+        query = query.eq('tipo_columna', synTypeFilter);
+      }
+
+      if (synSearch.trim()) {
+        const term = `%${synSearch.trim()}%`;
+        query = query.or(`texto_sinonimo.ilike.${term},producto_codigo.ilike.${term}`);
+      }
+
+      query = query.order('created_at', { ascending: false });
+
+      const from = (synPage - 1) * SYN_ROWS_PER_PAGE;
+      const to = from + SYN_ROWS_PER_PAGE - 1;
+      query = query.range(from, to);
+
+      const { data, count, error } = await query;
+      if (error) throw error;
+
+      setSynonymsList(data || []);
+      setSynTotalCount(count || 0);
+    } catch (err) {
+      console.error('Error fetching synonyms dictionary:', err);
+    } finally {
+      setSynLoading(false);
+    }
+  };
+
+  const fetchProductSuggestions = async (val) => {
+    const cleanVal = val.trim();
+    if (!cleanVal) {
+      setSynFormProductSuggestions([]);
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('v_productos_stock')
+        .select('codigo, nombre')
+        .or(`codigo.ilike.%${cleanVal}%,nombre.ilike.%${cleanVal}%`)
+        .limit(8);
+
+      if (error) throw error;
+      setSynFormProductSuggestions(data || []);
+    } catch (err) {
+      console.error('Error fetching product suggestions:', err);
+    }
+  };
+
+  const handleSynProductSearchChange = (val) => {
+    setSynFormProductSearch(val);
+    if (autocompleteTimeoutSyn.current) clearTimeout(autocompleteTimeoutSyn.current);
+
+    autocompleteTimeoutSyn.current = setTimeout(() => {
+      fetchProductSuggestions(val);
+    }, 200);
+  };
+
+  const handleSaveSynonym = async (e) => {
+    e.preventDefault();
+    setSynFormMsg({ text: '', type: '' });
+
+    if (!synFormText.trim()) {
+      setSynFormMsg({ text: 'El texto del sinónimo es obligatorio.', type: 'error' });
+      return;
+    }
+
+    if (!synFormSelectedProduct) {
+      setSynFormMsg({ text: 'Debe seleccionar un producto válido de la base de datos.', type: 'error' });
+      return;
+    }
+
+    setSynFormSaving(true);
+    try {
+      const payload = {
+        producto_codigo: synFormSelectedProduct.codigo,
+        texto_sinonimo: synFormText.trim(),
+        tipo_columna: synFormType
+      };
+
+      if (synFormId) {
+        const { error } = await supabase
+          .from('productos_sinonimos')
+          .update(payload)
+          .eq('id', synFormId);
+
+        if (error) throw error;
+        setSynFormMsg({ text: 'Equivalencia actualizada correctamente.', type: 'success' });
+      } else {
+        const { error } = await supabase
+          .from('productos_sinonimos')
+          .insert(payload);
+
+        if (error) throw error;
+        setSynFormMsg({ text: 'Equivalencia creada correctamente.', type: 'success' });
+      }
+
+      fetchSynonyms();
+
+      setTimeout(() => {
+        setSynShowForm(false);
+        setSynFormId(null);
+        setSynFormText('');
+        setSynFormType('DESCRIPCION');
+        setSynFormProductSearch('');
+        setSynFormProductSuggestions([]);
+        setSynFormSelectedProduct(null);
+        setSynFormMsg({ text: '', type: '' });
+      }, 1500);
+
+    } catch (err) {
+      console.error('Error saving synonym:', err);
+      let msg = err.message || 'Error desconocido';
+      if (msg.includes('unique') || msg.includes('violates unique constraint')) {
+        msg = `Ya existe la equivalencia "${synFormText.trim()}" para la columna ${synFormType}.`;
+      }
+      setSynFormMsg({ text: 'Error al guardar: ' + msg, type: 'error' });
+    } finally {
+      setSynFormSaving(false);
+    }
+  };
+
+  const handleDeleteSynonym = async (id, text) => {
+    if (!window.confirm(`¿Está seguro de que desea eliminar la equivalencia "${text}"?`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('productos_sinonimos')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      fetchSynonyms();
+    } catch (err) {
+      console.error('Error deleting synonym:', err);
+      alert('Error al eliminar equivalencia: ' + err.message);
+    }
+  };
+
+  const handleEditSynonymClick = (syn) => {
+    setSynFormId(syn.id);
+    setSynFormText(syn.texto_sinonimo);
+    setSynFormType(syn.tipo_columna);
+    setSynFormSelectedProduct({
+      codigo: syn.producto_codigo,
+      nombre: syn.producto ? syn.producto.nombre : 'Producto cargado'
+    });
+    setSynFormProductSearch(`${syn.producto_codigo} - ${syn.producto ? syn.producto.nombre : ''}`);
+    setSynFormProductSuggestions([]);
+    setSynFormMsg({ text: '', type: '' });
+    setSynShowForm(true);
+  };
+
+  React.useEffect(() => {
+    if (user) {
+      fetchSynonyms();
+    }
+  }, [synPage, synTypeFilter, user]);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setSynPage(1);
+      if (user) {
+        fetchSynonyms();
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [synSearch]);
   // Validate integrity via server-side RPC
   const handleValidateIntegrity = async () => {
     setResultMsg({ text: '', type: '' });
@@ -681,6 +886,274 @@ export default function Config({ user }) {
             <div className={`message ${resultMsg.type}`} style={{ marginTop: '20px' }}>
               {resultMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
               <span>{resultMsg.text}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Synonym/Equivalences Dictionary Card */}
+      <div className="card" style={{ marginTop: '24px' }}>
+        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Database size={18} />
+            <span>Diccionario de Equivalencias (Tabla EQUIV)</span>
+          </div>
+          <button 
+            className="btn btn-primary" 
+            style={{ padding: '6px 12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+            onClick={() => {
+              setSynFormId(null);
+              setSynFormText('');
+              setSynFormType('DESCRIPCION');
+              setSynFormProductSearch('');
+              setSynFormProductSuggestions([]);
+              setSynFormSelectedProduct(null);
+              setSynFormMsg({ text: '', type: '' });
+              setSynShowForm(!synShowForm);
+            }}
+          >
+            {synShowForm ? 'Ver Equivalencias' : '+ Nueva Equivalencia'}
+          </button>
+        </div>
+        <div className="card-body">
+          <p style={{ marginBottom: '20px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+            Gestione las equivalencias de descripciones de materiales para el proceso de Smart Import.
+          </p>
+
+          {synShowForm ? (
+            <div style={{
+              background: 'var(--bg-card-header)',
+              padding: '20px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-color)',
+              marginBottom: '20px',
+              animation: 'fadeIn 0.3s ease'
+            }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '16px' }}>
+                {synFormId ? 'Editar Equivalencia' : 'Nueva Equivalencia'}
+              </h3>
+              <form onSubmit={handleSaveSynonym}>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label htmlFor="synText">Texto del Sinónimo (Descripción en Excel) *</label>
+                    <input 
+                      type="text" 
+                      id="synText" 
+                      placeholder="Ej. TUBERIA DE FIERRO DE 2 PULGADAS"
+                      value={synFormText}
+                      onChange={(e) => setSynFormText(e.target.value)}
+                      required 
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="synTypeCol">Columna Correspondiente</label>
+                    <select 
+                      id="synTypeCol" 
+                      value={synFormType}
+                      onChange={(e) => setSynFormType(e.target.value)}
+                    >
+                      <option value="DESCRIPCION">DESCRIPCION</option>
+                      <option value="TXT_LARGO">TXT_LARGO</option>
+                      <option value="TXT_POS">TXT_POS</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group autocomplete-container" style={{ position: 'relative' }}>
+                    <label htmlFor="synProductSearch">Buscar Producto Canonical *</label>
+                    <input 
+                      type="text" 
+                      id="synProductSearch" 
+                      placeholder="Buscar por código o nombre..."
+                      value={synFormProductSearch}
+                      onChange={(e) => handleSynProductSearchChange(e.target.value)}
+                      required 
+                      autoComplete="off"
+                    />
+                    {synFormProductSuggestions.length > 0 && (
+                      <div className="autocomplete-dropdown" style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        zIndex: 999
+                      }}>
+                        {synFormProductSuggestions.map(p => (
+                          <div 
+                            key={p.codigo}
+                            className="autocomplete-item"
+                            onMouseDown={() => {
+                              setSynFormSelectedProduct(p);
+                              setSynFormProductSearch(`${p.codigo} - ${p.nombre}`);
+                              setSynFormProductSuggestions([]);
+                            }}
+                          >
+                            <span className="autocomplete-code">{p.codigo}</span>
+                            <span className="autocomplete-name">{p.nombre}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {synFormSelectedProduct && (
+                      <div style={{ marginTop: '8px', fontSize: '0.85rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span>✓ Seleccionado:</span>
+                        <strong>{synFormSelectedProduct.codigo}</strong>
+                        <span>- {synFormSelectedProduct.nombre}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {synFormMsg.text && (
+                  <div className={`message ${synFormMsg.type}`} style={{ marginTop: '16px' }}>
+                    {synFormMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                    <span>{synFormMsg.text}</span>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '12px', marginTop: '20px', justifyContent: 'flex-end' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    onClick={() => setSynShowForm(false)}
+                    disabled={synFormSaving}
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="btn btn-success"
+                    disabled={synFormSaving}
+                  >
+                    {synFormSaving ? 'Guardando...' : 'Guardar Equivalencia'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : (
+            <div>
+              {/* Search & Filter bar */}
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                <div style={{ flex: '1 1 200px' }}>
+                  <input 
+                    type="text" 
+                    placeholder="Buscar por sinónimo o código de producto..." 
+                    value={synSearch}
+                    onChange={(e) => setSynSearch(e.target.value)}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+                <div style={{ width: '180px' }}>
+                  <select 
+                    value={synTypeFilter} 
+                    onChange={(e) => {
+                      setSynPage(1);
+                      setSynTypeFilter(e.target.value);
+                    }}
+                    style={{ width: '100%' }}
+                  >
+                    <option value="ALL">Todas las columnas</option>
+                    <option value="DESCRIPCION">DESCRIPCION</option>
+                    <option value="TXT_LARGO">TXT_LARGO</option>
+                    <option value="TXT_POS">TXT_POS</option>
+                  </select>
+                </div>
+              </div>
+
+              {synLoading ? (
+                <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-secondary)' }}>
+                  <span className="spinner" style={{ display: 'inline-block', marginRight: '8px' }}></span>
+                  Cargando equivalencias...
+                </div>
+              ) : synonymsList.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-secondary)' }}>
+                  No se encontraron equivalencias.
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                        <th style={{ padding: '12px 8px' }}>Texto Sinónimo (Excel)</th>
+                        <th style={{ padding: '12px 8px' }}>Tipo Columna</th>
+                        <th style={{ padding: '12px 8px' }}>Producto Asignado</th>
+                        <th style={{ padding: '12px 8px', textAlign: 'right' }}>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {synonymsList.map((syn) => (
+                        <tr key={syn.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '12px 8px', fontWeight: '500' }}>{syn.texto_sinonimo}</td>
+                          <td style={{ padding: '12px 8px' }}>
+                            <span style={{
+                              background: 'rgba(99, 102, 241, 0.15)',
+                              color: 'var(--primary)',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              fontSize: '0.75rem',
+                              fontWeight: '600'
+                            }}>
+                              {syn.tipo_columna}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 8px' }}>
+                            <div><strong>{syn.producto_codigo}</strong></div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                              {syn.producto ? syn.producto.nombre : 'Producto no encontrado'}
+                            </div>
+                          </td>
+                          <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', gap: '8px' }}>
+                              <button 
+                                className="btn-icon" 
+                                style={{ color: 'var(--text-primary)' }}
+                                onClick={() => handleEditSynonymClick(syn)}
+                                title="Editar Equivalencia"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button 
+                                className="btn-icon text-danger" 
+                                onClick={() => handleDeleteSynonym(syn.id, syn.texto_sinonimo)}
+                                title="Eliminar Equivalencia"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Pagination Controls */}
+                  {synTotalCount > SYN_ROWS_PER_PAGE && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        Mostrando {((synPage - 1) * SYN_ROWS_PER_PAGE) + 1} - {Math.min(synPage * SYN_ROWS_PER_PAGE, synTotalCount)} de {synTotalCount} equivalencias
+                      </span>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button 
+                          className="btn btn-secondary" 
+                          style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                          onClick={() => setSynPage(p => Math.max(p - 1, 1))}
+                          disabled={synPage === 1}
+                        >
+                          Anterior
+                        </button>
+                        <button 
+                          className="btn btn-secondary" 
+                          style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                          onClick={() => setSynPage(p => Math.min(p + 1, Math.ceil(synTotalCount / SYN_ROWS_PER_PAGE)))}
+                          disabled={synPage >= Math.ceil(synTotalCount / SYN_ROWS_PER_PAGE)}
+                        >
+                          Siguiente
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
