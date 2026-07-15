@@ -659,7 +659,7 @@ DECLARE
     v_mov_json JSONB;
 BEGIN
     -- Capture snapshots as JSONB arrays
-    SELECT COALESCE(jsonb_agg(p), '[]'::jsonb) INTO v_prod_json FROM productos p;
+    SELECT COALESCE(jsonb_agg(p), '[]'::jsonb) INTO v_prod_json FROM v_productos_stock p;
     SELECT COALESCE(jsonb_agg(m), '[]'::jsonb) INTO v_mov_json FROM movimientos m;
 
     INSERT INTO respaldos_seguridad (creado_por, productos_snapshot, movimientos_snapshot)
