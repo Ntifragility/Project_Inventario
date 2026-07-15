@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase';
-import { Save, Upload, AlertCircle, CheckCircle2, Info, X, Eye, Clock, Scan, Pencil, Trash2, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import { Save, Upload, AlertCircle, CheckCircle2, Info, X, Eye, Clock, Scan, Pencil, Trash2, ChevronDown, ChevronUp, Download, Zap } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import BarcodeScanner from './BarcodeScanner';
+import SmartImportWizard from './smartimport/SmartImportWizard';
 
 export default function Movements({ user }) {
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
@@ -43,6 +44,7 @@ export default function Movements({ user }) {
 
   // Compact Import Modals
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showSmartWizard, setShowSmartWizard] = useState(false);
   const [importOption, setImportOption] = useState(null); // 'ingreso' | 'salida'
 
   // Movements History Admin States
@@ -1499,6 +1501,15 @@ export default function Movements({ user }) {
               </button>
               <button 
                 type="button" 
+                className="btn btn-primary" 
+                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}
+                onClick={() => setShowSmartWizard(true)}
+              >
+                <Zap size={16} />
+                <span>Smart Import</span>
+              </button>
+              <button 
+                type="button" 
                 className="btn btn-secondary" 
                 onClick={() => {
                   setCodigo('');
@@ -2226,6 +2237,13 @@ export default function Movements({ user }) {
         <BarcodeScanner 
           onClose={() => setShowScanner(false)} 
           onScanSuccess={(code) => handleCodigoChange(code)} 
+        />
+      )}
+      {showSmartWizard && (
+        <SmartImportWizard
+          user={user}
+          onClose={() => setShowSmartWizard(false)}
+          onImportComplete={() => fetchLedgerMovements()}
         />
       )}
     </div>
