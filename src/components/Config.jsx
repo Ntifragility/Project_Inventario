@@ -266,16 +266,23 @@ export default function Config({ user }) {
         'F. Registro': p.created_at
       }));
 
-      // Format Movements Sheet Data
-      const formattedMovs = movs.map(m => {
+      // Format Movements Sheet Data, sorting by date descending
+      const sortedMovs = [...movs].sort((a, b) => {
+        const dateA = new Date(a.fecha).getTime();
+        const dateB = new Date(b.fecha).getTime();
+        if (dateB !== dateA) return dateB - dateA;
+        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      });
+
+      const formattedMovs = sortedMovs.map(m => {
         const prod = prods.find(p => p.codigo === m.producto_codigo);
         // Ensure date is DD/MM/YYYY to match report, handling potential timestamp strings
         const rawDate = m.fecha ? m.fecha.split('T')[0] : '';
         const formattedDate = rawDate ? rawDate.split('-').reverse().join('/') : '';
         
         return {
-          'Fecha': formattedDate,
           'Transaction Key': m.key || '',
+          'Fecha': formattedDate,
           'ID Producto': m.producto_codigo,
           'Producto': prod ? prod.nombre : 'Producto no encontrado',
           'Cantidad': parseFloat(m.cantidad) || 0,

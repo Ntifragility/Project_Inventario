@@ -58,11 +58,13 @@ export default function Reports() {
           usuario,
           tipo,
           key,
+          created_at,
           producto:productos(nombre, unidades(nombre))
         `)
         .gte('fecha', fechaDesde)
         .lte('fecha', fechaHasta)
-        .order('fecha', { ascending: false });
+        .order('fecha', { ascending: false })
+        .order('created_at', { ascending: false });
 
       if (tipo) {
         query = query.eq('tipo', tipo);
@@ -102,8 +104,8 @@ export default function Reports() {
 
     try {
       const dataToExport = reportData.map(m => ({
-        'Fecha': m.fecha,
         'Transaction Key': m.productKey,
+        'Fecha': m.fecha,
         'ID Producto': m.codigo,
         'Producto': m.producto,
         'Cantidad': parseFloat(m.cantidad) || 0,
@@ -220,8 +222,8 @@ export default function Reports() {
               <table>
                 <thead>
                   <tr>
-                    <th>Fecha</th>
                     <th>Transaction Key</th>
+                    <th>Fecha</th>
                     <th>ID Producto</th>
                     <th>Producto</th>
                     <th>Cantidad</th>
@@ -264,8 +266,8 @@ export default function Reports() {
 
                     return (
                       <tr key={idx}>
-                        <td>{m.fecha}</td>
                         <td><small>{m.productKey}</small></td>
+                        <td>{m.fecha}</td>
                         <td><strong>{m.codigo}</strong></td>
                         <td>{m.producto}</td>
                         <td>{m.cantidad}</td>

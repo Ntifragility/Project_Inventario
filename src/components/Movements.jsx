@@ -1571,7 +1571,7 @@ export default function Movements({ user }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
                     <p style={{ marginBottom: '12px' }}>
-                      Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo Ingreso en lote. El archivo debe incluir las cabeceras: <strong>Fecha</strong>, <strong>Transaction Key</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Cantidad</strong>, y <strong>Unidad</strong>.
+                      Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo Ingreso en lote. El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>Fecha</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Cantidad</strong>, y <strong>Unidad</strong>.
                     </p>
                     <div style={{ 
                       background: 'var(--bg-card-header)', 
@@ -1629,7 +1629,7 @@ export default function Movements({ user }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
                     <p style={{ marginBottom: '12px' }}>
-                      Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo Salida en lote. El archivo debe incluir las cabeceras: <strong>Fecha</strong>, <strong>Transaction Key</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Cantidad</strong>, <strong>Unidad</strong>, y <strong>Cód.Almacenero</strong>.
+                      Seleccione un archivo Excel (.xlsx, .xls) o CSV (.csv) para registrar múltiples movimientos de tipo Salida en lote. El archivo debe incluir las cabeceras: <strong>Transaction Key</strong>, <strong>Fecha</strong>, <strong>ID Producto</strong>, <strong>Producto</strong>, <strong>Cantidad</strong>, <strong>Unidad</strong>, y <strong>Cód.Almacenero</strong>.
                     </p>
                     <div style={{ 
                       background: 'var(--bg-card-header)', 
@@ -1925,8 +1925,8 @@ export default function Movements({ user }) {
                           );
                         })()}
                       </th>
-                      <th>Fecha</th>
                       <th>Transaction Key</th>
+                      <th>Fecha</th>
                       <th>ID Producto</th>
                       <th>Producto</th>
                       <th>Cantidad</th>
@@ -1984,8 +1984,8 @@ export default function Movements({ user }) {
                                 style={{ margin: 0, cursor: 'pointer' }}
                               />
                             </td>
-                            <td data-label="Fecha"><span>{m.fecha}</span></td>
                             <td data-label="Transaction Key"><small>{m.key}</small></td>
+                            <td data-label="Fecha"><span>{m.fecha}</span></td>
                             <td data-label="ID Producto"><strong>{m.codigo}</strong></td>
                             <td data-label="Producto"><span>{m.producto}</span></td>
                             <td data-label="Cantidad"><span>{m.cantidad}</span></td>
