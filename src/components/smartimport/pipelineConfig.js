@@ -9,7 +9,6 @@ export const INGRESOS_CONFIG = {
   label: 'Ingreso de Material',
   // Row filter: only keep rows where Disciplina matches
   filterColumn: 'Disciplina',
-  filterValue: 'OT - Electricidad',
 
   // Columns to extract from the raw file (must match raw headers exactly)
   sourceColumns: [
@@ -53,14 +52,6 @@ export const SALIDAS_CONFIG = {
   label: 'Salida de Material',
   // Row filter: only keep rows where Cód.Almacenero is in the allowed list
   filterColumn: 'Cód.Almacenero',
-  filterValues: [
-    'gfernandezh',
-    'mfernandezt',
-    'jchumbiaucah',
-    'wcamposp',
-    'wriveros',
-    'bhuaylla'
-  ],
 
   // Columns to extract from the raw file
   sourceColumns: [

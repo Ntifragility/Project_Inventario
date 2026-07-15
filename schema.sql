@@ -52,6 +52,19 @@ CREATE TABLE IF NOT EXISTS productos_sinonimos (
     UNIQUE (texto_sinonimo, tipo_columna)
 );
 
+-- 1f. Almaceneros Table (Warehouse Keepers for Salidas)
+CREATE TABLE IF NOT EXISTS almaceneros (
+    codigo VARCHAR(50) PRIMARY KEY,
+    nombre VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 1g. Disciplinas Table (Projects/Disciplines for Ingresos)
+CREATE TABLE IF NOT EXISTS disciplinas (
+    nombre VARCHAR(100) PRIMARY KEY,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
 -- ═══════════════════════════════════════════════════════════════
 -- 2. REAL-TIME STOCK VIEW
 -- ═══════════════════════════════════════════════════════════════
@@ -101,6 +114,8 @@ ALTER TABLE grupos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE productos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE movimientos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE productos_sinonimos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE almaceneros ENABLE ROW LEVEL SECURITY;
+ALTER TABLE disciplinas ENABLE ROW LEVEL SECURITY;
 
 -- ── 4a-pre. productos_sinonimos: Full access for authenticated users ──
 DROP POLICY IF EXISTS "sinonimos_select" ON productos_sinonimos;
@@ -109,6 +124,23 @@ DROP POLICY IF EXISTS "sinonimos_delete" ON productos_sinonimos;
 CREATE POLICY "sinonimos_select" ON productos_sinonimos FOR SELECT TO authenticated USING (true);
 CREATE POLICY "sinonimos_insert" ON productos_sinonimos FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY "sinonimos_delete" ON productos_sinonimos FOR DELETE TO authenticated USING (true);
+
+-- ── 4a-almaceneros. almaceneros: Full access for authenticated users ──
+DROP POLICY IF EXISTS "almaceneros_select" ON almaceneros;
+DROP POLICY IF EXISTS "almaceneros_insert" ON almaceneros;
+DROP POLICY IF EXISTS "almaceneros_delete" ON almaceneros;
+CREATE POLICY "almaceneros_select" ON almaceneros FOR SELECT TO authenticated USING (true);
+CREATE POLICY "almaceneros_insert" ON almaceneros FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "almaceneros_delete" ON almaceneros FOR DELETE TO authenticated USING (true);
+
+-- ── 4a-disciplinas. disciplinas: Full access for authenticated users ──
+DROP POLICY IF EXISTS "disciplinas_select" ON disciplinas;
+DROP POLICY IF EXISTS "disciplinas_insert" ON disciplinas;
+DROP POLICY IF EXISTS "disciplinas_delete" ON disciplinas;
+CREATE POLICY "disciplinas_select" ON disciplinas FOR SELECT TO authenticated USING (true);
+CREATE POLICY "disciplinas_insert" ON disciplinas FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "disciplinas_delete" ON disciplinas FOR DELETE TO authenticated USING (true);
+
 
 -- ── 4a. unidades: Read-only for all authenticated users (lookup table) ──
 DROP POLICY IF EXISTS "Allow anonymous access on unidades" ON unidades;

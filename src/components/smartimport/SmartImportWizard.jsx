@@ -15,6 +15,12 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
   const [pipelineType, setPipelineType] = useState(null); // 'ingresos' | 'salidas'
   const [config, setConfig] = useState(null);
 
+  // Dynamic Filters State
+  const [dbAlmaceneros, setDbAlmaceneros] = useState([]);
+  const [dbDisciplinas, setDbDisciplinas] = useState([]);
+  const [selectedDisciplina, setSelectedDisciplina] = useState('');
+  const [loadingFilters, setLoadingFilters] = useState(false);
+
   // Step 1: File Upload
   const [fileName, setFileName] = useState('');
   const [rawRows, setRawRows] = useState([]);
@@ -59,6 +65,36 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
     { label: 'Vista Previa', icon: FileSpreadsheet },
     { label: 'Importar', icon: Zap }
   ];
+
+  // ══════════════════════════════════════════════════════════════
+  // INITIALIZATION: FETCH DYNAMIC FILTERS
+  // ══════════════════════════════════════════════════════════════
+
+  useEffect(() => {
+    const fetchFilters = async () => {
+      setLoadingFilters(true);
+      try {
+        const [resAlm, resDisc] = await Promise.all([
+          supabase.from('almaceneros').select('codigo'),
+          supabase.from('disciplinas').select('nombre')
+        ]);
+        if (resAlm.error) throw resAlm.error;
+        if (resDisc.error) throw resDisc.error;
+        
+        setDbAlmaceneros((resAlm.data || []).map(a => String(a.codigo).toLowerCase()));
+        
+        const discList = (resDisc.data || []).map(d => String(d.nombre));
+        setDbDisciplinas(discList);
+        // Auto-select if there's exactly one option
+        if (discList.length === 1) setSelectedDisciplina(discList[0]);
+      } catch (err) {
+        console.error('Error fetching dynamic filters:', err);
+      } finally {
+        setLoadingFilters(false);
+      }
+    };
+    fetchFilters();
+  }, []);
 
   // ══════════════════════════════════════════════════════════════
   // STEP 1: FILE UPLOAD
@@ -150,10 +186,11 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
 
       let passes = false;
       if (pipelineType === 'ingresos') {
-        passes = filterVal.toLowerCase() === config.filterValue.toLowerCase();
+        if (!selectedDisciplina) continue; // Skip all if no disciplina is selected yet
+        passes = filterVal.toLowerCase() === selectedDisciplina.toLowerCase();
       } else {
-        // Salidas: check if almacenero code is in the allowed list
-        passes = config.filterValues.some(v => v.toLowerCase() === filterVal.toLowerCase());
+        // Salidas: check if almacenero code is in the dynamic database list
+        passes = dbAlmaceneros.some(v => v === filterVal.toLowerCase());
       }
 
       if (!passes) {
@@ -179,7 +216,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
 
     setFilteredRows(kept);
     setFilterStats({ total: rawRows.length, kept: kept.length, removed: removedCount });
-  }, [currentStep, config, rawRows, rawHeaders, pipelineType]);
+  }, [currentStep, config, rawRows, rawHeaders, pipelineType, selectedDisciplina, dbAlmaceneros]);
 
   // ══════════════════════════════════════════════════════════════
   // STEP 3: DICTIONARY MATCHING
@@ -578,7 +615,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
   const canAdvance = () => {
     switch (currentStep) {
       case 0: return rawRows.length > 0 && config !== null;
-      case 1: return filteredRows.length > 0;
+      case 1: return filteredRows.length > 0 && (pipelineType === 'salidas' || (pipelineType === 'ingresos' && selectedDisciplina));
       case 2: return !isMatching;
       case 3: return true; // Can always advance from resolve (skip all)
       case 4: return previewData.some(r => r._valid);
@@ -754,10 +791,25 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
               <div style={{ marginTop: 16, padding: '12px 16px', background: 'var(--bg-card-header)', borderRadius: 8, fontSize: '0.9rem' }}>
                 <p style={{ margin: 0 }}>
                   <strong>Filtro aplicado:</strong>{' '}
-                  {pipelineType === 'ingresos'
-                    ? <><code>{config.filterColumn}</code> = <code>"{config.filterValue}"</code></>
-                    : <><code>{config.filterColumn}</code> ∈ [{config.filterValues.map(v => <code key={v} style={{ marginRight: 4 }}>"{v}"</code>)}]</>
-                  }
+                  {pipelineType === 'ingresos' ? (
+                    <div style={{ marginTop: 12, padding: '12px', background: 'var(--bg-app)', borderRadius: 6, border: '1px solid var(--border-color)' }}>
+                      <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, color: 'var(--text-primary)' }}>
+                        Seleccione la Disciplina a Importar:
+                      </label>
+                      <select 
+                        value={selectedDisciplina} 
+                        onChange={(e) => setSelectedDisciplina(e.target.value)}
+                        style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--primary)', background: 'var(--bg-app)', color: 'var(--text-primary)', fontSize: '1rem', cursor: 'pointer' }}
+                      >
+                        <option value="">-- Seleccionar Disciplina --</option>
+                        {dbDisciplinas.map(d => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <><code>{config.filterColumn}</code> ∈ [ Lista dinámica de Almaceneros autorizados ({dbAlmaceneros.length}) ]</>
+                  )}
                 </p>
                 <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)' }}>
                   Columnas extraídas: {config.sourceColumns.length} de {rawHeaders.length}
