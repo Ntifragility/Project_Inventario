@@ -154,49 +154,61 @@ export default function Config({ user }) {
 
         const sampleRow = rows[0];
         let keyProductCode = null;
-        let equivColKey = null;
-        let descColKey = null;
-        let txtLargoColKey = null;
-        let txtPosColKey = null;
+        let keyEquiv = null;
+        let detectedType = 'DESCRIPCION'; // Default synonym type
 
         const productKeys = ['id producto', 'producto_codigo', 'codigo', 'código', 'id_producto'];
 
+        // 1. Detect ID Producto and EQUIV columns
         for (const k of Object.keys(sampleRow)) {
           const kl = k.toLowerCase().trim();
           if (productKeys.includes(kl)) {
             keyProductCode = k;
-          } else if (/equiv|equivalencia|sinonimo|sinónimo|texto_sinonimo/i.test(kl)) {
-            equivColKey = k;
-          } else if (/descripcion|descripción/i.test(kl)) {
-            descColKey = k;
-          } else if (/txt.*largo|texto.*largo|largo/i.test(kl)) {
-            txtLargoColKey = k;
-          } else if (/txt.*pos|texto.*pos|posicion|posición/i.test(kl)) {
-            txtPosColKey = k;
+          } else if (kl === 'equiv' || kl === 'equivalencia' || kl === 'sinonimo' || kl === 'sinónimo' || kl === 'texto_sinonimo') {
+            keyEquiv = k;
           }
         }
 
-        const synonymColumns = [];
-        if (equivColKey) {
-          synonymColumns.push({ key: equivColKey, type: 'DESCRIPCION' });
-        } else if (descColKey) {
-          synonymColumns.push({ key: descColKey, type: 'DESCRIPCION' });
+        // 2. Detect the type from the second column (e.g. DESCRIPCION, Txt.Largo, Txt.Pos.)
+        for (const k of Object.keys(sampleRow)) {
+          const kl = k.toLowerCase().trim();
+          if (kl === 'id producto' || kl === 'equiv' || productKeys.includes(kl)) {
+            continue;
+          }
+          // Check if this column represents the type
+          if (/txt.*largo|texto.*largo|largo/i.test(kl)) {
+            detectedType = 'TXT_LARGO';
+            break;
+          } else if (/txt.*pos|texto.*pos|posicion|posición/i.test(kl)) {
+            detectedType = 'TXT_POS';
+            break;
+          } else if (/descripcion|descripción/i.test(kl)) {
+            detectedType = 'DESCRIPCION';
+            break;
+          }
         }
 
-        if (txtLargoColKey) {
-          synonymColumns.push({ key: txtLargoColKey, type: 'TXT_LARGO' });
-        }
-        if (txtPosColKey) {
-          synonymColumns.push({ key: txtPosColKey, type: 'TXT_POS' });
+        // 3. Fallback: If no EQUIV column is found, search for a column named DESCRIPCION/TXT_LARGO/TXT_POS to use as the synonym
+        if (!keyEquiv) {
+          for (const k of Object.keys(sampleRow)) {
+            const kl = k.toLowerCase().trim();
+            if (/equiv|equivalencia|sinonimo/i.test(kl)) {
+              keyEquiv = k;
+            } else if (/txt.*largo|texto.*largo/i.test(kl)) {
+              keyEquiv = k;
+              detectedType = 'TXT_LARGO';
+            } else if (/txt.*pos|texto.*pos/i.test(kl)) {
+              keyEquiv = k;
+              detectedType = 'TXT_POS';
+            } else if (/descripcion|descripción/i.test(kl)) {
+              keyEquiv = k;
+              detectedType = 'DESCRIPCION';
+            }
+          }
         }
 
-        if (!keyProductCode) {
-          alert('No se encontró la columna de Código de Producto (ej: "ID Producto").');
-          return;
-        }
-
-        if (synonymColumns.length === 0) {
-          alert('No se encontraron columnas de equivalencias (ej: "EQUIV", "TXT_LARGO", o "TXT_POS").');
+        if (!keyProductCode || !keyEquiv) {
+          alert('No se encontraron las columnas necesarias en el archivo Excel. Debe contener "ID Producto" y un campo de equivalencia.');
           return;
         }
 
@@ -210,31 +222,25 @@ export default function Config({ user }) {
 
         for (const row of rows) {
           const rawCode = row[keyProductCode];
-          if (!rawCode) continue;
+          const rawEquiv = row[keyEquiv];
 
-          const cleanCode = String(rawCode).trim();
-          if (!cleanCode) continue;
+          if (rawCode && rawEquiv) {
+            const cleanCode = String(rawCode).trim();
+            const cleanEquiv = String(rawEquiv).trim();
 
-          if (!existingCodesSet.has(cleanCode.toLowerCase())) {
-            invalidCodes.push(cleanCode);
-            continue;
-          }
-
-          // Process each synonym column detected in this row
-          for (const synCol of synonymColumns) {
-            const rawEquiv = row[synCol.key];
-            if (rawEquiv) {
-              const cleanEquiv = String(rawEquiv).trim();
-              if (cleanEquiv) {
-                const uniqueKey = `${cleanEquiv.toLowerCase()}|${synCol.type}`;
+            if (cleanCode && cleanEquiv) {
+              if (existingCodesSet.has(cleanCode.toLowerCase())) {
+                const uniqueKey = `${cleanEquiv.toLowerCase()}|${detectedType}`;
                 if (!uniqueKeysSet.has(uniqueKey)) {
                   uniqueKeysSet.add(uniqueKey);
                   recordsToInsert.push({
                     producto_codigo: cleanCode,
                     texto_sinonimo: cleanEquiv,
-                    tipo_columna: synCol.type
+                    tipo_columna: detectedType
                   });
                 }
+              } else {
+                invalidCodes.push(cleanCode);
               }
             }
           }
