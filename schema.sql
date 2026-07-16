@@ -128,17 +128,21 @@ CREATE POLICY "sinonimos_delete" ON productos_sinonimos FOR DELETE TO authentica
 -- ── 4a-almaceneros. almaceneros: Full access for authenticated users ──
 DROP POLICY IF EXISTS "almaceneros_select" ON almaceneros;
 DROP POLICY IF EXISTS "almaceneros_insert" ON almaceneros;
+DROP POLICY IF EXISTS "almaceneros_update" ON almaceneros;
 DROP POLICY IF EXISTS "almaceneros_delete" ON almaceneros;
 CREATE POLICY "almaceneros_select" ON almaceneros FOR SELECT TO authenticated USING (true);
 CREATE POLICY "almaceneros_insert" ON almaceneros FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "almaceneros_update" ON almaceneros FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "almaceneros_delete" ON almaceneros FOR DELETE TO authenticated USING (true);
 
 -- ── 4a-disciplinas. disciplinas: Full access for authenticated users ──
 DROP POLICY IF EXISTS "disciplinas_select" ON disciplinas;
 DROP POLICY IF EXISTS "disciplinas_insert" ON disciplinas;
+DROP POLICY IF EXISTS "disciplinas_update" ON disciplinas;
 DROP POLICY IF EXISTS "disciplinas_delete" ON disciplinas;
 CREATE POLICY "disciplinas_select" ON disciplinas FOR SELECT TO authenticated USING (true);
 CREATE POLICY "disciplinas_insert" ON disciplinas FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "disciplinas_update" ON disciplinas FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "disciplinas_delete" ON disciplinas FOR DELETE TO authenticated USING (true);
 
 
