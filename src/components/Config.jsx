@@ -154,7 +154,10 @@ export default function Config({ user }) {
 
         const sampleRow = rows[0];
         let keyProductCode = null;
-        const synonymColumns = []; // Array of { key, type }
+        let equivColKey = null;
+        let descColKey = null;
+        let txtLargoColKey = null;
+        let txtPosColKey = null;
 
         const productKeys = ['id producto', 'producto_codigo', 'codigo', 'código', 'id_producto'];
 
@@ -162,13 +165,29 @@ export default function Config({ user }) {
           const kl = k.toLowerCase().trim();
           if (productKeys.includes(kl)) {
             keyProductCode = k;
-          } else if (kl === 'equiv' || kl === 'equivalencia' || kl === 'sinonimo' || kl === 'sinónimo' || kl === 'texto_sinonimo') {
-            synonymColumns.push({ key: k, type: 'DESCRIPCION' });
-          } else if (kl === 'txt_largo' || kl === 'txt largo' || kl === 'txt.largo' || kl === 'largo') {
-            synonymColumns.push({ key: k, type: 'TXT_LARGO' });
-          } else if (kl === 'txt_pos' || kl === 'txt pos' || kl === 'txt.pos' || kl === 'pos') {
-            synonymColumns.push({ key: k, type: 'TXT_POS' });
+          } else if (/equiv|equivalencia|sinonimo|sinónimo|texto_sinonimo/i.test(kl)) {
+            equivColKey = k;
+          } else if (/descripcion|descripción/i.test(kl)) {
+            descColKey = k;
+          } else if (/txt.*largo|texto.*largo|largo/i.test(kl)) {
+            txtLargoColKey = k;
+          } else if (/txt.*pos|texto.*pos|posicion|posición/i.test(kl)) {
+            txtPosColKey = k;
           }
+        }
+
+        const synonymColumns = [];
+        if (equivColKey) {
+          synonymColumns.push({ key: equivColKey, type: 'DESCRIPCION' });
+        } else if (descColKey) {
+          synonymColumns.push({ key: descColKey, type: 'DESCRIPCION' });
+        }
+
+        if (txtLargoColKey) {
+          synonymColumns.push({ key: txtLargoColKey, type: 'TXT_LARGO' });
+        }
+        if (txtPosColKey) {
+          synonymColumns.push({ key: txtPosColKey, type: 'TXT_POS' });
         }
 
         if (!keyProductCode) {
