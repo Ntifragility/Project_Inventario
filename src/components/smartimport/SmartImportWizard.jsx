@@ -302,11 +302,15 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       const desc = row._description;
       if (!seen.has(desc) && !resolutions[desc] && !skippedDescriptions.has(desc)) {
         seen.add(desc);
-        unique.push(desc);
+        // Only require manual resolution if there is at least one fuzzy suggestion above 35%
+        const suggestions = fuzzySearch(desc, productsList, 0.35, 1);
+        if (suggestions.length > 0) {
+          unique.push(desc);
+        }
       }
     }
     return unique;
-  }, [unmatchedRows, resolutions, skippedDescriptions]);
+  }, [unmatchedRows, resolutions, skippedDescriptions, productsList]);
 
   const currentUnmatched = uniqueUnmatched[resolveIndex] || null;
 
