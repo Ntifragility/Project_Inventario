@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { supabase } from '../supabase';
 import { createClient } from '@supabase/supabase-js';
-import { Settings, ShieldAlert, CheckCircle2, AlertCircle, X, HelpCircle, UserPlus, Shield, Mail, KeyRound, Trash2, ShieldCheck, User, UserMinus, Download, Database, Pencil } from 'lucide-react';
+import { Settings, ShieldAlert, CheckCircle2, AlertCircle, X, HelpCircle, UserPlus, Shield, Mail, KeyRound, Trash2, ShieldCheck, User, UserMinus, Download, Database, Pencil, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function Config({ user }) {
@@ -132,6 +132,101 @@ export default function Config({ user }) {
     } finally {
       setSynLoading(false);
     }
+  };
+
+  const handleUploadEquivalenciasExcel = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const data = evt.target.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+
+        if (rows.length === 0) {
+          alert('El archivo Excel está vacío.');
+          return;
+        }
+
+        const sampleRow = rows[0];
+        let keyProductCode = null;
+        let keyEquiv = null;
+
+        const productKeys = ['id producto', 'producto_codigo', 'codigo', 'código', 'id_producto'];
+        const equivKeys = ['equiv', 'equivalencia', 'sinonimo', 'sinónimo', 'texto_sinonimo'];
+
+        for (const k of Object.keys(sampleRow)) {
+          const kl = k.toLowerCase().trim();
+          if (productKeys.includes(kl)) {
+            keyProductCode = k;
+          } else if (equivKeys.includes(kl)) {
+            keyEquiv = k;
+          }
+        }
+
+        if (!keyProductCode || !keyEquiv) {
+          alert('No se encontraron las columnas necesarias. El archivo debe contener al menos "ID Producto" y "EQUIV".');
+          return;
+        }
+
+        const recordsToInsert = [];
+        const invalidCodes = [];
+        
+        const { data: allProducts, error: prodErr } = await supabase.from('productos').select('codigo');
+        if (prodErr) throw prodErr;
+        const existingCodesSet = new Set((allProducts || []).map(p => String(p.codigo).toLowerCase()));
+
+        for (const row of rows) {
+          const rawCode = row[keyProductCode];
+          const rawEquiv = row[keyEquiv];
+
+          if (rawCode && rawEquiv) {
+            const cleanCode = String(rawCode).trim();
+            const cleanEquiv = String(rawEquiv).trim();
+
+            if (cleanCode && cleanEquiv) {
+              if (existingCodesSet.has(cleanCode.toLowerCase())) {
+                recordsToInsert.push({
+                  producto_codigo: cleanCode,
+                  texto_sinonimo: cleanEquiv,
+                  tipo_columna: 'DESCRIPCION'
+                });
+              } else {
+                invalidCodes.push(cleanCode);
+              }
+            }
+          }
+        }
+
+        if (recordsToInsert.length === 0) {
+          alert('No se encontraron registros válidos para importar. Asegúrese de que los códigos de producto ya existan en el sistema.');
+          return;
+        }
+
+        const { error: upsertErr } = await supabase
+          .from('productos_sinonimos')
+          .upsert(recordsToInsert, { onConflict: 'texto_sinonimo,tipo_columna' });
+
+        if (upsertErr) throw upsertErr;
+
+        let alertMsg = `Se importaron ${recordsToInsert.length} equivalencias con éxito.`;
+        if (invalidCodes.length > 0) {
+          const uniqueInvalid = Array.from(new Set(invalidCodes));
+          alertMsg += `\n\nNota: ${uniqueInvalid.length} códigos de producto no se importaron porque no existen en el sistema (ej: ${uniqueInvalid.slice(0, 5).join(', ')}).`;
+        }
+        alert(alertMsg);
+        fetchSynonyms();
+      } catch (err) {
+        console.error('Error importing equivalencias:', err);
+        alert('Error al importar archivo Excel: ' + err.message);
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = null;
   };
 
   const fetchProductSuggestions = async (val) => {
@@ -1031,22 +1126,39 @@ export default function Config({ user }) {
             <Database size={18} />
             <span>Diccionario de Equivalencias (Tabla EQUIV)</span>
           </div>
-          <button 
-            className="btn btn-primary" 
-            style={{ padding: '6px 12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-            onClick={() => {
-              setSynFormId(null);
-              setSynFormText('');
-              setSynFormType('DESCRIPCION');
-              setSynFormProductSearch('');
-              setSynFormProductSuggestions([]);
-              setSynFormSelectedProduct(null);
-              setSynFormMsg({ text: '', type: '' });
-              setSynShowForm(!synShowForm);
-            }}
-          >
-            {synShowForm ? 'Ver Equivalencias' : '+ Nueva Equivalencia'}
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button 
+              className="btn btn-success" 
+              style={{ padding: '6px 12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+              onClick={() => document.getElementById('excelEquivInput').click()}
+            >
+              <Upload size={14} />
+              <span>Importar de Excel</span>
+            </button>
+            <input 
+              type="file" 
+              id="excelEquivInput" 
+              accept=".xlsx, .xls, .xlsb" 
+              style={{ display: 'none' }}
+              onChange={handleUploadEquivalenciasExcel}
+            />
+            <button 
+              className="btn btn-primary" 
+              style={{ padding: '6px 12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+              onClick={() => {
+                setSynFormId(null);
+                setSynFormText('');
+                setSynFormType('DESCRIPCION');
+                setSynFormProductSearch('');
+                setSynFormProductSuggestions([]);
+                setSynFormSelectedProduct(null);
+                setSynFormMsg({ text: '', type: '' });
+                setSynShowForm(!synShowForm);
+              }}
+            >
+              {synShowForm ? 'Ver Equivalencias' : '+ Nueva Equivalencia'}
+            </button>
+          </div>
         </div>
         <div className="card-body">
           <p style={{ marginBottom: '20px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
