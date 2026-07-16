@@ -267,9 +267,16 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
 
         // 2. Try exact match against product name (official DESCRIPCION)
         if (!matchedCodigo) {
-          const directByName = products.find(p => normalize(p.nombre) === normalizedDesc);
+          const directByName = products.find(p => {
+            const normP = normalize(p.nombre);
+            if (normalizedDesc.includes('cemento') || normalizedDesc.includes('cinta')) {
+              console.log(`Exact Match Check: p.nombre="${p.nombre}" (norm="${normP}") vs desc="${description}" (norm="${normalizedDesc}")`);
+            }
+            return normP === normalizedDesc;
+          });
           if (directByName) {
             matchedCodigo = directByName.codigo;
+            console.log(`Matched EXACTLY: desc="${description}" -> codigo="${matchedCodigo}"`);
           }
         }
 
