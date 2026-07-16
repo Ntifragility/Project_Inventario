@@ -1297,7 +1297,7 @@ export default function Config({ user }) {
         <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Settings size={18} />
-            <span>Gestión de Catálogos Importación</span>
+            <span>Filtros de Validación (Smart Import)</span>
           </div>
           <button className="btn btn-secondary" onClick={fetchDynamicFilters} disabled={loadingFilters}>
             {loadingFilters ? 'Cargando...' : 'Actualizar'}
