@@ -249,6 +249,7 @@ export default function Config({ user }) {
   React.useEffect(() => {
     if (user) {
       fetchSynonyms();
+      fetchDynamicFilters();
     }
   }, [synPage, synTypeFilter, user]);
 
@@ -729,7 +730,6 @@ export default function Config({ user }) {
           fetchUsers();
           fetchAuditLogs();
           fetchBackups();
-          fetchDynamicFilters();
         } else {
           setIsAdminUser(false);
         }
@@ -1159,6 +1159,120 @@ export default function Config({ user }) {
         </div>
       </div>
 
+      {/* Dynamic Filters Config Card */}
+      <div className="card" style={{ marginTop: '24px' }}>
+        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Settings size={18} />
+            <span>Gestión de Catálogos Importación</span>
+          </div>
+          <button className="btn btn-secondary" onClick={fetchDynamicFilters} disabled={loadingFilters}>
+            {loadingFilters ? 'Cargando...' : 'Actualizar'}
+          </button>
+        </div>
+        <div className="card-body" style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+          
+          {/* Almaceneros */}
+          <div style={{ flex: '1 1 300px', minWidth: 0 }}>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: '600', marginBottom: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+              Almaceneros (Para Salidas)
+            </h3>
+            <form onSubmit={handleAddAlmacenero} style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <input 
+                type="text" 
+                placeholder="Código" 
+                value={newAlmaceneroCodigo} 
+                onChange={(e) => setNewAlmaceneroCodigo(e.target.value)} 
+                required 
+                style={{ width: '30%' }}
+              />
+              <input 
+                type="text" 
+                placeholder="Nombre" 
+                value={newAlmaceneroNombre} 
+                onChange={(e) => setNewAlmaceneroNombre(e.target.value)} 
+                required 
+                style={{ width: '45%' }}
+              />
+              <button type="submit" className="btn btn-primary" style={{ width: '25%', padding: '8px 4px', fontSize: '0.8rem' }}>Añadir</button>
+            </form>
+            <div className="table-container" style={{ maxHeight: '250px', overflow: 'auto' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th>Nombre</th>
+                    <th style={{ width: '50px' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {almaceneros.length === 0 ? (
+                    <tr><td colSpan="3" style={{ textAlign: 'center' }}>Sin registros</td></tr>
+                  ) : (
+                    almaceneros.map(a => (
+                      <tr key={a.codigo}>
+                        <td><strong>{a.codigo}</strong></td>
+                        <td>{a.nombre}</td>
+                        <td>
+                          <button className="btn-icon text-danger" onClick={() => handleDeleteAlmacenero(a.codigo)}>
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Disciplinas */}
+          <div style={{ flex: '1 1 300px', minWidth: 0 }}>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: '600', marginBottom: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+              Disciplinas (Para Ingresos)
+            </h3>
+            <form onSubmit={handleAddDisciplina} style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <input 
+                type="text" 
+                placeholder="Nombre de la disciplina" 
+                value={newDisciplinaNombre} 
+                onChange={(e) => setNewDisciplinaNombre(e.target.value)} 
+                required 
+                style={{ width: '75%' }}
+              />
+              <button type="submit" className="btn btn-primary" style={{ width: '25%', padding: '8px 4px', fontSize: '0.8rem' }}>Añadir</button>
+            </form>
+            <div className="table-container" style={{ maxHeight: '250px', overflow: 'auto' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th style={{ width: '50px' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {disciplinas.length === 0 ? (
+                    <tr><td colSpan="2" style={{ textAlign: 'center' }}>Sin registros</td></tr>
+                  ) : (
+                    disciplinas.map(d => (
+                      <tr key={d.nombre}>
+                        <td><strong>{d.nombre}</strong></td>
+                        <td>
+                          <button className="btn-icon text-danger" onClick={() => handleDeleteDisciplina(d.nombre)}>
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
       {/* User Account Assignment Card */}
       {!checkingAdmin && isAdminUser && (
         <>
@@ -1520,119 +1634,7 @@ export default function Config({ user }) {
           </div>
         </div>
 
-        {/* Dynamic Filters Config Card */}
-        <div className="card" style={{ marginTop: '24px' }}>
-          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Settings size={18} />
-              <span>Gestión de Catálogos Importación</span>
-            </div>
-            <button className="btn btn-secondary" onClick={fetchDynamicFilters} disabled={loadingFilters}>
-              {loadingFilters ? 'Cargando...' : 'Actualizar'}
-            </button>
-          </div>
-          <div className="card-body" style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-            
-            {/* Almaceneros */}
-            <div style={{ flex: '1 1 300px', minWidth: 0 }}>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: '600', marginBottom: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
-                Almaceneros (Para Salidas)
-              </h3>
-              <form onSubmit={handleAddAlmacenero} style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-                <input 
-                  type="text" 
-                  placeholder="Código" 
-                  value={newAlmaceneroCodigo} 
-                  onChange={(e) => setNewAlmaceneroCodigo(e.target.value)} 
-                  required 
-                  style={{ width: '30%' }}
-                />
-                <input 
-                  type="text" 
-                  placeholder="Nombre" 
-                  value={newAlmaceneroNombre} 
-                  onChange={(e) => setNewAlmaceneroNombre(e.target.value)} 
-                  required 
-                  style={{ width: '45%' }}
-                />
-                <button type="submit" className="btn btn-primary" style={{ width: '25%', padding: '8px 4px', fontSize: '0.8rem' }}>Añadir</button>
-              </form>
-              <div className="table-container" style={{ maxHeight: '250px', overflow: 'auto' }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Código</th>
-                      <th>Nombre</th>
-                      <th style={{ width: '50px' }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {almaceneros.length === 0 ? (
-                      <tr><td colSpan="3" style={{ textAlign: 'center' }}>Sin registros</td></tr>
-                    ) : (
-                      almaceneros.map(a => (
-                        <tr key={a.codigo}>
-                          <td><strong>{a.codigo}</strong></td>
-                          <td>{a.nombre}</td>
-                          <td>
-                            <button className="btn-icon text-danger" onClick={() => handleDeleteAlmacenero(a.codigo)}>
-                              <Trash2 size={14} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
 
-            {/* Disciplinas */}
-            <div style={{ flex: '1 1 300px', minWidth: 0 }}>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: '600', marginBottom: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
-                Disciplinas (Para Ingresos)
-              </h3>
-              <form onSubmit={handleAddDisciplina} style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-                <input 
-                  type="text" 
-                  placeholder="Nombre de la disciplina" 
-                  value={newDisciplinaNombre} 
-                  onChange={(e) => setNewDisciplinaNombre(e.target.value)} 
-                  required 
-                  style={{ width: '75%' }}
-                />
-                <button type="submit" className="btn btn-primary" style={{ width: '25%', padding: '8px 4px', fontSize: '0.8rem' }}>Añadir</button>
-              </form>
-              <div className="table-container" style={{ maxHeight: '250px', overflow: 'auto' }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Nombre</th>
-                      <th style={{ width: '50px' }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {disciplinas.length === 0 ? (
-                      <tr><td colSpan="2" style={{ textAlign: 'center' }}>Sin registros</td></tr>
-                    ) : (
-                      disciplinas.map(d => (
-                        <tr key={d.nombre}>
-                          <td><strong>{d.nombre}</strong></td>
-                          <td>
-                            <button className="btn-icon text-danger" onClick={() => handleDeleteDisciplina(d.nombre)}>
-                              <Trash2 size={14} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-          </div>
-        </div>
         </>
       )}
 
