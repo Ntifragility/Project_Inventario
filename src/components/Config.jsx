@@ -55,6 +55,7 @@ export default function Config({ user }) {
 
   // Editing and custom deletion states for dynamic filters
   const [editingAlmacenero, setEditingAlmacenero] = useState(null); // { codigo, nombre }
+  const [editAlmaceneroCodigo, setEditAlmaceneroCodigo] = useState('');
   const [editAlmaceneroNombre, setEditAlmaceneroNombre] = useState('');
   const [savingAlmacenero, setSavingAlmacenero] = useState(false);
   const [deletingAlmacenero, setDeletingAlmacenero] = useState(null); // { codigo, nombre }
@@ -426,19 +427,23 @@ export default function Config({ user }) {
 
   const handleEditAlmaceneroClick = (a) => {
     setEditingAlmacenero(a);
+    setEditAlmaceneroCodigo(a.codigo);
     setEditAlmaceneroNombre(a.nombre);
     setFilterActionError('');
   };
 
   const handleConfirmEditAlmacenero = async (e) => {
     e.preventDefault();
-    if (!editingAlmacenero || !editAlmaceneroNombre.trim()) return;
+    if (!editingAlmacenero || !editAlmaceneroCodigo.trim() || !editAlmaceneroNombre.trim()) return;
     setSavingAlmacenero(true);
     setFilterActionError('');
     try {
       const { error } = await supabase
         .from('almaceneros')
-        .update({ nombre: editAlmaceneroNombre.trim() })
+        .update({ 
+          codigo: editAlmaceneroCodigo.trim(),
+          nombre: editAlmaceneroNombre.trim()
+        })
         .eq('codigo', editingAlmacenero.codigo);
       if (error) throw error;
       setEditingAlmacenero(null);
@@ -2179,13 +2184,14 @@ export default function Config({ user }) {
             <form onSubmit={handleConfirmEditAlmacenero}>
               <div className="card-body" style={{ padding: '20px' }}>
                 <div className="form-group" style={{ marginBottom: '12px' }}>
-                  <label htmlFor="editAlmaceneroCodigo" style={{ fontWeight: '600', display: 'block', marginBottom: '6px' }}>Código</label>
+                  <label htmlFor="editAlmaceneroCodigo" style={{ fontWeight: '600', display: 'block', marginBottom: '6px' }}>Código *</label>
                   <input 
                     type="text" 
                     id="editAlmaceneroCodigo" 
-                    value={editingAlmacenero.codigo}
-                    readOnly
-                    style={{ width: '100%', background: 'var(--bg-app-header)', cursor: 'not-allowed' }}
+                    value={editAlmaceneroCodigo}
+                    onChange={(e) => setEditAlmaceneroCodigo(e.target.value)}
+                    required
+                    style={{ width: '100%' }}
                   />
                 </div>
                 <div className="form-group" style={{ marginBottom: '16px' }}>
