@@ -175,6 +175,7 @@ export default function Config({ user }) {
 
         const recordsToInsert = [];
         const invalidCodes = [];
+        const uniqueKeysSet = new Set();
         
         const { data: allProducts, error: prodErr } = await supabase.from('productos').select('codigo');
         if (prodErr) throw prodErr;
@@ -190,11 +191,15 @@ export default function Config({ user }) {
 
             if (cleanCode && cleanEquiv) {
               if (existingCodesSet.has(cleanCode.toLowerCase())) {
-                recordsToInsert.push({
-                  producto_codigo: cleanCode,
-                  texto_sinonimo: cleanEquiv,
-                  tipo_columna: 'DESCRIPCION'
-                });
+                const uniqueKey = `${cleanEquiv.toLowerCase()}|DESCRIPCION`;
+                if (!uniqueKeysSet.has(uniqueKey)) {
+                  uniqueKeysSet.add(uniqueKey);
+                  recordsToInsert.push({
+                    producto_codigo: cleanCode,
+                    texto_sinonimo: cleanEquiv,
+                    tipo_columna: 'DESCRIPCION'
+                  });
+                }
               } else {
                 invalidCodes.push(cleanCode);
               }
