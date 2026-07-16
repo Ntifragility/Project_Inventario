@@ -104,7 +104,12 @@ export default function Config({ user }) {
           texto_sinonimo,
           tipo_columna,
           created_at,
-          producto:productos(nombre)
+          producto:productos(
+            nombre,
+            stock_min,
+            unidad:unidades(nombre),
+            grupo:grupos(nombre)
+          )
         `, { count: 'exact' });
 
       if (synTypeFilter !== 'ALL') {
@@ -1363,15 +1368,36 @@ export default function Config({ user }) {
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
-                        <th style={{ padding: '12px 8px' }}>Texto Sinónimo (Excel)</th>
+                        <th style={{ padding: '12px 8px' }}>ID Producto</th>
+                        <th style={{ padding: '12px 8px' }}>
+                          {synTypeFilter === 'DESCRIPCION' ? 'DESCRIPCION' :
+                           synTypeFilter === 'TXT_LARGO' ? 'Txt.Largo' :
+                           synTypeFilter === 'TXT_POS' ? 'Txt.Pos.' : 'DESCRIPCION / Txt.Largo / Txt.Pos.'}
+                        </th>
+                        <th style={{ padding: '12px 8px' }}>Unidad</th>
+                        <th style={{ padding: '12px 8px' }}>Grupo</th>
+                        <th style={{ padding: '12px 8px' }}>Stock Min.</th>
+                        <th style={{ padding: '12px 8px' }}>EQUIV</th>
                         <th style={{ padding: '12px 8px' }}>Tipo Columna</th>
-                        <th style={{ padding: '12px 8px' }}>Producto Asignado</th>
                         <th style={{ padding: '12px 8px', textAlign: 'right' }}>Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
                       {synonymsList.map((syn) => (
                         <tr key={syn.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '12px 8px', fontWeight: '600', color: 'var(--text-primary)' }}>{syn.producto_codigo}</td>
+                          <td style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>
+                            {syn.producto ? syn.producto.nombre : 'Producto no encontrado'}
+                          </td>
+                          <td style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>
+                            {syn.producto?.unidad ? syn.producto.unidad.nombre : '-'}
+                          </td>
+                          <td style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>
+                            {syn.producto?.grupo ? syn.producto.grupo.nombre : '-'}
+                          </td>
+                          <td style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>
+                            {syn.producto?.stock_min !== undefined ? syn.producto.stock_min : '-'}
+                          </td>
                           <td style={{ padding: '12px 8px', fontWeight: '500' }}>{syn.texto_sinonimo}</td>
                           <td style={{ padding: '12px 8px' }}>
                             <span style={{
@@ -1384,12 +1410,6 @@ export default function Config({ user }) {
                             }}>
                               {syn.tipo_columna}
                             </span>
-                          </td>
-                          <td style={{ padding: '12px 8px' }}>
-                            <div><strong>{syn.producto_codigo}</strong></div>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                              {syn.producto ? syn.producto.nombre : 'Producto no encontrado'}
-                            </div>
                           </td>
                           <td style={{ padding: '12px 8px', textAlign: 'right' }}>
                             <div style={{ display: 'inline-flex', gap: '8px' }}>
