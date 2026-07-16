@@ -120,9 +120,11 @@ ALTER TABLE disciplinas ENABLE ROW LEVEL SECURITY;
 -- ── 4a-pre. productos_sinonimos: Full access for authenticated users ──
 DROP POLICY IF EXISTS "sinonimos_select" ON productos_sinonimos;
 DROP POLICY IF EXISTS "sinonimos_insert" ON productos_sinonimos;
+DROP POLICY IF EXISTS "sinonimos_update" ON productos_sinonimos;
 DROP POLICY IF EXISTS "sinonimos_delete" ON productos_sinonimos;
 CREATE POLICY "sinonimos_select" ON productos_sinonimos FOR SELECT TO authenticated USING (true);
 CREATE POLICY "sinonimos_insert" ON productos_sinonimos FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "sinonimos_update" ON productos_sinonimos FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "sinonimos_delete" ON productos_sinonimos FOR DELETE TO authenticated USING (true);
 
 -- ── 4a-almaceneros. almaceneros: Full access for authenticated users ──
