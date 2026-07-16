@@ -354,6 +354,72 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
     setSkippedDescriptions(prev => new Set([...prev, ...allDescs]));
   };
 
+  const handleExportUnmatchedExcel = () => {
+    try {
+      if (unmatchedRows.length === 0) {
+        alert('No hay pendientes para exportar.');
+        return;
+      }
+
+      const formattedRows = unmatchedRows.map((row) => {
+        const cleanRow = {};
+        for (const k of Object.keys(row)) {
+          if (!k.startsWith('_')) {
+            cleanRow[k] = row[k];
+          }
+        }
+
+        const desc = row._description || '';
+        const suggestions = fuzzySearch(desc, productsList, 0.20, 3);
+
+        if (suggestions[0]) {
+          cleanRow['Sugerencia_1_Codigo'] = suggestions[0].codigo;
+          cleanRow['Sugerencia_1_Nombre'] = suggestions[0].nombre;
+          cleanRow['Sugerencia_1_Similitud'] = `${Math.round(suggestions[0].score * 100)}%`;
+        } else {
+          cleanRow['Sugerencia_1_Codigo'] = '';
+          cleanRow['Sugerencia_1_Nombre'] = '';
+          cleanRow['Sugerencia_1_Similitud'] = '';
+        }
+
+        if (suggestions[1]) {
+          cleanRow['Sugerencia_2_Codigo'] = suggestions[1].codigo;
+          cleanRow['Sugerencia_2_Nombre'] = suggestions[1].nombre;
+          cleanRow['Sugerencia_2_Similitud'] = `${Math.round(suggestions[1].score * 100)}%`;
+        } else {
+          cleanRow['Sugerencia_2_Codigo'] = '';
+          cleanRow['Sugerencia_2_Nombre'] = '';
+          cleanRow['Sugerencia_2_Similitud'] = '';
+        }
+
+        if (suggestions[2]) {
+          cleanRow['Sugerencia_3_Codigo'] = suggestions[2].codigo;
+          cleanRow['Sugerencia_3_Nombre'] = suggestions[2].nombre;
+          cleanRow['Sugerencia_3_Similitud'] = `${Math.round(suggestions[2].score * 100)}%`;
+        } else {
+          cleanRow['Sugerencia_3_Codigo'] = '';
+          cleanRow['Sugerencia_3_Nombre'] = '';
+          cleanRow['Sugerencia_3_Similitud'] = '';
+        }
+
+        return cleanRow;
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Pendientes');
+      XLSX.writeFile(workbook, 'Pendientes_Importacion_Fuzzy.xlsx');
+
+      if (window.confirm('Se ha descargado el archivo "Pendientes_Importacion_Fuzzy.xlsx".\n\n¿Desea avanzar directamente a la vista previa para importar solo las coincidencias exactas?')) {
+        handleSkipAll();
+        setCurrentStep(4);
+      }
+    } catch (err) {
+      console.error('Error exporting unmatched rows:', err);
+      alert('Error al exportar a Excel: ' + err.message);
+    }
+  };
+
   // ══════════════════════════════════════════════════════════════
   // STEP 5: BUILD PREVIEW DATA
   // ══════════════════════════════════════════════════════════════
@@ -896,13 +962,22 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                       {Object.keys(resolutions).length > 0 && ` · ${Object.keys(resolutions).length} resueltos`}
                       {skippedDescriptions.size > 0 && ` · ${skippedDescriptions.size} omitidos`}
                     </p>
-                    <button
-                      className="btn-outline"
-                      onClick={handleSkipAll}
-                      style={{ fontSize: '0.8rem', padding: '4px 12px' }}
-                    >
-                      <SkipForward size={14} /> Omitir todos
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        className="btn btn-success"
+                        onClick={handleExportUnmatchedExcel}
+                        style={{ fontSize: '0.8rem', padding: '4px 12px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+                      >
+                        <Download size={14} /> Exportar Pendientes
+                      </button>
+                      <button
+                        className="btn-outline"
+                        onClick={handleSkipAll}
+                        style={{ fontSize: '0.8rem', padding: '4px 12px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+                      >
+                        <SkipForward size={14} /> Omitir todos
+                      </button>
+                    </div>
                   </div>
 
                   {currentUnmatched && (
