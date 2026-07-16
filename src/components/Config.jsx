@@ -845,6 +845,39 @@ export default function Config({ user }) {
 
   return (
     <div id="configuracion" className="tab-content active">
+      <style>{`
+        .row-actions-hover {
+          position: absolute;
+          right: 8px;
+          top: 50%;
+          transform: translateY(-50%);
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.15s ease;
+          background: #ffffff;
+          padding-left: 8px;
+          display: flex;
+          gap: 6px;
+        }
+        .dark-theme .row-actions-hover {
+          background: #121212;
+        }
+        tr:hover .row-actions-hover {
+          opacity: 1;
+          pointer-events: auto;
+        }
+        @media (max-width: 768px) {
+          .row-actions-hover {
+            position: static;
+            transform: none;
+            opacity: 1 !important;
+            pointer-events: auto;
+            margin-top: 6px;
+            background: transparent !important;
+            padding-left: 0;
+          }
+        }
+      `}</style>
       <div className="card">
         <div className="card-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1202,21 +1235,27 @@ export default function Config({ user }) {
                   <tr>
                     <th>Código</th>
                     <th>Nombre</th>
-                    <th style={{ width: '50px' }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {almaceneros.length === 0 ? (
-                    <tr><td colSpan="3" style={{ textAlign: 'center' }}>Sin registros</td></tr>
+                    <tr><td colSpan="2" style={{ textAlign: 'center' }}>Sin registros</td></tr>
                   ) : (
                     almaceneros.map(a => (
                       <tr key={a.codigo}>
                         <td><strong>{a.codigo}</strong></td>
-                        <td>{a.nombre}</td>
-                        <td>
-                          <button className="btn-icon text-danger" onClick={() => handleDeleteAlmacenero(a.codigo)}>
-                            <Trash2 size={14} />
-                          </button>
+                        <td style={{ position: 'relative' }}>
+                          <span>{a.nombre}</span>
+                          <div className="row-actions-hover">
+                            <button 
+                              className="btn btn-danger" 
+                              style={{ padding: '2px 6px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }}
+                              onClick={() => handleDeleteAlmacenero(a.codigo)}
+                              title="Eliminar"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -1247,20 +1286,26 @@ export default function Config({ user }) {
                 <thead>
                   <tr>
                     <th>Nombre</th>
-                    <th style={{ width: '50px' }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {disciplinas.length === 0 ? (
-                    <tr><td colSpan="2" style={{ textAlign: 'center' }}>Sin registros</td></tr>
+                    <tr><td colSpan="1" style={{ textAlign: 'center' }}>Sin registros</td></tr>
                   ) : (
                     disciplinas.map(d => (
                       <tr key={d.nombre}>
-                        <td><strong>{d.nombre}</strong></td>
-                        <td>
-                          <button className="btn-icon text-danger" onClick={() => handleDeleteDisciplina(d.nombre)}>
-                            <Trash2 size={14} />
-                          </button>
+                        <td style={{ position: 'relative' }}>
+                          <strong>{d.nombre}</strong>
+                          <div className="row-actions-hover">
+                            <button 
+                              className="btn btn-danger" 
+                              style={{ padding: '2px 6px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }}
+                              onClick={() => handleDeleteDisciplina(d.nombre)}
+                              title="Eliminar"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
