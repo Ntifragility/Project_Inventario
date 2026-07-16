@@ -53,6 +53,19 @@ export default function Config({ user }) {
   const [newAlmaceneroNombre, setNewAlmaceneroNombre] = useState('');
   const [newDisciplinaNombre, setNewDisciplinaNombre] = useState('');
 
+  // Editing and custom deletion states for dynamic filters
+  const [editingAlmacenero, setEditingAlmacenero] = useState(null); // { codigo, nombre }
+  const [editAlmaceneroNombre, setEditAlmaceneroNombre] = useState('');
+  const [savingAlmacenero, setSavingAlmacenero] = useState(false);
+  const [deletingAlmacenero, setDeletingAlmacenero] = useState(null); // { codigo, nombre }
+
+  const [editingDisciplina, setEditingDisciplina] = useState(null); // { nombre }
+  const [editDisciplinaNombre, setEditDisciplinaNombre] = useState('');
+  const [savingDisciplina, setSavingDisciplina] = useState(false);
+  const [deletingDisciplina, setDeletingDisciplina] = useState(null); // { nombre }
+  
+  const [filterActionError, setFilterActionError] = useState('');
+
   // User management auto-unlock states
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [checkingAdmin, setCheckingAdmin] = useState(true);
@@ -411,14 +424,107 @@ export default function Config({ user }) {
     }
   };
 
-  const handleDeleteAlmacenero = async (codigo) => {
-    if (!confirm(`¿Eliminar almacenero ${codigo}?`)) return;
+  const handleEditAlmaceneroClick = (a) => {
+    setEditingAlmacenero(a);
+    setEditAlmaceneroNombre(a.nombre);
+    setFilterActionError('');
+  };
+
+  const handleConfirmEditAlmacenero = async (e) => {
+    e.preventDefault();
+    if (!editingAlmacenero || !editAlmaceneroNombre.trim()) return;
+    setSavingAlmacenero(true);
+    setFilterActionError('');
     try {
-      const { error } = await supabase.from('almaceneros').delete().eq('codigo', codigo);
+      const { error } = await supabase
+        .from('almaceneros')
+        .update({ nombre: editAlmaceneroNombre.trim() })
+        .eq('codigo', editingAlmacenero.codigo);
       if (error) throw error;
+      setEditingAlmacenero(null);
       fetchDynamicFilters();
     } catch (err) {
-      alert('Error al eliminar almacenero: ' + err.message);
+      console.error(err);
+      setFilterActionError('Error al guardar: ' + err.message);
+    } finally {
+      setSavingAlmacenero(false);
+    }
+  };
+
+  const handleEditDisciplinaClick = (d) => {
+    setEditingDisciplina(d);
+    setEditDisciplinaNombre(d.nombre);
+    setFilterActionError('');
+  };
+
+  const handleConfirmEditDisciplina = async (e) => {
+    e.preventDefault();
+    if (!editingDisciplina || !editDisciplinaNombre.trim()) return;
+    setSavingDisciplina(true);
+    setFilterActionError('');
+    try {
+      const { error } = await supabase
+        .from('disciplinas')
+        .update({ nombre: editDisciplinaNombre.trim() })
+        .eq('nombre', editingDisciplina.nombre);
+      if (error) throw error;
+      setEditingDisciplina(null);
+      fetchDynamicFilters();
+    } catch (err) {
+      console.error(err);
+      setFilterActionError('Error al guardar: ' + err.message);
+    } finally {
+      setSavingDisciplina(false);
+    }
+  };
+
+  const handleDeleteAlmaceneroClick = (a) => {
+    setDeletingAlmacenero(a);
+    setFilterActionError('');
+  };
+
+  const handleConfirmDeleteAlmacenero = async () => {
+    if (!deletingAlmacenero) return;
+    setSavingAlmacenero(true);
+    setFilterActionError('');
+    try {
+      const { error } = await supabase
+        .from('almaceneros')
+        .delete()
+        .eq('codigo', deletingAlmacenero.codigo);
+      if (error) throw error;
+      setDeletingAlmacenero(null);
+      fetchDynamicFilters();
+    } catch (err) {
+      console.error(err);
+      setFilterActionError('Error al eliminar: ' + err.message);
+    } finally {
+      setSavingAlmacenero(false);
+    }
+  };
+
+  const handleDeleteDisciplinaClick = (d) => {
+    setDeletingDisciplina(d);
+    setFilterActionError('');
+  };
+
+  const handleConfirmDeleteDisciplina = async () => {
+    if (!deletingDisciplina) return;
+    setSavingDisciplina(true);
+    setFilterActionError('');
+    try {
+      const { error } = await supabase
+        .from('disciplinas')
+        .delete()
+        .eq('nombre', deletingDisciplina.nombre);
+      if (error) throw error;
+      setDeletingDisciplina(null);
+      fetchDynamicFilters();
+    } catch (err) {
+      console.error(err);
+      setFilterActionError('Error al eliminar: ' + err.message);
+    } finally {
+      setSavingDisciplina(false);
     }
   };
 
@@ -434,17 +540,6 @@ export default function Config({ user }) {
       fetchDynamicFilters();
     } catch (err) {
       alert('Error al agregar disciplina: ' + err.message);
-    }
-  };
-
-  const handleDeleteDisciplina = async (nombre) => {
-    if (!confirm(`¿Eliminar disciplina ${nombre}?`)) return;
-    try {
-      const { error } = await supabase.from('disciplinas').delete().eq('nombre', nombre);
-      if (error) throw error;
-      fetchDynamicFilters();
-    } catch (err) {
-      alert('Error al eliminar disciplina: ' + err.message);
     }
   };
 
@@ -1248,9 +1343,19 @@ export default function Config({ user }) {
                           <span>{a.nombre}</span>
                           <div className="row-actions-hover">
                             <button 
+                              type="button"
+                              className="btn btn-secondary" 
+                              style={{ padding: '2px 6px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }}
+                              onClick={() => handleEditAlmaceneroClick(a)}
+                              title="Editar"
+                            >
+                              <Pencil size={11} />
+                            </button>
+                            <button 
+                              type="button"
                               className="btn btn-danger" 
                               style={{ padding: '2px 6px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }}
-                              onClick={() => handleDeleteAlmacenero(a.codigo)}
+                              onClick={() => handleDeleteAlmaceneroClick(a)}
                               title="Eliminar"
                             >
                               <Trash2 size={11} />
@@ -1298,9 +1403,19 @@ export default function Config({ user }) {
                           <strong>{d.nombre}</strong>
                           <div className="row-actions-hover">
                             <button 
+                              type="button"
+                              className="btn btn-secondary" 
+                              style={{ padding: '2px 6px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }}
+                              onClick={() => handleEditDisciplinaClick(d)}
+                              title="Editar"
+                            >
+                              <Pencil size={11} />
+                            </button>
+                            <button 
+                              type="button"
                               className="btn btn-danger" 
                               style={{ padding: '2px 6px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }}
-                              onClick={() => handleDeleteDisciplina(d.nombre)}
+                              onClick={() => handleDeleteDisciplinaClick(d)}
                               title="Eliminar"
                             >
                               <Trash2 size={11} />
@@ -2040,6 +2155,229 @@ export default function Config({ user }) {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Almacenero Modal */}
+      {editingAlmacenero && (
+        <div className="dialog-overlay">
+          <div className="dialog-card" style={{ maxWidth: '420px', width: '90%' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Pencil size={18} style={{ color: 'var(--primary)' }} />
+                <span style={{ fontWeight: '700' }}>Editar Almacenero</span>
+              </div>
+              <button 
+                type="button" 
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                onClick={() => setEditingAlmacenero(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleConfirmEditAlmacenero}>
+              <div className="card-body" style={{ padding: '20px' }}>
+                <div className="form-group" style={{ marginBottom: '12px' }}>
+                  <label htmlFor="editAlmaceneroCodigo" style={{ fontWeight: '600', display: 'block', marginBottom: '6px' }}>Código</label>
+                  <input 
+                    type="text" 
+                    id="editAlmaceneroCodigo" 
+                    value={editingAlmacenero.codigo}
+                    readOnly
+                    style={{ width: '100%', background: 'var(--bg-app-header)', cursor: 'not-allowed' }}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <label htmlFor="editAlmaceneroNombre" style={{ fontWeight: '600', display: 'block', marginBottom: '6px' }}>Nombre *</label>
+                  <input 
+                    type="text" 
+                    id="editAlmaceneroNombre" 
+                    value={editAlmaceneroNombre}
+                    onChange={(e) => setEditAlmaceneroNombre(e.target.value)}
+                    required
+                    style={{ width: '100%' }}
+                  />
+                </div>
+                {filterActionError && (
+                  <div className="message error" style={{ marginBottom: '12px' }}>
+                    <AlertCircle size={14} />
+                    <span style={{ fontSize: '0.8rem' }}>{filterActionError}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setEditingAlmacenero(null)} disabled={savingAlmacenero}>
+                    Cancelar
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={savingAlmacenero}>
+                    {savingAlmacenero ? 'Guardando...' : 'Guardar Cambios'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Disciplina Modal */}
+      {editingDisciplina && (
+        <div className="dialog-overlay">
+          <div className="dialog-card" style={{ maxWidth: '420px', width: '90%' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Pencil size={18} style={{ color: 'var(--primary)' }} />
+                <span style={{ fontWeight: '700' }}>Editar Disciplina</span>
+              </div>
+              <button 
+                type="button" 
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                onClick={() => setEditingDisciplina(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleConfirmEditDisciplina}>
+              <div className="card-body" style={{ padding: '20px' }}>
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <label htmlFor="editDisciplinaNombre" style={{ fontWeight: '600', display: 'block', marginBottom: '6px' }}>Nombre de la Disciplina *</label>
+                  <input 
+                    type="text" 
+                    id="editDisciplinaNombre" 
+                    value={editDisciplinaNombre}
+                    onChange={(e) => setEditDisciplinaNombre(e.target.value)}
+                    required
+                    style={{ width: '100%' }}
+                  />
+                </div>
+                {filterActionError && (
+                  <div className="message error" style={{ marginBottom: '12px' }}>
+                    <AlertCircle size={14} />
+                    <span style={{ fontSize: '0.8rem' }}>{filterActionError}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setEditingDisciplina(null)} disabled={savingDisciplina}>
+                    Cancelar
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={savingDisciplina}>
+                    {savingDisciplina ? 'Guardando...' : 'Guardar Cambios'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Almacenero Confirmation Modal */}
+      {deletingAlmacenero && (
+        <div className="dialog-overlay">
+          <div className="dialog-card" style={{ maxWidth: '420px', width: '90%' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'var(--danger)' }}>
+              <span style={{ fontWeight: '700' }}>⚠️ Confirmar Eliminación de Almacenero</span>
+            </div>
+            <div className="card-body" style={{ padding: '24px' }}>
+              <p style={{ marginBottom: '16px', lineHeight: '1.5', fontSize: '0.9rem', textAlign: 'center' }}>
+                ¿Está seguro de que desea eliminar permanentemente este almacenero?
+              </p>
+              
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.05)',
+                border: '1px solid rgba(239, 68, 68, 0.15)',
+                padding: '16px',
+                borderRadius: '8px',
+                marginBottom: '20px',
+                fontSize: '0.85rem'
+              }}>
+                <h4 style={{ fontWeight: '700', marginBottom: '8px', textAlign: 'center' }}>Detalles:</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <span>• Código: <strong>{deletingAlmacenero.codigo}</strong></span>
+                  <span>• Nombre: <strong>{deletingAlmacenero.nombre}</strong></span>
+                </div>
+              </div>
+
+              {filterActionError && (
+                <div className="message error" style={{ marginBottom: '16px' }}>
+                  <AlertCircle size={16} />
+                  <span>{filterActionError}</span>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '24px' }}>
+                <button 
+                  className="btn btn-secondary" 
+                  style={{ minWidth: '120px' }}
+                  onClick={() => setDeletingAlmacenero(null)}
+                  disabled={savingAlmacenero}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  className="btn btn-danger" 
+                  style={{ minWidth: '180px', background: '#ef4444', color: '#ffffff' }}
+                  onClick={handleConfirmDeleteAlmacenero}
+                  disabled={savingAlmacenero}
+                >
+                  {savingAlmacenero ? 'Eliminando...' : 'Confirmar Eliminación'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Disciplina Confirmation Modal */}
+      {deletingDisciplina && (
+        <div className="dialog-overlay">
+          <div className="dialog-card" style={{ maxWidth: '420px', width: '90%' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'var(--danger)' }}>
+              <span style={{ fontWeight: '700' }}>⚠️ Confirmar Eliminación de Disciplina</span>
+            </div>
+            <div className="card-body" style={{ padding: '24px' }}>
+              <p style={{ marginBottom: '16px', lineHeight: '1.5', fontSize: '0.9rem', textAlign: 'center' }}>
+                ¿Está seguro de que desea eliminar permanentemente esta disciplina?
+              </p>
+              
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.05)',
+                border: '1px solid rgba(239, 68, 68, 0.15)',
+                padding: '16px',
+                borderRadius: '8px',
+                marginBottom: '20px',
+                fontSize: '0.85rem'
+              }}>
+                <h4 style={{ fontWeight: '700', marginBottom: '8px', textAlign: 'center' }}>Detalles:</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <span>• Disciplina: <strong>{deletingDisciplina.nombre}</strong></span>
+                </div>
+              </div>
+
+              {filterActionError && (
+                <div className="message error" style={{ marginBottom: '16px' }}>
+                  <AlertCircle size={16} />
+                  <span>{filterActionError}</span>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '24px' }}>
+                <button 
+                  className="btn btn-secondary" 
+                  style={{ minWidth: '120px' }}
+                  onClick={() => setDeletingDisciplina(null)}
+                  disabled={savingDisciplina}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  className="btn btn-danger" 
+                  style={{ minWidth: '180px', background: '#ef4444', color: '#ffffff' }}
+                  onClick={handleConfirmDeleteDisciplina}
+                  disabled={savingDisciplina}
+                >
+                  {savingDisciplina ? 'Eliminando...' : 'Confirmar Eliminación'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
