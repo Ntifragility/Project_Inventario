@@ -6,7 +6,7 @@
 /**
  * Normalize a string for comparison: lowercase, remove accents, collapse whitespace.
  */
-function normalize(s) {
+export function normalize(s) {
   return String(s || '')
     .trim()
     .toLowerCase()

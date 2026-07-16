@@ -3,7 +3,7 @@ import { supabase } from '../../supabase';
 import * as XLSX from 'xlsx';
 import { Upload, FileSpreadsheet, Filter, Search, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, X, Download, ChevronDown, ChevronUp, Loader2, Zap, HelpCircle, Check, SkipForward } from 'lucide-react';
 import { INGRESOS_CONFIG, SALIDAS_CONFIG, detectPipeline, findColumnIndex } from './pipelineConfig';
-import { fuzzySearch, exactMatchSynonym } from './fuzzyMatch';
+import { fuzzySearch, exactMatchSynonym, normalize } from './fuzzyMatch';
 
 /**
  * SmartImportWizard — Multi-step wizard for importing raw procurement/warehouse files.
@@ -253,17 +253,40 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
         const description = String(row[descCol] || '').trim();
 
         if (!description) {
-          // Skip rows with empty descriptions
           continue;
         }
 
-        // Try exact match across all synonym types (DESCRIPCION, TXT_LARGO, TXT_POS)
-        const matchedCodigo = exactMatchSynonym(description, synonyms || []);
+        const normalizedDesc = normalize(description);
+
+        // 1. Try exact match against product code
+        let matchedCodigo = null;
+        const directByCode = products.find(p => normalize(p.codigo) === normalizedDesc);
+        if (directByCode) {
+          matchedCodigo = directByCode.codigo;
+        }
+
+        // 2. Try exact match against product name (official DESCRIPCION)
+        if (!matchedCodigo) {
+          const directByName = products.find(p => normalize(p.nombre) === normalizedDesc);
+          if (directByName) {
+            matchedCodigo = directByName.codigo;
+          }
+        }
+
+        // 3. Try exact match against database synonyms (covers EQUIV, TXT_LARGO, TXT_POS)
+        if (!matchedCodigo) {
+          matchedCodigo = exactMatchSynonym(description, synonyms || []);
+        }
 
         if (matchedCodigo) {
           matched.push({ ...row, _matchedCodigo: matchedCodigo, _matchType: 'exact' });
         } else {
-          unmatched.push({ ...row, _description: description });
+          // Lefover: Check fuzzy similarity against all products. Keep only if similarity is >= 0.45.
+          // Discard immediately if similarity is < 0.45 (Inner Join behavior in Power Query).
+          const suggestions = fuzzySearch(description, products, 0.45, 1);
+          if (suggestions.length > 0) {
+            unmatched.push({ ...row, _description: description });
+          }
         }
 
         // Update progress every 50 rows
@@ -302,15 +325,11 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       const desc = row._description;
       if (!seen.has(desc) && !resolutions[desc] && !skippedDescriptions.has(desc)) {
         seen.add(desc);
-        // Only require manual resolution if there is at least one fuzzy suggestion above 35%
-        const suggestions = fuzzySearch(desc, productsList, 0.35, 1);
-        if (suggestions.length > 0) {
-          unique.push(desc);
-        }
+        unique.push(desc);
       }
     }
     return unique;
-  }, [unmatchedRows, resolutions, skippedDescriptions, productsList]);
+  }, [unmatchedRows, resolutions, skippedDescriptions]);
 
   const currentUnmatched = uniqueUnmatched[resolveIndex] || null;
 
