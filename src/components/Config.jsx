@@ -1247,7 +1247,7 @@ export default function Config({ user }) {
                           id="synProductSearch" 
                           placeholder="Escriba código o nombre del producto..." 
                           value={synFormProductSearch} 
-                          onChange={handleSynProductSearchChange} 
+                          onChange={(e) => handleSynProductSearchChange(e.target.value)} 
                           required={!synFormSelectedProduct}
                         />
                         {synFormProductSuggestions.length > 0 && (
@@ -1268,7 +1268,11 @@ export default function Config({ user }) {
                             {synFormProductSuggestions.map(p => (
                               <li 
                                 key={p.codigo} 
-                                onClick={() => handleSynProductSelect(p)}
+                                onMouseDown={() => {
+                                  setSynFormSelectedProduct(p);
+                                  setSynFormProductSearch(`${p.codigo} - ${p.nombre}`);
+                                  setSynFormProductSuggestions([]);
+                                }}
                                 style={{
                                   padding: '8px 12px',
                                   cursor: 'pointer',
@@ -1321,8 +1325,8 @@ export default function Config({ user }) {
                       >
                         Cancelar
                       </button>
-                      <button type="submit" className="btn btn-primary" disabled={savingSynonym}>
-                        {savingSynonym ? 'Guardando...' : 'Guardar Equivalencia'}
+                      <button type="submit" className="btn btn-primary" disabled={synFormSaving}>
+                        {synFormSaving ? 'Guardando...' : 'Guardar Equivalencia'}
                       </button>
                     </div>
                   </form>
@@ -1334,8 +1338,8 @@ export default function Config({ user }) {
                       <input 
                         type="text" 
                         placeholder="Buscar equivalencias (por texto de sinónimo o código)..." 
-                        value={synQuery}
-                        onChange={(e) => setSynQuery(e.target.value)}
+                        value={synSearch}
+                        onChange={(e) => setSynSearch(e.target.value)}
                         style={{ width: '100%' }}
                       />
                     </div>
@@ -1345,7 +1349,7 @@ export default function Config({ user }) {
                         onChange={(e) => setSynTypeFilter(e.target.value)}
                         style={{ width: '100%', padding: '8px 10px', height: '38px' }}
                       >
-                        <option value="TODOS">Todas las Columnas</option>
+                        <option value="ALL">Todas las Columnas</option>
                         <option value="DESCRIPCION">DESCRIPCION</option>
                         <option value="TXT_LARGO">TXT_LARGO</option>
                         <option value="TXT_POS">TXT_POS</option>
