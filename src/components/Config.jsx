@@ -1379,7 +1379,6 @@ export default function Config({ user }) {
                         <th style={{ padding: '12px 8px' }}>Stock Min.</th>
                         <th style={{ padding: '12px 8px' }}>EQUIV</th>
                         <th style={{ padding: '12px 8px' }}>Tipo Columna</th>
-                        <th style={{ padding: '12px 8px', textAlign: 'right' }}>Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1399,7 +1398,7 @@ export default function Config({ user }) {
                             {syn.producto?.stock_min !== undefined ? syn.producto.stock_min : '-'}
                           </td>
                           <td style={{ padding: '12px 8px', fontWeight: '500' }}>{syn.texto_sinonimo}</td>
-                          <td style={{ padding: '12px 8px' }}>
+                          <td style={{ padding: '12px 8px', position: 'relative' }}>
                             <span style={{
                               background: 'rgba(99, 102, 241, 0.15)',
                               color: 'var(--primary)',
@@ -1410,23 +1409,22 @@ export default function Config({ user }) {
                             }}>
                               {syn.tipo_columna}
                             </span>
-                          </td>
-                          <td style={{ padding: '12px 8px', textAlign: 'right' }}>
-                            <div style={{ display: 'inline-flex', gap: '8px' }}>
+                            <div className="row-actions-hover">
                               <button 
-                                className="btn-icon" 
-                                style={{ color: 'var(--text-primary)' }}
+                                className="btn btn-secondary" 
+                                style={{ padding: '2px 6px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }} 
                                 onClick={() => handleEditSynonymClick(syn)}
                                 title="Editar Equivalencia"
                               >
-                                <Pencil size={14} />
+                                <Pencil size={11} />
                               </button>
                               <button 
-                                className="btn-icon text-danger" 
+                                className="btn btn-danger" 
+                                style={{ padding: '2px 6px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }} 
                                 onClick={() => handleDeleteSynonym(syn.id, syn.texto_sinonimo)}
                                 title="Eliminar Equivalencia"
                               >
-                                <Trash2 size={14} />
+                                <Trash2 size={11} />
                               </button>
                             </div>
                           </td>

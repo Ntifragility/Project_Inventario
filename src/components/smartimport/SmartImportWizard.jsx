@@ -44,6 +44,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
   const [resolveIndex, setResolveIndex] = useState(0);
   const [productsList, setProductsList] = useState([]);
   const [resolutions, setResolutions] = useState({}); // { description: producto_codigo }
+  const [confirmDialog, setConfirmDialog] = useState(null); // { title: '', message: '', onConfirm: () => {}, onCancel: () => {} }
   const [skippedDescriptions, setSkippedDescriptions] = useState(new Set());
   const [searchFilter, setSearchFilter] = useState('');
   const [savingSynonym, setSavingSynonym] = useState(false);
@@ -449,10 +450,14 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Pendientes');
       XLSX.writeFile(workbook, 'Pendientes_Importacion_Fuzzy.xlsx');
 
-      if (window.confirm('Se ha descargado el archivo "Pendientes_Importacion_Fuzzy.xlsx".\n\n¿Desea avanzar directamente a la vista previa para importar solo las coincidencias exactas?')) {
-        handleSkipAll();
-        setCurrentStep(4);
-      }
+      setConfirmDialog({
+        title: 'Archivo de pendientes descargado',
+        message: 'Se ha descargado el archivo "Pendientes_Importacion_Fuzzy.xlsx".\n\n¿Desea avanzar directamente a la vista previa para importar solo las coincidencias exactas?',
+        onConfirm: () => {
+          handleSkipAll();
+          setCurrentStep(4);
+        }
+      });
     } catch (err) {
       console.error('Error exporting unmatched rows:', err);
       alert('Error al exportar a Excel: ' + err.message);
@@ -1307,6 +1312,40 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                 <>Siguiente <ArrowRight size={16} /></>
               )}
             </button>
+          </div>
+        )}
+        {confirmDialog && (
+          <div className="custom-confirm-overlay">
+            <div className="custom-confirm-card">
+              <div className="custom-confirm-header">
+                <h3>{confirmDialog.title}</h3>
+              </div>
+              <div className="custom-confirm-body">
+                <p>{confirmDialog.message}</p>
+              </div>
+              <div className="custom-confirm-actions">
+                <button
+                  className="btn btn-secondary"
+                  style={{ padding: '8px 16px', fontSize: '0.875rem', cursor: 'pointer' }}
+                  onClick={() => {
+                    if (confirmDialog.onCancel) confirmDialog.onCancel();
+                    setConfirmDialog(null);
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="btn btn-primary"
+                  style={{ padding: '8px 16px', fontSize: '0.875rem', cursor: 'pointer' }}
+                  onClick={() => {
+                    if (confirmDialog.onConfirm) confirmDialog.onConfirm();
+                    setConfirmDialog(null);
+                  }}
+                >
+                  Aceptar
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

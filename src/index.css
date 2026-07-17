@@ -1677,8 +1677,7 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
 }
 
 .smart-wizard-container {
-  background: var(--bg-card);
-  backdrop-filter: blur(20px);
+  background: #0f0f0f; /* Completely solid fixed color, no transparency */
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-xl);
@@ -2133,4 +2132,85 @@ tr.row-resolved {
   .smart-wizard-stats-grid {
     grid-template-columns: 1fr 1fr;
   }
+}
+
+/* Row Actions Hover Effect (Global) */
+.row-actions-hover {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  background: #ffffff;
+  padding-left: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+.dark-theme .row-actions-hover {
+  background: #121212;
+}
+
+tr:hover .row-actions-hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (max-width: 768px) {
+  .row-actions-hover {
+    position: static;
+    transform: none;
+    opacity: 1 !important;
+    pointer-events: auto;
+    margin-top: 6px;
+    background: transparent !important;
+  }
+}
+
+/* Custom Confirm overlay */
+.custom-confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.custom-confirm-card {
+  background: #0f0f0f; /* Completely solid fixed color, no transparency */
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: var(--shadow-xl);
+  animation: modalEnter 0.2s ease-out;
+}
+
+.custom-confirm-header h3 {
+  margin: 0 0 12px 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.custom-confirm-body p {
+  margin: 0 0 24px 0;
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.custom-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
