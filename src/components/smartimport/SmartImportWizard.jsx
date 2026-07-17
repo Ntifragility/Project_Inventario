@@ -1054,7 +1054,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                       </select>
                     </div>
                   ) : (
-                    <><code>{config.filterColumn}</code> ∈ [ Lista dinámica de Almaceneros autorizados ({dbAlmaceneros.length}) ]</>
+                    <><code>{config.filterColumn}</code> ∈ [ {dbAlmaceneros.length > 0 ? dbAlmaceneros.join(', ') : 'Cargando almaceneros...'} ]</>
                   )}
                 </p>
                 <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)' }}>
