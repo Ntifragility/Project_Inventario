@@ -97,16 +97,26 @@ export function detectPipeline(headers) {
 
   const normHeaders = headers.map(normalize);
 
-  const matchesSignature = (config) => {
-    return config.signatureColumns.every(sig => {
+  const getMatchCount = (config) => {
+    let count = 0;
+    for (const sig of config.signatureColumns) {
       const normSig = normalize(sig);
-      return normHeaders.some(h => h === normSig || h.includes(normSig));
-    });
+      if (normHeaders.some(h => h === normSig || h.includes(normSig))) {
+        count++;
+      }
+    }
+    return count;
   };
 
-  if (matchesSignature(INGRESOS_CONFIG)) return 'ingresos';
-  if (matchesSignature(SALIDAS_CONFIG)) return 'salidas';
-  return 'unknown';
+  const ingresosScore = getMatchCount(INGRESOS_CONFIG);
+  const salidasScore = getMatchCount(SALIDAS_CONFIG);
+
+  if (ingresosScore === 0 && salidasScore === 0) {
+    return 'unknown';
+  }
+
+  // Return the type with the highest matching score
+  return ingresosScore >= salidasScore ? 'ingresos' : 'salidas';
 }
 
 /**
