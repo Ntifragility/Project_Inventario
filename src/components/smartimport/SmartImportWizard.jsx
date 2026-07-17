@@ -36,6 +36,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
   // Step 3: Dictionary Matching
   const [matchedRows, setMatchedRows] = useState([]);
   const [unmatchedRows, setUnmatchedRows] = useState([]);
+  const [discardedRows, setDiscardedRows] = useState([]);
   const [matchingProgress, setMatchingProgress] = useState(0);
   const [isMatching, setIsMatching] = useState(false);
 
@@ -104,6 +105,10 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
     if (!file) return;
     setFileError('');
     setFileName(file.name);
+    setMatchedRows([]);
+    setUnmatchedRows([]);
+    setDiscardedRows([]);
+    setResolutions({});
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -246,6 +251,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       const descCol = config.descriptionColumn;
       const matched = [];
       const unmatched = [];
+      const discarded = [];
       const totalRows = filteredRows.length;
 
       for (let i = 0; i < totalRows; i++) {
@@ -293,6 +299,8 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
           const suggestions = fuzzySearch(description, products, 0.45, 1);
           if (suggestions.length > 0) {
             unmatched.push({ ...row, _description: description });
+          } else {
+            discarded.push({ ...row, _description: description });
           }
         }
 
@@ -305,6 +313,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
 
       setMatchedRows(matched);
       setUnmatchedRows(unmatched);
+      setDiscardedRows(discarded);
       setMatchingProgress(100);
     } catch (err) {
       console.error('Error during matching:', err);
@@ -944,6 +953,10 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                     </div>
                     <div className="smart-wizard-stat warning">
                       <span className="stat-number">{unmatchedRows.length}</span>
+                      <span className="stat-label">Coincidencias parciales</span>
+                    </div>
+                    <div className="smart-wizard-stat danger">
+                      <span className="stat-number">{discardedRows.length}</span>
                       <span className="stat-label">Sin coincidencia</span>
                     </div>
                   </div>
@@ -952,8 +965,8 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                     <div className="message warning" style={{ marginTop: 12 }}>
                       <AlertCircle size={16} />
                       <span>
-                        Se encontraron <strong>{unmatchedRows.length}</strong> filas sin coincidencia en el diccionario.
-                        En el siguiente paso podrá resolverlas manualmente.
+                        Se encontraron <strong>{unmatchedRows.length}</strong> filas con coincidencia parcial en el diccionario (similitud &ge; 45%).
+                        En el siguiente paso podrá resolverlas manualmente. Las otras <strong>{discardedRows.length}</strong> filas sin coincidencia se omitieron automáticamente.
                       </span>
                     </div>
                   )}
@@ -961,7 +974,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                   {unmatchedRows.length === 0 && matchedRows.length > 0 && (
                     <div className="message success" style={{ marginTop: 12 }}>
                       <CheckCircle2 size={16} />
-                      <span>¡Todas las filas tienen coincidencia exacta! Puede avanzar directamente a la vista previa.</span>
+                      <span>¡Todas las filas tienen coincidencia exacta o fueron filtradas! Puede avanzar directamente a la vista previa.</span>
                     </div>
                   )}
                 </>

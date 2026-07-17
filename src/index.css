@@ -1874,6 +1874,11 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
   background: var(--warning-bg);
 }
 
+.smart-wizard-stat.danger {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+
 .stat-number {
   display: block;
   font-size: 1.8rem;
@@ -1884,6 +1889,7 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
 
 .smart-wizard-stat.success .stat-number { color: var(--success); }
 .smart-wizard-stat.warning .stat-number { color: var(--warning); }
+.smart-wizard-stat.danger .stat-number { color: var(--danger); }
 
 .stat-label {
   display: block;
