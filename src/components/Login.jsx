@@ -32,7 +32,7 @@ export default function Login() {
       <div className="login-card">
         <div className="login-header">
           <h2>Ingreso al Sistema</h2>
-          <p>CCP - Materiales OT E&I</p>
+          <p>OT E&I - Materiales</p>
         </div>
 
         <form onSubmit={handleLogin}>

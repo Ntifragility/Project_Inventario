@@ -30,7 +30,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, isDar
         <div className="sidebar-header">
           <h1>
             <img src="/favicon.svg" alt="Favicon" style={{ width: '20px', height: '20px' }} />
-            <span>CCP - Materiales</span>
+            <span>OT E&I - Materiales</span>
           </h1>
           <button onClick={onClose} className="sidebar-close-btn" aria-label="Cerrar menú">
             <X size={20} />
