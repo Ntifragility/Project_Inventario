@@ -43,8 +43,8 @@ export default function Products() {
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [filterText, setFilterText] = useState('');
   const [showScanner, setShowScanner] = useState(false);
-  const [isFormOpen, setIsFormOpen] = useState(window.innerWidth > 768);
-  const [isListOpen, setIsListOpen] = useState(true);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isListOpen, setIsListOpen] = useState(false);
 
   // Reset page when filter changes
   useEffect(() => {

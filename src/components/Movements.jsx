@@ -25,8 +25,8 @@ export default function Movements({ user }) {
   // Manual key input
   const [transactionKey, setTransactionKey] = useState('Automatico');
   const [showScanner, setShowScanner] = useState(false);
-  const [isFormOpen, setIsFormOpen] = useState(window.innerWidth > 768);
-  const [isListOpen, setIsListOpen] = useState(true);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isListOpen, setIsListOpen] = useState(false);
   
   // Messages and submitting
   const [formMsg, setFormMsg] = useState({ text: '', type: '' });
