@@ -49,6 +49,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
   const [skippedDescriptions, setSkippedDescriptions] = useState(new Set());
   const [searchFilter, setSearchFilter] = useState('');
   const [savingSynonym, setSavingSynonym] = useState(false);
+  const [missingColumns, setMissingColumns] = useState([]);
 
   // Step 5: Preview
   const [previewData, setPreviewData] = useState([]);
@@ -112,6 +113,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
     setUnmatchedRows([]);
     setDiscardedRows([]);
     setResolutions({});
+    setMissingColumns([]);
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -173,10 +175,19 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
           return;
         }
 
+        const currentConfig = detected === 'ingresos' ? INGRESOS_CONFIG : SALIDAS_CONFIG;
+        const missing = [];
+        for (const col of currentConfig.sourceColumns) {
+          if (findColumnIndex(headers, col) === -1) {
+            missing.push(col);
+          }
+        }
+        setMissingColumns(missing);
+
         setRawHeaders(headers);
         setRawRows(rows.slice(headerRowIndex + 1));
         setPipelineType(detected);
-        setConfig(detected === 'ingresos' ? INGRESOS_CONFIG : SALIDAS_CONFIG);
+        setConfig(currentConfig);
         setCurrentStep(1); // Auto-advance to filter step
       } catch (err) {
         console.error('Error reading file:', err);
@@ -616,6 +627,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
 
     // Parse date
     let fechaRaw = '';
+    let dateFallbackApplied = false;
     const fechaSourceCol = pipelineType === 'ingresos' ? 'F.Rec.Proy' : 'Fecha de pedido';
     const rawDate = row[fechaSourceCol];
     if (rawDate) {
@@ -637,6 +649,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       const mm = String(today.getMonth() + 1).padStart(2, '0');
       const dd = String(today.getDate()).padStart(2, '0');
       fechaRaw = `${yyyy}-${mm}-${dd}`;
+      dateFallbackApplied = true;
     }
 
     // Parse quantity
@@ -677,7 +690,8 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       matchType,
       descripcionOriginal: descripcion,
       extras,
-      _valid: Boolean(transactionKey && productCodigo && cantidad > 0 && fechaRaw)
+      _valid: Boolean(transactionKey && productCodigo && cantidad > 0 && fechaRaw),
+      _dateFallbackApplied: dateFallbackApplied
     };
   };
 
@@ -1079,9 +1093,31 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                     </div>
                   )}
                 </p>
-                <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)' }}>
+                 <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)' }}>
                   Columnas extraídas: {config.sourceColumns.length} de {rawHeaders.length}
                 </p>
+
+                {/* Warnings for Missing Columns */}
+                {missingColumns.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    {missingColumns.includes(pipelineType === 'ingresos' ? 'F.Rec.Proy' : 'Fecha de pedido') && (
+                      <div className="message warning" style={{ marginBottom: 8 }}>
+                        <Calendar size={16} />
+                        <span>
+                          <strong>Nota de Importación:</strong> No se encontró la columna de fecha (`{pipelineType === 'ingresos' ? 'F.Rec.Proy' : 'Fecha de pedido'}`) en el archivo. Se asignará automáticamente la fecha de hoy (<strong>{new Date().toLocaleDateString('es-ES')}</strong>) a todos los registros para permitir su importación.
+                        </span>
+                      </div>
+                    )}
+                    {missingColumns.filter(c => c !== (pipelineType === 'ingresos' ? 'F.Rec.Proy' : 'Fecha de pedido') && c !== 'Fec.Creac.').length > 0 && (
+                      <div className="message error">
+                        <AlertCircle size={16} />
+                        <span>
+                          <strong>Columnas faltantes en el archivo:</strong> No se encontraron las siguientes columnas requeridas: <strong>{missingColumns.filter(c => c !== (pipelineType === 'ingresos' ? 'F.Rec.Proy' : 'Fecha de pedido') && c !== 'Fec.Creac.').join(', ')}</strong>. Los valores correspondientes se importarán vacíos o en 0.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {filteredRows.length === 0 && (
@@ -1322,7 +1358,29 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+              {/* Warnings for Missing Columns */}
+              {missingColumns.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  {missingColumns.includes(pipelineType === 'ingresos' ? 'F.Rec.Proy' : 'Fecha de pedido') && (
+                    <div className="message warning" style={{ marginBottom: 8 }}>
+                      <Calendar size={16} />
+                      <span>
+                        <strong>Nota de Importación:</strong> No se encontró la columna de fecha (`{pipelineType === 'ingresos' ? 'F.Rec.Proy' : 'Fecha de pedido'}`) en el archivo. Se asignó automáticamente la fecha de hoy (<strong>{new Date().toLocaleDateString('es-ES')}</strong>) a todos los registros para permitir su importación.
+                      </span>
+                    </div>
+                  )}
+                  {missingColumns.filter(c => c !== (pipelineType === 'ingresos' ? 'F.Rec.Proy' : 'Fecha de pedido') && c !== 'Fec.Creac.').length > 0 && (
+                    <div className="message error">
+                      <AlertCircle size={16} />
+                      <span>
+                        <strong>Columnas faltantes en el archivo:</strong> No se encontraron las siguientes columnas requeridas: <strong>{missingColumns.filter(c => c !== (pipelineType === 'ingresos' ? 'F.Rec.Proy' : 'Fecha de pedido') && c !== 'Fec.Creac.').join(', ')}</strong>. Los valores correspondientes se importarán vacíos o en 0.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8, marginTop: 12 }}>
                 <button className="btn-outline" onClick={handleExportPreview} style={{ fontSize: '0.8rem', padding: '4px 12px' }}>
                   <Download size={14} /> Exportar Vista Previa
                 </button>
@@ -1354,7 +1412,9 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                             </span>
                           </td>
                           <td><small>{row.transactionKey}</small></td>
-                          <td>{row.fecha}</td>
+                          <td style={{ color: row._dateFallbackApplied ? 'var(--warning)' : 'inherit', fontWeight: row._dateFallbackApplied ? '600' : 'normal' }}>
+                            {row.fecha} {row._dateFallbackApplied && <span style={{ fontSize: '0.75rem', opacity: 0.85 }} title="Fecha asignada automáticamente (Hoy)">(Hoy) ⚠️</span>}
+                          </td>
                           <td><strong>{row.productCodigo}</strong></td>
                           <td>{row.productName}</td>
                           <td>{row.cantidad}</td>
