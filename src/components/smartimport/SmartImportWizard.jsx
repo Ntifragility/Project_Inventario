@@ -622,6 +622,23 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       fechaRaw = parseDateValue(rawDate);
     }
 
+    // Fallback 1: use Fec.Creac. if primary date is empty/invalid (for Ingresos)
+    if (!fechaRaw && pipelineType === 'ingresos') {
+      const fallbackVal = row['Fec.Creac.'];
+      if (fallbackVal) {
+        fechaRaw = parseDateValue(fallbackVal);
+      }
+    }
+
+    // Fallback 2: if still empty/invalid, use today's date so the row is not rejected
+    if (!fechaRaw) {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      fechaRaw = `${yyyy}-${mm}-${dd}`;
+    }
+
     // Parse quantity
     const qtyCol = pipelineType === 'ingresos' ? 'CantRecep.' : 'Cant. entregada';
     const cantidad = parseFloat(row[qtyCol]) || 0;
