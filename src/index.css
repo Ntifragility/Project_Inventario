@@ -1890,6 +1890,17 @@ tr.status-zero td { border-left: 3px solid var(--danger); background: rgba(239, 
 .smart-wizard-stat.warning .stat-number { color: var(--warning); }
 .smart-wizard-stat.danger .stat-number { color: var(--danger); }
 
+.clickable-stat-card {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.clickable-stat-card:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
 .stat-label {
   display: block;
   font-size: 0.78rem;

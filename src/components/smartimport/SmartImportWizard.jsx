@@ -28,6 +28,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
   const [fileError, setFileError] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
+  const [isFileLoading, setIsFileLoading] = useState(false);
 
   // Step 2: Filter & Transform
   const [filteredRows, setFilteredRows] = useState([]);
@@ -104,6 +105,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
 
   const handleFile = useCallback((file) => {
     if (!file) return;
+    setIsFileLoading(true);
     setFileError('');
     setFileName(file.name);
     setMatchedRows([]);
@@ -121,6 +123,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
 
         if (rows.length < 2) {
           setFileError('El archivo está vacío o no contiene datos suficientes.');
+          setIsFileLoading(false);
           return;
         }
 
@@ -166,6 +169,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
           setFileError(
             'No se pudo detectar el tipo de archivo. Asegúrese de que sea una Tabla_Procura (Ingresos) o Tabla_Almacen (Salidas) válida.'
           );
+          setIsFileLoading(false);
           return;
         }
 
@@ -177,7 +181,13 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       } catch (err) {
         console.error('Error reading file:', err);
         setFileError('Error al leer el archivo: ' + err.message);
+      } finally {
+        setIsFileLoading(false);
       }
+    };
+    reader.onerror = () => {
+      setFileError('Error al leer el archivo.');
+      setIsFileLoading(false);
     };
     reader.readAsArrayBuffer(file);
   }, []);
@@ -496,6 +506,72 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
     } catch (err) {
       console.error('Error exporting unmatched rows:', err);
       alert('Error al exportar a Excel: ' + err.message);
+    }
+  };
+
+  const handleExportDiscardedExcel = () => {
+    try {
+      if (discardedRows.length === 0) {
+        alert('No hay registros sin coincidencia para exportar.');
+        return;
+      }
+
+      const formattedRows = discardedRows.map((row) => {
+        const cleanRow = {};
+        for (const k of Object.keys(row)) {
+          if (!k.startsWith('_')) {
+            cleanRow[k] = row[k];
+          }
+        }
+        return cleanRow;
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Sin Coincidencia');
+      XLSX.writeFile(workbook, 'Sin_Coincidencias_Importacion.xlsx');
+    } catch (err) {
+      console.error('Error exporting discarded rows:', err);
+      alert('Error al exportar sin coincidencia: ' + err.message);
+    }
+  };
+
+  const handleExportIncompleteExcel = () => {
+    try {
+      const incomplete = previewData.filter(r => !r._valid);
+      if (incomplete.length === 0) {
+        alert('No hay registros con datos incompletos para exportar.');
+        return;
+      }
+
+      const formattedRows = incomplete.map((r) => {
+        const cleanRow = {
+          'Transaction Key': r.transactionKey,
+          'Fecha': r.fecha,
+          'ID Producto': r.productCodigo || 'NO ESPECIFICADO',
+          'Producto': r.productName,
+          'Cantidad': r.cantidad,
+          'Unidad': r.unidad,
+          'Tipo Movimiento': r.tipo,
+          'Almacenero': r.almacenero || '',
+          'Detalle de error': !r.transactionKey ? 'Falta clave de transacción' :
+                              !r.productCodigo ? 'Producto no identificado' :
+                              r.cantidad <= 0 ? 'Cantidad debe ser mayor a 0' :
+                              !r._fechaRaw ? 'Fecha no especificada o inválida' : 'Datos incompletos'
+        };
+        for (const [k, v] of Object.entries(r.extras || {})) {
+          cleanRow[k] = v;
+        }
+        return cleanRow;
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Datos Incompletos');
+      XLSX.writeFile(workbook, 'Datos_Incompletos_Importacion.xlsx');
+    } catch (err) {
+      console.error('Error exporting incomplete rows:', err);
+      alert('Error al exportar datos incompletos: ' + err.message);
     }
   };
 
@@ -883,7 +959,15 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                   style={{ display: 'none' }}
                   onChange={(e) => handleFile(e.target.files[0])}
                 />
-                {fileName ? (
+                 {isFileLoading ? (
+                  <>
+                    <Loader2 size={40} className="spin-animation" style={{ color: 'var(--accent)' }} />
+                    <p style={{ margin: '8px 0 0', fontWeight: 600 }}>Cargando y analizando archivo...</p>
+                    <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      Por favor, espere un momento
+                    </p>
+                  </>
+                ) : fileName ? (
                   <>
                     <FileSpreadsheet size={40} style={{ color: 'var(--accent)' }} />
                     <p style={{ margin: '8px 0 0', fontWeight: 600 }}>{fileName}</p>
@@ -991,13 +1075,25 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                       <span className="stat-number">{matchedRows.length}</span>
                       <span className="stat-label">Coincidencias exactas</span>
                     </div>
-                    <div className="smart-wizard-stat warning">
+                    <div 
+                      className="smart-wizard-stat warning clickable-stat-card"
+                      onClick={handleExportUnmatchedExcel}
+                      title="Descargar coincidencia parcial en Excel"
+                    >
                       <span className="stat-number">{unmatchedRows.length}</span>
-                      <span className="stat-label">Coincidencias parciales</span>
+                      <span className="stat-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                        Coincidencias parciales <Download size={14} />
+                      </span>
                     </div>
-                    <div className="smart-wizard-stat danger">
+                    <div 
+                      className="smart-wizard-stat danger clickable-stat-card"
+                      onClick={handleExportDiscardedExcel}
+                      title="Descargar sin coincidencia en Excel"
+                    >
                       <span className="stat-number">{discardedRows.length}</span>
-                      <span className="stat-label">Sin coincidencia</span>
+                      <span className="stat-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                        Sin coincidencia <Download size={14} />
+                      </span>
                     </div>
                   </div>
 
@@ -1171,9 +1267,15 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                   <span className="stat-number">{previewData.filter(r => r._valid).length}</span>
                   <span className="stat-label">Listos para importar</span>
                 </div>
-                <div className="smart-wizard-stat warning">
+                <div 
+                  className="smart-wizard-stat warning clickable-stat-card"
+                  onClick={handleExportIncompleteExcel}
+                  title="Descargar datos incompletos en Excel"
+                >
                   <span className="stat-number">{previewData.filter(r => !r._valid).length}</span>
-                  <span className="stat-label">Datos incompletos</span>
+                  <span className="stat-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                    Datos incompletos <Download size={14} />
+                  </span>
                 </div>
                 <div className="smart-wizard-stat">
                   <span className="stat-number">{skippedDescriptions.size}</span>
