@@ -970,7 +970,6 @@ export default function Config({ user }) {
         if (adminDni) {
           setIsAdminUser(true);
           setUserAdminDni(adminDni);
-          checkAdminRole();
           fetchUsers();
           fetchAuditLogs();
           fetchBackups();
