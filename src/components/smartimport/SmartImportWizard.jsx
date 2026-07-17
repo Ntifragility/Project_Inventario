@@ -124,7 +124,42 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
           return;
         }
 
-        const headers = rows[0].map(h => String(h || '').trim());
+        // Auto-detect which row contains the column headers by scanning the first 5 rows
+        let headerRowIndex = 0;
+        let maxMatchCount = 0;
+        const allConfigs = [INGRESOS_CONFIG, SALIDAS_CONFIG];
+        const scanLimit = Math.min(rows.length, 5);
+
+        for (let r = 0; r < scanLimit; r++) {
+          const candidateHeaders = rows[r].map(h =>
+            String(h || '')
+              .trim()
+              .toLowerCase()
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .replace(/[^a-z0-9.]/g, '')
+          );
+
+          for (const config of allConfigs) {
+            let configMatches = 0;
+            for (const sig of config.signatureColumns) {
+              const normSig = sig
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9.]/g, '');
+              if (candidateHeaders.some(h => h === normSig || h.includes(normSig))) {
+                configMatches++;
+              }
+            }
+            if (configMatches > maxMatchCount) {
+              maxMatchCount = configMatches;
+              headerRowIndex = r;
+            }
+          }
+        }
+
+        const headers = rows[headerRowIndex].map(h => String(h || '').trim());
         const detected = detectPipeline(headers);
 
         if (detected === 'unknown') {
@@ -135,7 +170,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
         }
 
         setRawHeaders(headers);
-        setRawRows(rows.slice(1));
+        setRawRows(rows.slice(headerRowIndex + 1));
         setPipelineType(detected);
         setConfig(detected === 'ingresos' ? INGRESOS_CONFIG : SALIDAS_CONFIG);
         setCurrentStep(1); // Auto-advance to filter step
