@@ -61,3 +61,27 @@ CREATE TABLE cables_schedule (
 - **Smart Cable Importer:** A specialized wizard step inside the sidebar navigation that auto-detects Cable Scheduling columns (e.g., matching signatures like `Cable Tag`, `From`, `To`, `Length`).
 - **Tendido Progress Tracker:** Quick buttons to update a cable's state from `Pte Tendido` to `Tendido` or `Conectado`, logging the quantity of meters cut from stock.
 - **Drums (Carretes) Stock Integration:** Link cable cuts to active drums inventory so that drum lengths are automatically calculated and deducted.
+
+---
+
+## 3. 3-Layer Permissions & Configuration Matrix
+We will implement a 3-layer authorization role structure (Administrador, Supervisor, Operador) to manage feature and settings access inside the **Configuración** menu.
+
+### Objectives
+- Define granular access permissions for configuration settings, user creation, and Excel validation filters.
+- Enforce visual and database restrictions based on role assignments.
+
+### Authorization Roles Matrix
+
+| Feature / Tool | 1. Administrador (Admin) | 2. Supervisor / Procura | 3. Almacenero / Operador (User) |
+| :--- | :---: | :---: | :---: |
+| **Herramientas de Administración** | **Yes** | **No** | **No** |
+| **Diccionario de Equivalencias (EQUIV)** | **Yes** | **Yes** | **No** |
+| **Filtros de Validación (Smart Import)** | **Yes** | **Yes** | **Yes** |
+| **Gestión de Usuarios & Roles** | **Yes** | **No** | **No** |
+
+### Implementation Blueprint
+- **Database Role Mapping:** Store a user's assigned role (`admin`, `supervisor`, `operador`) in the custom user permissions or profiles table.
+- **Enforced UI Filtering:**
+  - Non-admins will not see "Herramientas de Administración del Sistema" or "Gestión de Usuarios".
+  - Operators/Users will only have access to "Filtros de Validación (Smart Import)" inside Configuración to see active Almacenero/Disciplina scopes.
