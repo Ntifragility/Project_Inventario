@@ -1054,33 +1054,28 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                       </select>
                     </div>
                   ) : (
-                    <div style={{ marginTop: 12 }}>
-                      <p style={{ margin: '0 0 8px 0', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                        Almaceneros autorizados a filtrar:
-                      </p>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: 12, background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 6 }}>
-                        {dbAlmaceneros.length > 0 ? (
-                          dbAlmaceneros.map(almacenero => (
-                            <span 
-                              key={almacenero}
-                              style={{
-                                background: 'rgba(59, 130, 246, 0.12)',
-                                color: 'var(--accent)',
-                                border: '1px solid rgba(59, 130, 246, 0.25)',
-                                padding: '4px 10px',
-                                borderRadius: 4,
-                                fontSize: '0.85rem',
-                                fontWeight: '600',
-                                fontFamily: 'monospace'
-                              }}
-                            >
-                              {almacenero}
-                            </span>
-                          ))
-                        ) : (
-                          <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Cargando almaceneros autorizados...</span>
-                        )}
-                      </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: 12, background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 6, marginTop: 8 }}>
+                      {dbAlmaceneros.length > 0 ? (
+                        dbAlmaceneros.map(almacenero => (
+                          <span 
+                            key={almacenero}
+                            style={{
+                              background: 'rgba(59, 130, 246, 0.12)',
+                              color: 'var(--accent)',
+                              border: '1px solid rgba(59, 130, 246, 0.25)',
+                              padding: '4px 10px',
+                              borderRadius: 4,
+                              fontSize: '0.85rem',
+                              fontWeight: '600',
+                              fontFamily: 'monospace'
+                            }}
+                          >
+                            {almacenero}
+                          </span>
+                        ))
+                      ) : (
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Cargando almaceneros autorizados...</span>
+                      )}
                     </div>
                   )}
                 </p>
