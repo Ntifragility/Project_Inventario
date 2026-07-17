@@ -176,6 +176,24 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
         }
 
         const currentConfig = detected === 'ingresos' ? INGRESOS_CONFIG : SALIDAS_CONFIG;
+
+        // Critical validation: Transaction Key column MUST be present and not empty
+        const txKeyCol = detected === 'ingresos' ? 'TRANSACTION KEY' : 'Nro';
+        const txKeyIdx = findColumnIndex(headers, txKeyCol);
+        if (txKeyIdx === -1) {
+          setFileError(`Error crítico: No se encontró la columna obligatoria de Clave de Transacción ("${txKeyCol}").`);
+          setIsFileLoading(false);
+          return;
+        }
+
+        const dataRows = rows.slice(headerRowIndex + 1);
+        const hasAnyTxKey = dataRows.some(row => String(row[txKeyIdx] || '').trim() !== '');
+        if (!hasAnyTxKey) {
+          setFileError(`Error crítico: La columna de Clave de Transacción ("${txKeyCol}") está completamente vacía o no tiene registros válidos.`);
+          setIsFileLoading(false);
+          return;
+        }
+
         const missing = [];
         for (const col of currentConfig.sourceColumns) {
           if (findColumnIndex(headers, col) === -1) {
