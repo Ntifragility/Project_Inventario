@@ -854,6 +854,22 @@ export default function Config({ user }) {
     }
   };
 
+  const handleDeleteBackup = async (backupId, backupFecha) => {
+    const dateStr = backupFecha ? new Date(backupFecha).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : backupId;
+    if (!window.confirm(`¿Está seguro de que desea eliminar permanentemente el respaldo del ${dateStr}? Esta acción es irreversible.`)) return;
+    try {
+      const { error } = await supabase.rpc('eliminar_respaldo_seguridad', {
+        p_email: user?.email,
+        p_respaldo_id: backupId
+      });
+      if (error) throw error;
+      fetchBackups();
+    } catch (err) {
+      console.error('Error deleting backup:', err);
+      alert('Error al eliminar respaldo: ' + err.message);
+    }
+  };
+
   const fetchUsers = async () => {
     setLoadingUsers(true);
     try {
@@ -2040,14 +2056,24 @@ export default function Config({ user }) {
                         </td>
                         <td style={{ padding: '10px 6px', color: 'var(--text-secondary)' }}>{b.creado_por}</td>
                         <td style={{ padding: '10px 6px', textAlign: 'right' }}>
-                          <button
-                            className="btn btn-primary"
-                            style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                            onClick={() => downloadBackupAsExcel(b.id, b.fecha)}
-                          >
-                            <Download size={12} />
-                            <span>Descargar Excel</span>
-                          </button>
+                          <div style={{ display: 'inline-flex', gap: '6px' }}>
+                            <button
+                              className="btn btn-primary"
+                              style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              onClick={() => downloadBackupAsExcel(b.id, b.fecha)}
+                            >
+                              <Download size={12} />
+                              <span>Descargar</span>
+                            </button>
+                            <button
+                              className="btn btn-danger"
+                              style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              onClick={() => handleDeleteBackup(b.id, b.fecha)}
+                            >
+                              <Trash2 size={12} />
+                              <span>Eliminar</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
