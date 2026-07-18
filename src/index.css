@@ -88,6 +88,32 @@
   --glass-border: rgba(255, 255, 255, 0.12);
 }
 
+/* Standardized Custom Scrollbar (Webkit & Firefox) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+/* Webkit browser scrollbars (Chrome, Safari, Edge, Opera) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 10px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
 .card,
 .sidebar,
 .content-header,
