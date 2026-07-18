@@ -223,7 +223,6 @@ export default function Inventory() {
                     <th>Grupo</th>
                     <th>Stock Mín.</th>
                     <th>Estado</th>
-                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -253,18 +252,17 @@ export default function Inventory() {
                         <td data-label="Unidad"><span>{p.unidad}</span></td>
                         <td data-label="Grupo"><span>{p.grupo}</span></td>
                         <td data-label="Stock Mín."><span>{p.stockMin}</span></td>
-                        <td data-label="Estado">
+                        <td data-label="Estado" style={{ position: 'relative' }}>
                           <span className={`badge ${badgeClass}`}>{estado}</span>
-                        </td>
-                        <td data-label="Acciones">
-                          <button 
-                            className="btn btn-secondary" 
-                            style={{ padding: '6px 12px', fontSize: '0.75rem' }}
-                            onClick={() => handleViewDetails(p)}
-                          >
-                            <History size={12} />
-                            <span>Ver Historial</span>
-                          </button>
+                          <div className="row-actions-hover">
+                            <button 
+                              className="btn btn-secondary" 
+                              style={{ padding: '4px 8px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }}
+                              onClick={() => handleViewDetails(p)}
+                            >
+                              <History size={11} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

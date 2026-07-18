@@ -687,7 +687,6 @@ export default function Products() {
                     <th>Grupo</th>
                     <th>Stock Mín.</th>
                     <th>Stock Actual</th>
-                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -703,24 +702,24 @@ export default function Products() {
                         <td data-label="Unidad"><span>{p.unidad}</span></td>
                         <td data-label="Grupo"><span>{p.grupo}</span></td>
                         <td data-label="Stock Mín."><span>{p.stockMin}</span></td>
-                        <td data-label="Stock Actual"><span>{p.cantidad}</span></td>
-                        <td data-label="Acciones">
-                          <div style={{ display: 'flex', gap: '6px' }}>
+                        <td data-label="Stock Actual" style={{ position: 'relative' }}>
+                          <span>{p.cantidad}</span>
+                          <div className="row-actions-hover">
                             <button
                               className="btn btn-secondary"
-                              style={{ padding: '5px 10px', fontSize: '0.75rem' }}
+                              style={{ padding: '4px 8px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }}
                               onClick={() => handleStartEdit(p)}
                               title="Editar producto"
                             >
-                              <Pencil size={12} />
+                              <Pencil size={11} />
                             </button>
                             <button
                               className="btn btn-danger"
-                              style={{ padding: '5px 10px', fontSize: '0.75rem' }}
+                              style={{ padding: '4px 8px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }}
                               onClick={() => handleStartDelete(p)}
                               title="Eliminar producto"
                             >
-                              <Trash2 size={12} />
+                              <Trash2 size={11} />
                             </button>
                           </div>
                         </td>

@@ -1794,7 +1794,6 @@ export default function Config({ user }) {
                           <th style={{ padding: '12px 8px' }}>Rol</th>
                           <th style={{ padding: '12px 8px' }}>DNI / Nombre Admin</th>
                           <th style={{ padding: '12px 8px' }}>F. Registro</th>
-                          <th style={{ padding: '12px 8px', textAlign: 'right' }}>Acciones</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1848,45 +1847,42 @@ export default function Config({ user }) {
                                   <span style={{ color: 'var(--text-muted)' }}>—</span>
                                 )}
                               </td>
-                              <td style={{ padding: '12px 8px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                              <td style={{ padding: '12px 8px', color: 'var(--text-secondary)', fontSize: '0.85rem', position: 'relative' }}>
                                 {u.created_at ? new Date(u.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
-                              </td>
-                              <td style={{ padding: '12px 8px', textAlign: 'right' }}>
-                                <div style={{ display: 'inline-flex', gap: '8px' }}>
+                                <div className="row-actions-hover">
                                   {u.es_admin ? (
                                     <button
                                       className="btn btn-secondary"
-                                      style={{ padding: '4px 8px', fontSize: '0.75rem', minWidth: '100px', display: 'inline-flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}
+                                      style={{ padding: '2px 6px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }}
                                       onClick={() => handleDemoteUser(u.admin_dni, u.email)}
                                       disabled={isCurrentUser}
                                       title={isCurrentUser ? "No puedes quitarte los permisos a ti mismo" : "Quitar Administrador"}
                                     >
-                                      <UserMinus size={12} />
-                                      <span>Quitar Admin</span>
+                                      <UserMinus size={11} />
                                     </button>
                                   ) : (
                                     <button
                                       className="btn btn-primary"
-                                      style={{ padding: '4px 8px', fontSize: '0.75rem', minWidth: '100px', display: 'inline-flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}
+                                      style={{ padding: '2px 6px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }}
                                       onClick={() => {
                                         setPromoDni('');
                                         setPromoNombre('');
                                         setPromoError('');
                                         setPromotingUser(u);
                                       }}
+                                      title="Hacer Admin"
                                     >
-                                      <ShieldCheck size={12} />
-                                      <span>Hacer Admin</span>
+                                      <ShieldCheck size={11} />
                                     </button>
                                   )}
                                   <button
                                     className="btn btn-danger"
-                                    style={{ padding: '4px 8px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: isCurrentUser ? 'not-allowed' : 'pointer' }}
+                                    style={{ padding: '2px 6px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: isCurrentUser ? 'not-allowed' : 'pointer' }}
                                     onClick={() => handleDeleteUser(u.id, u.email)}
                                     disabled={isCurrentUser}
                                     title={isCurrentUser ? "No puedes eliminar tu cuenta" : "Eliminar Usuario"}
                                   >
-                                    <Trash2 size={12} />
+                                    <Trash2 size={11} />
                                   </button>
                                 </div>
                               </td>
@@ -2045,7 +2041,6 @@ export default function Config({ user }) {
                     <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
                       <th style={{ padding: '10px 6px' }}>Fecha de Respaldo</th>
                       <th style={{ padding: '10px 6px' }}>Creado Por</th>
-                      <th style={{ padding: '10px 6px', textAlign: 'right' }}>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2054,24 +2049,24 @@ export default function Config({ user }) {
                         <td style={{ padding: '10px 6px', fontWeight: '500' }}>
                           {b.fecha ? new Date(b.fecha).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                         </td>
-                        <td style={{ padding: '10px 6px', color: 'var(--text-secondary)' }}>{b.creado_por}</td>
-                        <td style={{ padding: '10px 6px', textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', gap: '6px' }}>
+                        <td style={{ padding: '10px 6px', color: 'var(--text-secondary)', position: 'relative' }}>
+                          {b.creado_por}
+                          <div className="row-actions-hover">
                             <button
                               className="btn btn-primary"
-                              style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              style={{ padding: '2px 6px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }}
                               onClick={() => downloadBackupAsExcel(b.id, b.fecha)}
+                              title="Descargar Excel"
                             >
-                              <Download size={12} />
-                              <span>Descargar</span>
+                              <Download size={11} />
                             </button>
                             <button
                               className="btn btn-danger"
-                              style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              style={{ padding: '2px 6px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }}
                               onClick={() => handleDeleteBackup(b.id, b.fecha)}
+                              title="Eliminar Respaldo"
                             >
-                              <Trash2 size={12} />
-                              <span>Eliminar</span>
+                              <Trash2 size={11} />
                             </button>
                           </div>
                         </td>
