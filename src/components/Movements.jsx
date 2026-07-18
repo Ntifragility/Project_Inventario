@@ -1890,7 +1890,7 @@ export default function Movements({ user }) {
             </div>
           )}
 
-          {ledgerLoading ? (
+          {ledgerLoading && ledgerMovements.length === 0 ? (
             <div className="loading-container">
               <span className="spinner"></span>
               <span>Cargando movimientos...</span>
@@ -1906,7 +1906,26 @@ export default function Movements({ user }) {
               <span>No se encontraron movimientos registrados.</span>
             </div>
           ) : (
-            <>
+            <div style={{ position: 'relative', opacity: ledgerLoading ? 0.6 : 1, transition: 'opacity 0.2s ease' }}>
+              {ledgerLoading && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: 'var(--bg-card-header)',
+                  opacity: 0.7,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 2,
+                  backdropFilter: 'blur(1px)',
+                  borderRadius: 'var(--radius-md)'
+                }}>
+                  <span className="spinner" style={{ width: '40px', height: '40px' }}></span>
+                </div>
+              )}
               <div className="table-container">
                 <table>
                   <thead>
@@ -2113,7 +2132,7 @@ export default function Movements({ user }) {
                   </div>
                 );
               })()}
-            </>
+            </div>
           )}
         </div>
         )}

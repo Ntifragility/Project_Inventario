@@ -45,6 +45,9 @@ export default function Config({ user }) {
   const [loadingBackups, setLoadingBackups] = useState(false);
   const [creatingBackup, setCreatingBackup] = useState(false);
 
+  // Generic confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState(null); // { title, message, onConfirm, danger }
+
   // Dynamic Filters for Smart Import Wizard
   const [almaceneros, setAlmaceneros] = useState([]);
   const [disciplinas, setDisciplinas] = useState([]);
@@ -372,22 +375,25 @@ export default function Config({ user }) {
   };
 
   const handleDeleteSynonym = async (id, text) => {
-    if (!window.confirm(`¿Está seguro de que desea eliminar la equivalencia "${text}"?`)) {
-      return;
-    }
+    setConfirmDialog({
+      title: 'Eliminar Equivalencia',
+      message: `¿Está seguro de que desea eliminar la equivalencia "${text}"?`,
+      danger: true,
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase
+            .from('productos_sinonimos')
+            .delete()
+            .eq('id', id);
 
-    try {
-      const { error } = await supabase
-        .from('productos_sinonimos')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-      fetchSynonyms();
-    } catch (err) {
-      console.error('Error deleting synonym:', err);
-      alert('Error al eliminar equivalencia: ' + err.message);
-    }
+          if (error) throw error;
+          fetchSynonyms();
+        } catch (err) {
+          console.error('Error deleting synonym:', err);
+          alert('Error al eliminar equivalencia: ' + err.message);
+        }
+      }
+    });
   };
 
   const handleEditSynonymClick = (syn) => {
@@ -856,18 +862,24 @@ export default function Config({ user }) {
 
   const handleDeleteBackup = async (backupId, backupFecha) => {
     const dateStr = backupFecha ? new Date(backupFecha).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : backupId;
-    if (!window.confirm(`¿Está seguro de que desea eliminar permanentemente el respaldo del ${dateStr}? Esta acción es irreversible.`)) return;
-    try {
-      const { error } = await supabase.rpc('eliminar_respaldo_seguridad', {
-        p_email: user?.email,
-        p_respaldo_id: backupId
-      });
-      if (error) throw error;
-      fetchBackups();
-    } catch (err) {
-      console.error('Error deleting backup:', err);
-      alert('Error al eliminar respaldo: ' + err.message);
-    }
+    setConfirmDialog({
+      title: 'Eliminar Respaldo',
+      message: `¿Está seguro de que desea eliminar permanentemente el respaldo del ${dateStr}? Esta acción es irreversible.`,
+      danger: true,
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase.rpc('eliminar_respaldo_seguridad', {
+            p_email: user?.email,
+            p_respaldo_id: backupId
+          });
+          if (error) throw error;
+          fetchBackups();
+        } catch (err) {
+          console.error('Error deleting backup:', err);
+          alert('Error al eliminar respaldo: ' + err.message);
+        }
+      }
+    });
   };
 
   const fetchUsers = async () => {
@@ -930,21 +942,24 @@ export default function Config({ user }) {
       return;
     }
 
-    if (!window.confirm(`¿Está seguro de que desea quitar los privilegios de administrador a ${adminEmail}?`)) {
-      return;
-    }
+    setConfirmDialog({
+      title: 'Quitar Administrador',
+      message: `¿Está seguro de que desea quitar los privilegios de administrador a ${adminEmail}?`,
+      danger: false,
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase.rpc('revocar_administrador', {
+            p_dni: adminDni
+          });
 
-    try {
-      const { error } = await supabase.rpc('revocar_administrador', {
-        p_dni: adminDni
-      });
-
-      if (error) throw error;
-      fetchUsers();
-    } catch (err) {
-      console.error('Error demoting user:', err);
-      alert('Error al quitar privilegios: ' + err.message);
-    }
+          if (error) throw error;
+          fetchUsers();
+        } catch (err) {
+          console.error('Error demoting user:', err);
+          alert('Error al quitar privilegios: ' + err.message);
+        }
+      }
+    });
   };
 
   const handleDeleteUser = async (userId, email) => {
@@ -953,21 +968,24 @@ export default function Config({ user }) {
       return;
     }
 
-    if (!window.confirm(`¿Está seguro de que desea eliminar permanentemente al usuario ${email}? Esta acción es irreversible.`)) {
-      return;
-    }
+    setConfirmDialog({
+      title: 'Eliminar Usuario',
+      message: `¿Está seguro de que desea eliminar permanentemente al usuario ${email}? Esta acción es irreversible.`,
+      danger: true,
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase.rpc('eliminar_usuario_sistema', {
+            p_user_id: userId
+          });
 
-    try {
-      const { error } = await supabase.rpc('eliminar_usuario_sistema', {
-        p_user_id: userId
-      });
-
-      if (error) throw error;
-      fetchUsers();
-    } catch (err) {
-      console.error('Error deleting user:', err);
-      alert('Error al eliminar usuario: ' + err.message);
-    }
+          if (error) throw error;
+          fetchUsers();
+        } catch (err) {
+          console.error('Error deleting user:', err);
+          alert('Error al eliminar usuario: ' + err.message);
+        }
+      }
+    });
   };
 
   // Effect to automatically verify if the logged-in user is an administrator
@@ -1373,7 +1391,7 @@ export default function Config({ user }) {
                     </div>
                   </div>
 
-                  {synLoading ? (
+                  {synLoading && synonymsList.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-secondary)' }}>
                       <span className="spinner" style={{ display: 'inline-block', marginRight: '8px' }}></span>
                       Cargando equivalencias...
@@ -1383,7 +1401,26 @@ export default function Config({ user }) {
                       No se encontraron equivalencias.
                     </div>
                   ) : (
-                    <div style={{ overflowX: 'auto' }}>
+                    <div style={{ overflowX: 'auto', position: 'relative', opacity: synLoading ? 0.6 : 1, transition: 'opacity 0.2s ease' }}>
+                      {synLoading && (
+                        <div style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: 'var(--bg-card-header)',
+                          opacity: 0.7,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          zIndex: 2,
+                          backdropFilter: 'blur(1px)',
+                          borderRadius: 'var(--radius-md)'
+                        }}>
+                          <span className="spinner" style={{ width: '40px', height: '40px' }}></span>
+                        </div>
+                      )}
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', textAlign: 'left' }}>
                         <thead>
                           <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
@@ -1776,7 +1813,7 @@ export default function Config({ user }) {
             ) : (
               <div>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: '600', marginBottom: '16px' }}>Lista de Usuarios Registrados</h3>
-                {loadingUsers ? (
+                 {loadingUsers && usersList.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-secondary)' }}>
                     <span className="spinner" style={{ display: 'inline-block', marginRight: '8px' }}></span>
                     Cargando usuarios...
@@ -1786,7 +1823,26 @@ export default function Config({ user }) {
                     No se encontraron usuarios registrados.
                   </div>
                 ) : (
-                  <div style={{ overflowX: 'auto' }}>
+                  <div style={{ overflowX: 'auto', position: 'relative', opacity: loadingUsers ? 0.6 : 1, transition: 'opacity 0.2s ease' }}>
+                    {loadingUsers && (
+                      <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: 'var(--bg-card-header)',
+                        opacity: 0.7,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 2,
+                        backdropFilter: 'blur(1px)',
+                        borderRadius: 'var(--radius-md)'
+                      }}>
+                        <span className="spinner" style={{ width: '40px', height: '40px' }}></span>
+                      </div>
+                    )}
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', textAlign: 'left' }}>
                       <thead>
                         <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
@@ -2025,7 +2081,7 @@ export default function Config({ user }) {
               Historial de respaldos automáticos semanales (domingos) y manuales. Cada respaldo captura el estado de los productos y movimientos.
             </p>
 
-            {loadingBackups ? (
+            {loadingBackups && backupsList.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-secondary)' }}>
                 <span className="spinner" style={{ display: 'inline-block', marginRight: '8px' }}></span>
                 Cargando historial de respaldos...
@@ -2035,7 +2091,26 @@ export default function Config({ user }) {
                 No se han registrado respaldos de seguridad.
               </div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
+              <div style={{ overflowX: 'auto', position: 'relative', opacity: loadingBackups ? 0.6 : 1, transition: 'opacity 0.2s ease' }}>
+                {loadingBackups && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'var(--bg-card-header)',
+                    opacity: 0.7,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 2,
+                    backdropFilter: 'blur(1px)',
+                    borderRadius: 'var(--radius-md)'
+                  }}>
+                    <span className="spinner" style={{ width: '40px', height: '40px' }}></span>
+                  </div>
+                )}
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
                   <thead>
                     <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
@@ -2581,6 +2656,51 @@ export default function Config({ user }) {
                   disabled={savingDisciplina}
                 >
                   {savingDisciplina ? 'Eliminando...' : 'Confirmar Eliminación'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Global Confirm Dialog Modal */}
+      {confirmDialog && (
+        <div className="dialog-overlay">
+          <div className="dialog-card" style={{ maxWidth: '420px', width: '90%' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ShieldAlert size={18} style={{ color: confirmDialog.danger ? 'var(--danger)' : 'var(--primary)' }} />
+                <span style={{ fontWeight: '700' }}>{confirmDialog.title}</span>
+              </div>
+              <button 
+                type="button" 
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                onClick={() => setConfirmDialog(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="card-body" style={{ padding: '20px' }}>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '24px', lineHeight: '1.5' }}>
+                {confirmDialog.message}
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => setConfirmDialog(null)}
+                  style={{ minWidth: '100px' }}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  className={`btn ${confirmDialog.danger ? 'btn-danger' : 'btn-primary'}`}
+                  style={{ minWidth: '100px' }}
+                  onClick={() => {
+                    confirmDialog.onConfirm();
+                    setConfirmDialog(null);
+                  }}
+                >
+                  Confirmar
                 </button>
               </div>
             </div>

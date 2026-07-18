@@ -666,7 +666,7 @@ export default function Products() {
             </div>
           )}
 
-          {loadingList ? (
+          {loadingList && productsList.length === 0 ? (
             <div className="loading-container">
               <span className="spinner"></span>
               <span>Cargando lista de productos...</span>
@@ -676,8 +676,27 @@ export default function Products() {
           ) : filteredProducts.length === 0 ? (
             <div className="message warning">No se encontraron productos con el filtro especificado.</div>
           ) : (
-            <>
-            <div className="table-container">
+            <div style={{ position: 'relative', opacity: loadingList ? 0.6 : 1, transition: 'opacity 0.2s ease' }}>
+              {loadingList && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: 'var(--bg-card-header)',
+                  opacity: 0.7,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 2,
+                  backdropFilter: 'blur(1px)',
+                  borderRadius: 'var(--radius-md)'
+                }}>
+                  <span className="spinner" style={{ width: '40px', height: '40px' }}></span>
+                </div>
+              )}
+              <div className="table-container">
               <table>
                 <thead>
                   <tr>
@@ -759,11 +778,10 @@ export default function Products() {
                   <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safeCurrentPage === 1}>‹</button>
                   <span style={{ padding: '4px 12px', fontSize: '0.85rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>{safeCurrentPage} / {totalPages}</span>
                   <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safeCurrentPage === totalPages}>›</button>
-                  <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(totalPages)} disabled={safeCurrentPage === totalPages}>»</button>
                 </div>
               </div>
             )}
-            </>
+            </div>
           )}
         </div>
         )}
