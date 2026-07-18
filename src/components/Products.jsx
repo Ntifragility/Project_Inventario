@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabase';
-import { Plus, Upload, List, AlertCircle, CheckCircle2, Info, Pencil, Trash2, X, Save, Search, Scan, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Upload, Download, List, AlertCircle, CheckCircle2, Info, Pencil, Trash2, X, Save, Search, Scan, ChevronDown, ChevronUp } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import BarcodeScanner from './BarcodeScanner';
 
@@ -268,6 +268,37 @@ export default function Products() {
       setDeleteMsg({ text: 'Error al eliminar: ' + err.message, type: 'error' });
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleExportToExcel = () => {
+    try {
+      const dataToExport = filteredProducts.map(p => ({
+        'ID Producto': p.codigo,
+        'Producto': p.nombre,
+        'Unidad': p.unidad,
+        'Grupo': p.grupo,
+        'Stock Mínimo': p.stockMin,
+        'Stock Actual': p.cantidad
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Productos');
+
+      // Adjust column widths
+      const maxLens = {};
+      dataToExport.forEach(row => {
+        Object.entries(row).forEach(([col, val]) => {
+          maxLens[col] = Math.max(maxLens[col] || 0, String(col).length, String(val ?? '').length);
+        });
+      });
+      worksheet['!cols'] = Object.keys(maxLens).map(col => ({ wch: maxLens[col] + 3 }));
+
+      XLSX.writeFile(workbook, 'Productos_Registrados.xlsx');
+    } catch (err) {
+      console.error('Error exporting products to Excel:', err);
+      alert('Error al exportar productos: ' + err.message);
     }
   };
 
@@ -663,6 +694,15 @@ export default function Products() {
                   Limpiar
                 </button>
               )}
+              <button
+                className="btn btn-secondary"
+                onClick={handleExportToExcel}
+                style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                title="Exportar productos a Excel"
+              >
+                <Download size={14} />
+                <span>Exportar Excel</span>
+              </button>
             </div>
           )}
 

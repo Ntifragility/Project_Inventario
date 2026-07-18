@@ -142,6 +142,50 @@ export default function Config({ user }) {
     }
   };
 
+  const handleExportEquivalencias = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('productos_sinonimos')
+        .select(`
+          producto_codigo,
+          texto_sinonimo,
+          tipo_columna,
+          producto:productos(nombre)
+        `);
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        alert('No hay equivalencias para exportar.');
+        return;
+      }
+
+      const dataToExport = data.map(syn => ({
+        'ID Producto': syn.producto_codigo,
+        'Producto Master': syn.producto ? syn.producto.nombre : '—',
+        'Texto Equivalente (Sinónimo)': syn.texto_sinonimo,
+        'Tipo Columna': syn.tipo_columna
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Equivalencias');
+
+      // Adjust column widths
+      const maxLens = {};
+      dataToExport.forEach(row => {
+        Object.entries(row).forEach(([col, val]) => {
+          maxLens[col] = Math.max(maxLens[col] || 0, String(col).length, String(val ?? '').length);
+        });
+      });
+      worksheet['!cols'] = Object.keys(maxLens).map(col => ({ wch: maxLens[col] + 3 }));
+
+      XLSX.writeFile(workbook, 'Tabla_Equivalencias_EQUIV.xlsx');
+    } catch (err) {
+      console.error('Error exporting equivalences to Excel:', err);
+      alert('Error al exportar equivalencias: ' + err.message);
+    }
+  };
+
   const handleUploadEquivalenciasExcel = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -1226,6 +1270,14 @@ export default function Config({ user }) {
                   style={{ display: 'none' }}
                   onChange={handleUploadEquivalenciasExcel}
                 />
+                <button 
+                  className="btn btn-secondary" 
+                  style={{ padding: '6px 12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  onClick={handleExportEquivalencias}
+                >
+                  <Download size={14} />
+                  <span>Exportar Excel</span>
+                </button>
                 <button 
                   className="btn btn-primary" 
                   style={{ padding: '6px 12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
