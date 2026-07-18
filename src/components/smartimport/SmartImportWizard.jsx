@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { supabase } from '../../supabase';
 import * as XLSX from 'xlsx';
-import { Upload, FileSpreadsheet, Filter, Search, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, X, Download, ChevronDown, ChevronUp, Loader2, Zap, HelpCircle, Check, SkipForward } from 'lucide-react';
+import { Upload, FileSpreadsheet, Filter, Search, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, X, Download, ChevronDown, ChevronUp, Loader2, Zap, HelpCircle, Check, SkipForward, Grid, Calendar } from 'lucide-react';
 import { INGRESOS_CONFIG, SALIDAS_CONFIG, detectPipeline, findColumnIndex } from './pipelineConfig';
 import { fuzzySearch, exactMatchSynonym, normalize } from './fuzzyMatch';
 
@@ -61,8 +61,28 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
   const [importResult, setImportResult] = useState(null);
   const [importError, setImportError] = useState('');
 
+  // ── Profile Mappings State ──
+  const [profiles, setProfiles] = useState([]);
+  const [loadingProfiles, setLoadingProfiles] = useState(false);
+  const [selectedProfileId, setSelectedProfileId] = useState('');
+  const [mappingState, setMappingState] = useState({
+    key: '',
+    producto: '',
+    cantidad: '',
+    unidad: '',
+    fecha: '',
+    fecha_fallback: '',
+    disciplina: '',
+    almacenero: ''
+  });
+  const [newProfileName, setNewProfileName] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [checkingAdmin, setCheckingAdmin] = useState(true);
+
   const STEPS = [
     { label: 'Cargar Archivo', icon: Upload },
+    { label: 'Mapeo de Columnas', icon: Grid },
     { label: 'Filtrar', icon: Filter },
     { label: 'Diccionario', icon: Search },
     { label: 'Resolver', icon: HelpCircle },
@@ -71,17 +91,26 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
   ];
 
   // ══════════════════════════════════════════════════════════════
-  // INITIALIZATION: FETCH DYNAMIC FILTERS
+  // INITIALIZATION: FETCH DYNAMIC FILTERS & ADMIN STATUS
   // ══════════════════════════════════════════════════════════════
 
   useEffect(() => {
     const fetchFilters = async () => {
       setLoadingFilters(true);
       try {
-        const [resAlm, resDisc] = await Promise.all([
+        const promises = [
           supabase.from('almaceneros').select('codigo'),
-          supabase.from('disciplinas').select('nombre')
-        ]);
+          supabase.from('disciplinas').select('nombre'),
+          supabase.from('import_profiles').select('*')
+        ];
+        
+        if (user?.email) {
+          promises.push(supabase.rpc('obtener_dni_administrador', { p_email: user.email }));
+        }
+
+        const results = await Promise.all(promises);
+        const [resAlm, resDisc, resProfiles, resAdmin] = results;
+
         if (resAlm.error) throw resAlm.error;
         if (resDisc.error) throw resDisc.error;
         
@@ -89,16 +118,28 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
         
         const discList = (resDisc.data || []).map(d => String(d.nombre));
         setDbDisciplinas(discList);
-        // Auto-select if there's exactly one option
         if (discList.length === 1) setSelectedDisciplina(discList[0]);
+
+        if (resProfiles.error) {
+          console.warn('Could not load import profiles table (maybe migration not run yet). Using static fallbacks.', resProfiles.error);
+        } else {
+          setProfiles(resProfiles.data || []);
+        }
+
+        if (resAdmin && resAdmin.data) {
+          setIsAdmin(true);
+        } else {
+          setIsAdmin(false);
+        }
       } catch (err) {
         console.error('Error fetching dynamic filters:', err);
       } finally {
         setLoadingFilters(false);
+        setCheckingAdmin(false);
       }
     };
     fetchFilters();
-  }, []);
+  }, [user]);
 
   // ══════════════════════════════════════════════════════════════
   // STEP 1: FILE UPLOAD
@@ -165,48 +206,97 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
         }
 
         const headers = rows[headerRowIndex].map(h => String(h || '').trim());
-        const detected = detectPipeline(headers);
+        const detectedProfile = detectPipeline(headers, profiles);
 
-        if (detected === 'unknown') {
-          setFileError(
-            'No se pudo detectar el tipo de archivo. Asegúrese de que sea una Tabla_Procura (Ingresos) o Tabla_Almacen (Salidas) válida.'
-          );
-          setIsFileLoading(false);
-          return;
-        }
+        let initialMapping = {
+          key: '',
+          producto: '',
+          cantidad: '',
+          unidad: '',
+          fecha: '',
+          fecha_fallback: '',
+          disciplina: '',
+          almacenero: ''
+        };
 
-        const currentConfig = detected === 'ingresos' ? INGRESOS_CONFIG : SALIDAS_CONFIG;
+        let currentType = 'ingresos';
+        let detectedProfileName = 'Personalizado';
 
-        // Critical validation: Transaction Key column MUST be present and not empty
-        const txKeyCol = detected === 'ingresos' ? 'TRANSACTION KEY' : 'Nro';
-        const txKeyIdx = findColumnIndex(headers, txKeyCol);
-        if (txKeyIdx === -1) {
-          setFileError(`Error crítico: No se encontró la columna obligatoria de Clave de Transacción ("${txKeyCol}").`);
-          setIsFileLoading(false);
-          return;
-        }
-
-        const dataRows = rows.slice(headerRowIndex + 1);
-        const hasAnyTxKey = dataRows.some(row => String(row[txKeyIdx] || '').trim() !== '');
-        if (!hasAnyTxKey) {
-          setFileError(`Error crítico: La columna de Clave de Transacción ("${txKeyCol}") está completamente vacía o no tiene registros válidos.`);
-          setIsFileLoading(false);
-          return;
-        }
-
-        const missing = [];
-        for (const col of currentConfig.sourceColumns) {
-          if (findColumnIndex(headers, col) === -1) {
-            missing.push(col);
+        if (detectedProfile) {
+          currentType = detectedProfile.type;
+          detectedProfileName = detectedProfile.name;
+          setSelectedProfileId(detectedProfile.id);
+          Object.entries(detectedProfile.column_mapping).forEach(([excelCol, sysField]) => {
+            if (sysField in initialMapping) {
+              initialMapping[sysField] = excelCol;
+            }
+          });
+        } else {
+          // If not detected, guess based on headers
+          setSelectedProfileId('');
+          // Check if it looks more like salidas by checking for Cód.Almacenero or UM
+          const hasAlmacenero = findColumnIndex(headers, 'Cód.Almacenero') !== -1;
+          const hasCantEntregada = findColumnIndex(headers, 'Cant. entregada') !== -1;
+          if (hasAlmacenero || hasCantEntregada) {
+            currentType = 'salidas';
           }
-        }
-        setMissingColumns(missing);
+          
+          // Guess mappings
+          const keyIdx = findColumnIndex(headers, 'TRANSACTION KEY');
+          if (keyIdx !== -1) initialMapping.key = headers[keyIdx];
+          else {
+            const nroIdx = findColumnIndex(headers, 'Nro');
+            if (nroIdx !== -1) initialMapping.key = headers[nroIdx];
+          }
 
+          const prodIdx = findColumnIndex(headers, 'DESCRIPCION');
+          if (prodIdx !== -1) initialMapping.producto = headers[prodIdx];
+          else {
+            const descIdx = findColumnIndex(headers, 'Descr. Artículo');
+            if (descIdx !== -1) initialMapping.producto = headers[descIdx];
+          }
+
+          const qtyIdx = findColumnIndex(headers, 'CantRecep.');
+          if (qtyIdx !== -1) initialMapping.cantidad = headers[qtyIdx];
+          else {
+            const entIdx = findColumnIndex(headers, 'Cant. entregada');
+            if (entIdx !== -1) initialMapping.cantidad = headers[entIdx];
+          }
+
+          const unitIdx = findColumnIndex(headers, 'UMP');
+          if (unitIdx !== -1) initialMapping.unidad = headers[unitIdx];
+          else {
+            const umIdx = findColumnIndex(headers, 'UM');
+            if (umIdx !== -1) initialMapping.unidad = headers[umIdx];
+          }
+
+          const dateIdx = findColumnIndex(headers, 'F.Rec.Proy');
+          if (dateIdx !== -1) initialMapping.fecha = headers[dateIdx];
+          else {
+            const pedIdx = findColumnIndex(headers, 'Fecha de pedido');
+            if (pedIdx !== -1) initialMapping.fecha = headers[pedIdx];
+          }
+
+          const discIdx = findColumnIndex(headers, 'Disciplina');
+          if (discIdx !== -1) initialMapping.disciplina = headers[discIdx];
+
+          const almIdx = findColumnIndex(headers, 'Cód.Almacenero');
+          if (almIdx !== -1) initialMapping.almacenero = headers[almIdx];
+        }
+
+        setMappingState(initialMapping);
+        setPipelineType(currentType);
+        
+        const simulatedConfig = {
+          label: detectedProfileName,
+          movementType: currentType === 'ingresos' ? 'INGRESO' : 'SALIDA',
+          filterColumn: currentType === 'ingresos' ? 'Disciplina' : 'Cód.Almacenero'
+        };
+        setConfig(simulatedConfig);
+        
         setRawHeaders(headers);
         setRawRows(rows.slice(headerRowIndex + 1));
-        setPipelineType(detected);
-        setConfig(currentConfig);
-        setCurrentStep(1); // Auto-advance to filter step
+        setCurrentStep(1); // Auto-advance to Paso 2: Mapeo de Columnas (index 1)
       } catch (err) {
         console.error('Error reading file:', err);
         setFileError('Error al leer el archivo: ' + err.message);
@@ -219,7 +309,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       setIsFileLoading(false);
     };
     reader.readAsArrayBuffer(file);
-  }, []);
+  }, [profiles]);
 
   const handleDrop = useCallback((e) => {
     e.preventDefault();
@@ -242,20 +332,14 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
   // ══════════════════════════════════════════════════════════════
 
   useEffect(() => {
-    if (currentStep !== 1 || !config || rawRows.length === 0) return;
+    if (currentStep !== 2 || !config || rawRows.length === 0) return;
 
-    const filterColIdx = findColumnIndex(rawHeaders, config.filterColumn);
+    const filterColName = pipelineType === 'ingresos' ? mappingState.disciplina : mappingState.almacenero;
+    const filterColIdx = rawHeaders.indexOf(filterColName);
     if (filterColIdx === -1) {
-      setFileError(`No se encontró la columna "${config.filterColumn}" en el archivo.`);
-      setCurrentStep(0);
+      setFileError(`No se encontró la columna de filtro "${filterColName}" en el archivo.`);
+      setCurrentStep(1); // Go back to mapping step
       return;
-    }
-
-    // Build column index map for source columns
-    const colMap = {};
-    for (const col of config.sourceColumns) {
-      const idx = findColumnIndex(rawHeaders, col);
-      if (idx !== -1) colMap[col] = idx;
     }
 
     let kept = [];
@@ -266,7 +350,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
 
       let passes = false;
       if (pipelineType === 'ingresos') {
-        if (!selectedDisciplina) continue; // Skip all if no disciplina is selected yet
+        if (!selectedDisciplina) continue; // Skip all if no database filter is selected yet
         passes = filterVal.toLowerCase() === selectedDisciplina.toLowerCase();
       } else {
         // Salidas: check if almacenero code is in the dynamic database list
@@ -278,11 +362,17 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
         continue;
       }
 
-      // Extract only the columns we need
-      const extracted = {};
-      for (const [colName, colIdx] of Object.entries(colMap)) {
-        extracted[colName] = row[colIdx] !== undefined ? row[colIdx] : '';
-      }
+      // Extract using our mapping mappingState to Golden layout fields!
+      const extracted = {
+        key: row[rawHeaders.indexOf(mappingState.key)] || '',
+        producto: row[rawHeaders.indexOf(mappingState.producto)] || '',
+        cantidad: row[rawHeaders.indexOf(mappingState.cantidad)] || '',
+        unidad: row[rawHeaders.indexOf(mappingState.unidad)] || '',
+        fecha: mappingState.fecha ? row[rawHeaders.indexOf(mappingState.fecha)] : '',
+        fecha_fallback: mappingState.fecha_fallback ? row[rawHeaders.indexOf(mappingState.fecha_fallback)] : '',
+        almacenero: mappingState.almacenero ? row[rawHeaders.indexOf(mappingState.almacenero)] : '',
+        disciplina: mappingState.disciplina ? row[rawHeaders.indexOf(mappingState.disciplina)] : '',
+      };
 
       // Skip completely empty rows
       const hasData = Object.values(extracted).some(v => String(v).trim() !== '');
@@ -296,7 +386,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
 
     setFilteredRows(kept);
     setFilterStats({ total: rawRows.length, kept: kept.length, removed: removedCount });
-  }, [currentStep, config, rawRows, rawHeaders, pipelineType, selectedDisciplina, dbAlmaceneros]);
+  }, [currentStep, config, rawRows, rawHeaders, pipelineType, selectedDisciplina, dbAlmaceneros, mappingState]);
 
   // ══════════════════════════════════════════════════════════════
   // STEP 3: DICTIONARY MATCHING
@@ -323,7 +413,6 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       if (prodError) throw prodError;
       setProductsList(products || []);
 
-      const descCol = config.descriptionColumn;
       const matched = [];
       const unmatched = [];
       const discarded = [];
@@ -331,7 +420,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
 
       for (let i = 0; i < totalRows; i++) {
         const row = filteredRows[i];
-        const description = String(row[descCol] || '').trim();
+        const description = String(row.producto || '').trim();
 
         if (!description) {
           continue;
@@ -396,10 +485,10 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
     } finally {
       setIsMatching(false);
     }
-  }, [config, filteredRows]);
+  }, [filteredRows]);
 
   useEffect(() => {
-    if (currentStep === 2) {
+    if (currentStep === 3) {
       runMatching();
     }
   }, [currentStep]);
@@ -529,7 +618,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
         message: 'Se ha descargado el archivo "Pendientes_Importacion_Fuzzy.xlsx".\n\n¿Desea avanzar directamente a la vista previa para importar solo las coincidencias exactas?',
         onConfirm: () => {
           handleSkipAll();
-          setCurrentStep(4);
+          setCurrentStep(5);
         }
       });
     } catch (err) {
@@ -609,10 +698,9 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
   // ══════════════════════════════════════════════════════════════
 
   useEffect(() => {
-    if (currentStep !== 4) return;
+    if (currentStep !== 5) return;
 
     const preview = [];
-    const descCol = config.descriptionColumn;
 
     // Process matched rows
     for (const row of matchedRows) {
@@ -625,7 +713,6 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       if (resolutions[desc]) {
         preview.push(buildPreviewRow(row, resolutions[desc], 'resolved'));
       }
-      // Skipped rows are excluded from import
     }
 
     // Sort by fecha descending (Golden Rule)
@@ -640,24 +727,19 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
   }, [currentStep, matchedRows, unmatchedRows, resolutions]);
 
   const buildPreviewRow = (row, productCodigo, matchType) => {
-    const mapping = config.columnMapping;
     const product = productsList.find(p => p.codigo === productCodigo);
 
     // Parse date
     let fechaRaw = '';
     let dateFallbackApplied = false;
-    const fechaSourceCol = pipelineType === 'ingresos' ? 'F.Rec.Proy' : 'Fecha de pedido';
-    const rawDate = row[fechaSourceCol];
+    const rawDate = row.fecha;
     if (rawDate) {
       fechaRaw = parseDateValue(rawDate);
     }
 
-    // Fallback 1: use Fec.Creac. if primary date is empty/invalid (for Ingresos)
-    if (!fechaRaw && pipelineType === 'ingresos') {
-      const fallbackVal = row['Fec.Creac.'];
-      if (fallbackVal) {
-        fechaRaw = parseDateValue(fallbackVal);
-      }
+    // Fallback 1: use fallback date if primary date is empty/invalid
+    if (!fechaRaw && row.fecha_fallback) {
+      fechaRaw = parseDateValue(row.fecha_fallback);
     }
 
     // Fallback 2: if still empty/invalid, use today's date so the row is not rejected
@@ -671,29 +753,22 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
     }
 
     // Parse quantity
-    const qtyCol = pipelineType === 'ingresos' ? 'CantRecep.' : 'Cant. entregada';
-    const cantidad = parseFloat(row[qtyCol]) || 0;
+    const cantidad = parseFloat(row.cantidad) || 0;
 
     // Transaction key
-    const keyCol = pipelineType === 'ingresos' ? 'TRANSACTION KEY' : 'Nro';
-    const transactionKey = String(row[keyCol] || '').trim();
+    const transactionKey = String(row.key || '').trim();
 
     // Unit
-    const unitCol = pipelineType === 'ingresos' ? 'UMP' : 'UM';
-    const unidad = String(row[unitCol] || '').trim();
+    const unidad = String(row.unidad || '').trim();
 
     // Description (original)
-    const descCol = config.descriptionColumn;
-    const descripcion = String(row[descCol] || '').trim();
+    const descripcion = String(row.producto || '').trim();
 
-    // Almacenero (Salidas only)
-    const almacenero = pipelineType === 'salidas' ? String(row['Cód.Almacenero'] || '').trim() : '';
+    // Almacenero
+    const almacenero = String(row.almacenero || '').trim();
 
     // Extra columns for display
     const extras = {};
-    for (const col of config.extraColumns) {
-      extras[col] = row[col] !== undefined ? row[col] : '';
-    }
 
     return {
       transactionKey,
@@ -878,6 +953,153 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
     }
   };
 
+  // ── Visual Mappings Manager Helpers ──
+  const validateMapping = () => {
+    if (!pipelineType) return false;
+    if (!mappingState.key || !mappingState.producto || !mappingState.cantidad || !mappingState.unidad) return false;
+    if (pipelineType === 'ingresos' && !mappingState.disciplina) return false;
+    if (pipelineType === 'salidas' && !mappingState.almacenero) return false;
+    return true;
+  };
+
+  const handleProfileChange = (e) => {
+    const profileId = e.target.value;
+    setSelectedProfileId(profileId);
+    if (!profileId) {
+      setMappingState({
+        key: '',
+        producto: '',
+        cantidad: '',
+        unidad: '',
+        fecha: '',
+        fecha_fallback: '',
+        disciplina: '',
+        almacenero: ''
+      });
+      setNewProfileName('');
+      return;
+    }
+
+    const prof = profiles.find(p => String(p.id) === String(profileId));
+    if (prof) {
+      setPipelineType(prof.type);
+      setNewProfileName(prof.name);
+      
+      const loadedMapping = {
+        key: '',
+        producto: '',
+        cantidad: '',
+        unidad: '',
+        fecha: '',
+        fecha_fallback: '',
+        disciplina: '',
+        almacenero: ''
+      };
+      Object.entries(prof.column_mapping).forEach(([excelCol, sysField]) => {
+        if (sysField in loadedMapping) {
+          loadedMapping[sysField] = excelCol;
+        }
+      });
+      setMappingState(loadedMapping);
+
+      setConfig({
+        label: prof.name,
+        movementType: prof.type === 'ingresos' ? 'INGRESO' : 'SALIDA',
+        filterColumn: prof.type === 'ingresos' ? 'Disciplina' : 'Cód.Almacenero'
+      });
+    }
+  };
+
+  const handleMappingFieldChange = (field, excelCol) => {
+    setMappingState(prev => ({
+      ...prev,
+      [field]: excelCol
+    }));
+  };
+
+  const handleSaveProfile = async () => {
+    if (!isAdmin) {
+      alert('Solo los administradores pueden guardar o modificar perfiles de mapeo.');
+      return;
+    }
+    if (!validateMapping() || !newProfileName.trim()) return;
+    setIsSavingProfile(true);
+    try {
+      const dbMapping = {};
+      Object.entries(mappingState).forEach(([sysField, excelCol]) => {
+        if (excelCol) {
+          dbMapping[excelCol] = sysField;
+        }
+      });
+
+      const signatures = [mappingState.key, mappingState.producto, mappingState.cantidad].filter(Boolean);
+      const required = [mappingState.key, mappingState.producto, mappingState.cantidad, mappingState.unidad].filter(Boolean);
+      if (pipelineType === 'ingresos' && mappingState.disciplina) {
+        signatures.push(mappingState.disciplina);
+        required.push(mappingState.disciplina);
+      }
+      if (pipelineType === 'salidas' && mappingState.almacenero) {
+        signatures.push(mappingState.almacenero);
+        required.push(mappingState.almacenero);
+      }
+
+      const payload = {
+        name: newProfileName.trim(),
+        type: pipelineType,
+        signature_columns: signatures,
+        required_columns: required,
+        column_mapping: dbMapping
+      };
+
+      let res;
+      if (selectedProfileId) {
+        res = await supabase
+          .from('import_profiles')
+          .update(payload)
+          .eq('id', selectedProfileId);
+      } else {
+        res = await supabase
+          .from('import_profiles')
+          .insert(payload)
+          .select();
+      }
+
+      if (res.error) throw res.error;
+
+      alert('Perfil guardado exitosamente.');
+      
+      const { data: updatedList, error: listErr } = await supabase.from('import_profiles').select('*');
+      if (!listErr && updatedList) {
+        setProfiles(updatedList);
+        if (!selectedProfileId && res.data && res.data[0]) {
+          setSelectedProfileId(res.data[0].id);
+        }
+      }
+    } catch (err) {
+      console.error('Error saving import profile:', err);
+      alert('Error al guardar el perfil: ' + err.message);
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const getExpectedFields = () => {
+    const fields = [
+      { key: 'key', label: 'Clave de Transacción', description: 'ID de fila único (TRANSACTION KEY / Nro)', required: true },
+      { key: 'producto', label: 'Producto (Descripción)', description: 'Texto del material para equivalencias', required: true },
+      { key: 'cantidad', label: 'Cantidad', description: 'Cantidad física transada', required: true },
+      { key: 'unidad', label: 'Unidad de Medida', description: 'Unidad (UMP / UM / etc.)', required: true },
+      { key: 'fecha', label: 'Fecha Principal', description: 'Fecha del movimiento', required: false },
+      { key: 'fecha_fallback', label: 'Fecha Alternativa', description: 'Fallback si la principal está vacía', required: false },
+    ];
+    if (pipelineType === 'ingresos') {
+      fields.push({ key: 'disciplina', label: 'Disciplina de Ingreso', description: 'Usada para filtrar filas (e.g. Instrumentación)', required: true });
+    } else {
+      fields.push({ key: 'almacenero', label: 'Código Almacenero', description: 'Usada para verificar personal de salida', required: true });
+    }
+    return fields;
+  };
+
   // ══════════════════════════════════════════════════════════════
   // NAVIGATION
   // ══════════════════════════════════════════════════════════════
@@ -885,21 +1107,22 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
   const canAdvance = () => {
     switch (currentStep) {
       case 0: return rawRows.length > 0 && config !== null;
-      case 1: return filteredRows.length > 0 && (pipelineType === 'salidas' || (pipelineType === 'ingresos' && selectedDisciplina));
-      case 2: return !isMatching;
-      case 3: return true; // Can always advance from resolve (skip all)
-      case 4: return previewData.some(r => r._valid);
+      case 1: return validateMapping();
+      case 2: return filteredRows.length > 0 && (pipelineType === 'salidas' || (pipelineType === 'ingresos' && selectedDisciplina));
+      case 3: return !isMatching;
+      case 4: return true; // Can always advance from resolve (skip all)
+      case 5: return previewData.some(r => r._valid);
       default: return false;
     }
   };
 
   const handleNext = () => {
-    if (currentStep === 3) {
+    if (currentStep === 4) {
       // Moving from Resolve to Preview
-      setCurrentStep(4);
-    } else if (currentStep === 4) {
-      // Moving from Preview to Import — execute
       setCurrentStep(5);
+    } else if (currentStep === 5) {
+      // Moving from Preview to Import — execute
+      setCurrentStep(6);
       handleImport();
     } else if (currentStep < STEPS.length - 1) {
       setCurrentStep(prev => prev + 1);
@@ -1046,8 +1269,137 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
             </div>
           )}
 
-          {/* ── STEP 1: FILTER & TRANSFORM ── */}
+          {/* ── STEP 1: COLUMN MAPPING (NEW) ── */}
           {currentStep === 1 && (
+            <div className="smart-wizard-step-content">
+              <h3>Paso 2: Mapeo de Columnas</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>
+                Asocie las columnas de su archivo de Excel con los campos esperados por el sistema.
+              </p>
+
+              <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '24px' }}>
+                <div style={{ flex: '1 1 300px' }}>
+                  <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.85rem', color: 'var(--text-primary)' }}>Perfil de Mapeo</label>
+                  <select 
+                    value={selectedProfileId}
+                    onChange={handleProfileChange}
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                  >
+                    <option value="">-- Personalizado / Crear Nuevo --</option>
+                    {profiles.map(p => (
+                      <option key={p.id} value={p.id}>{p.name} ({p.type === 'ingresos' ? 'Ingresos' : 'Salidas'})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ flex: '1 1 200px' }}>
+                  <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.85rem', color: 'var(--text-primary)' }}>Tipo de Movimiento</label>
+                  <select 
+                    value={pipelineType}
+                    disabled={!isAdmin}
+                    onChange={(e) => {
+                      const newType = e.target.value;
+                      setPipelineType(newType);
+                      setConfig(prev => ({
+                        ...prev,
+                        movementType: newType === 'ingresos' ? 'INGRESO' : 'SALIDA',
+                        filterColumn: newType === 'ingresos' ? 'Disciplina' : 'Cód.Almacenero'
+                      }));
+                      setMappingState(prev => {
+                        const nextM = { ...prev };
+                        if (newType === 'ingresos') {
+                          nextM.disciplina = '';
+                          nextM.almacenero = '';
+                        } else {
+                          nextM.disciplina = '';
+                          nextM.almacenero = '';
+                        }
+                        return nextM;
+                      });
+                    }}
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-primary)', cursor: isAdmin ? 'pointer' : 'not-allowed' }}
+                  >
+                    <option value="ingresos">Ingresos (Tabla Procura)</option>
+                    <option value="salidas">Salidas (Tabla Almacén)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="table-container" style={{ marginBottom: '24px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                      <th style={{ padding: '10px 12px' }}>Campo del Sistema</th>
+                      <th style={{ padding: '10px 12px' }}>Descripción</th>
+                      <th style={{ padding: '10px 12px' }}>Columna del Excel</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getExpectedFields().map((f) => (
+                      <tr key={f.key} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '12px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                          {f.label} {f.required && <span style={{ color: 'var(--danger)' }}>*</span>}
+                        </td>
+                        <td style={{ padding: '12px', color: 'var(--text-secondary)' }}>{f.description}</td>
+                        <td style={{ padding: '12px' }}>
+                          <select
+                            value={mappingState[f.key] || ''}
+                            disabled={!isAdmin}
+                            onChange={(e) => handleMappingFieldChange(f.key, e.target.value)}
+                            style={{ 
+                              width: '100%', 
+                              padding: '6px 8px', 
+                              borderRadius: '4px', 
+                              border: '1px solid var(--border-color)', 
+                              background: 'var(--bg-app)', 
+                              color: 'var(--text-primary)',
+                              cursor: isAdmin ? 'pointer' : 'not-allowed'
+                            }}
+                          >
+                            <option value="">-- No Asignada --</option>
+                            {rawHeaders.map((h) => (
+                              <option key={h} value={h}>{h}</option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {isAdmin ? (
+                <div style={{ background: 'var(--bg-card-header)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <h4 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-primary)' }}>Guardar este perfil de mapeo</h4>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <input 
+                      type="text" 
+                      placeholder="Nombre del perfil (ej: Procura Proyecto X)..."
+                      value={newProfileName}
+                      onChange={(e) => setNewProfileName(e.target.value)}
+                      style={{ flex: '1 1 250px', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                    />
+                    <button 
+                      className="btn btn-primary"
+                      onClick={handleSaveProfile}
+                      disabled={isSavingProfile || !newProfileName.trim() || !validateMapping()}
+                      style={{ padding: '8px 16px', fontSize: '0.85rem', cursor: 'pointer' }}
+                    >
+                      {isSavingProfile ? 'Guardando...' : 'Guardar Perfil'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ background: 'var(--bg-card-header)', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--border-color)', color: 'var(--text-secondary)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <HelpCircle size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                  <span>Los perfiles de mapeo y asociaciones de columnas son administrados centralizadamente. Solo administradores pueden crear o modificar perfiles.</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── STEP 2: FILTER & TRANSFORM ── */}
+          {currentStep === 2 && (
             <div className="smart-wizard-step-content">
               <h3>Paso 2: Filtrar y transformar</h3>
 
@@ -1148,7 +1500,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
           )}
 
           {/* ── STEP 2: DICTIONARY MATCHING ── */}
-          {currentStep === 2 && (
+          {currentStep === 3 && (
             <div className="smart-wizard-step-content">
               <h3>Paso 3: Matching con diccionario</h3>
 
@@ -1212,7 +1564,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
           )}
 
           {/* ── STEP 3: RESOLVE UNKNOWN ITEMS ── */}
-          {currentStep === 3 && (
+          {currentStep === 4 && (
             <div className="smart-wizard-step-content">
               <h3>Paso 4: Resolver ítems desconocidos</h3>
 
@@ -1351,7 +1703,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
           )}
 
           {/* ── STEP 4: PREVIEW ── */}
-          {currentStep === 4 && (
+          {currentStep === 5 && (
             <div className="smart-wizard-step-content">
               <h3>Paso 5: Vista previa</h3>
 
@@ -1476,9 +1828,9 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
           )}
 
           {/* ── STEP 5: IMPORT ── */}
-          {currentStep === 5 && (
+          {currentStep === 6 && (
             <div className="smart-wizard-step-content">
-              <h3>Paso 6: Importación</h3>
+              <h3>Paso 7: Importación</h3>
 
               {isImporting && (
                 <div style={{ textAlign: 'center', padding: '40px 0' }}>
@@ -1546,7 +1898,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
         </div>
 
         {/* Footer Navigation */}
-        {currentStep < 5 && (
+        {currentStep < 6 && (
           <div className="smart-wizard-footer">
             <button
               className="btn-outline"
@@ -1560,7 +1912,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
               onClick={handleNext}
               disabled={!canAdvance()}
             >
-              {currentStep === 4 ? (
+              {currentStep === 5 ? (
                 <><Zap size={16} /> Importar ({previewData.filter(r => r._valid).length} filas)</>
               ) : (
                 <>Siguiente <ArrowRight size={16} /></>

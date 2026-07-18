@@ -87,36 +87,54 @@ export const SALIDAS_CONFIG = {
 };
 
 /**
- * Auto-detect which pipeline to use based on the headers in the uploaded file.
+ * Auto-detect which pipeline profile to use based on the headers in the uploaded file and the fetched database profiles.
  * @param {string[]} headers - Array of column header strings from the file.
- * @returns {'ingresos'|'salidas'|'unknown'} The detected pipeline type.
+ * @param {object[]} profiles - Array of import profiles loaded from Supabase.
+ * @returns {object|null} The detected profile object, or null.
  */
-export function detectPipeline(headers) {
+export function detectPipeline(headers, profiles) {
   const normalize = (s) =>
     String(s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9.]/g, '');
 
   const normHeaders = headers.map(normalize);
 
-  const getMatchCount = (config) => {
-    let count = 0;
-    for (const sig of config.signatureColumns) {
-      const normSig = normalize(sig);
-      if (normHeaders.some(h => h === normSig || h.includes(normSig))) {
-        count++;
+  if (!profiles || profiles.length === 0) {
+    // Fallback detection using static configurations
+    const getMatchCount = (config) => {
+      let count = 0;
+      for (const sig of config.signatureColumns) {
+        const normSig = normalize(sig);
+        if (normHeaders.some(h => h === normSig || h.includes(normSig))) {
+          count++;
+        }
       }
-    }
-    return count;
-  };
-
-  const ingresosScore = getMatchCount(INGRESOS_CONFIG);
-  const salidasScore = getMatchCount(SALIDAS_CONFIG);
-
-  if (ingresosScore === 0 && salidasScore === 0) {
-    return 'unknown';
+      return count;
+    };
+    const scoreIngresos = getMatchCount(INGRESOS_CONFIG);
+    const scoreSalidas = getMatchCount(SALIDAS_CONFIG);
+    if (scoreIngresos === 0 && scoreSalidas === 0) return null;
+    return scoreIngresos >= scoreSalidas ? { ...INGRESOS_CONFIG, id: 'ingresos_default', type: 'ingresos' } : { ...SALIDAS_CONFIG, id: 'salidas_default', type: 'salidas' };
   }
 
-  // Return the type with the highest matching score
-  return ingresosScore >= salidasScore ? 'ingresos' : 'salidas';
+  let bestProfile = null;
+  let maxMatchCount = 0;
+
+  for (const profile of profiles) {
+    let matchCount = 0;
+    const signatures = profile.signature_columns || [];
+    for (const sig of signatures) {
+      const normSig = normalize(sig);
+      if (normHeaders.some(h => h === normSig || h.includes(normSig))) {
+        matchCount++;
+      }
+    }
+    if (matchCount > maxMatchCount && matchCount >= 2) { // Require at least 2 matching signature columns to avoid false auto-detects
+      maxMatchCount = matchCount;
+      bestProfile = profile;
+    }
+  }
+
+  return bestProfile;
 }
 
 /**
@@ -126,8 +144,9 @@ export function detectPipeline(headers) {
  * @returns {number} The column index, or -1 if not found.
  */
 export function findColumnIndex(headers, target) {
+  if (!target) return -1;
   const normalize = (s) =>
-    String(s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\\s+/g, ' ');
+    String(s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
 
   const normTarget = normalize(target);
 
