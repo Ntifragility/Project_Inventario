@@ -1,0 +1,154 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../supabase';
+import { Layers, Search, RefreshCw, Upload, AlertCircle } from 'lucide-react';
+import ConsumptionImport from './ConsumptionImport';
+
+export default function ConsumptionReport() {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [filterText, setFilterText] = useState('');
+  const [showImport, setShowImport] = useState(false);
+
+  const fetchReport = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { data, error } = await supabase
+        .from('v_balance_consumos')
+        .select('*')
+        .order('nombre');
+
+      if (error) throw error;
+      setData(data || []);
+    } catch (err) {
+      console.error('Error fetching balance:', err);
+      setError('Error al cargar reporte: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReport();
+  }, []);
+
+  const filteredData = data.filter(r => {
+    if (!filterText) return true;
+    const q = filterText.toLowerCase();
+    return r.codigo?.toLowerCase().includes(q) || 
+           r.nombre?.toLowerCase().includes(q) ||
+           r.grupo?.toLowerCase().includes(q);
+  });
+
+  return (
+    <div className="tab-content active">
+      <div className="card">
+        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Layers size={18} />
+            <span>Balance: Salidas vs Consumo Reportado</span>
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button className="btn btn-primary" onClick={() => setShowImport(true)}>
+              <Upload size={16} />
+              <span>Importar Consumo</span>
+            </button>
+            <button className="btn btn-secondary" onClick={fetchReport} disabled={loading}>
+              <RefreshCw size={16} />
+              <span>Actualizar</span>
+            </button>
+          </div>
+        </div>
+        
+        <div className="card-body">
+          <div className="search-filter-group" style={{ marginBottom: '16px' }}>
+            <Search size={18} style={{ color: 'var(--text-muted)' }} />
+            <input 
+              type="text" 
+              placeholder="Buscar por código, nombre o grupo..." 
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              style={{ flex: 1 }}
+            />
+          </div>
+
+          {error && <div className="message error" style={{ marginBottom: '16px' }}>{error}</div>}
+
+          {loading ? (
+            <div className="loading-container" style={{ padding: '40px' }}>
+              <span className="spinner"></span>
+              <span>Cargando datos...</span>
+            </div>
+          ) : filteredData.length === 0 ? (
+            <div className="message warning">No hay datos para mostrar.</div>
+          ) : (
+            <div className="table-container">
+              <table style={{ minWidth: '1300px' }}>
+                <thead>
+                  <tr>
+                    <th>ID Producto</th>
+                    <th>Producto</th>
+                    <th>Grupo</th>
+                    <th>U.M.</th>
+                    <th style={{ textAlign: 'right' }}>Cant. OC</th>
+                    <th style={{ textAlign: 'right' }}>Ingresó (Almacén)</th>
+                    <th style={{ textAlign: 'right' }}>Stock (Almacén)</th>
+                    <th style={{ textAlign: 'right' }}>Salió (A Campo)</th>
+                    <th style={{ textAlign: 'right' }}>Metrado OT</th>
+                    <th style={{ textAlign: 'right' }}>Instalado (Campo)</th>
+                    <th style={{ textAlign: 'right' }}>Faltante (Brecha)</th>
+                    <th style={{ textAlign: 'right' }}>% Faltante</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredData.map(row => {
+                    const brecha = parseFloat(row.brecha) || 0;
+                    let brechaClass = 'text-normal';
+                    if (brecha > 0) brechaClass = 'text-warning'; // More dispatched than installed
+                    if (brecha < 0) brechaClass = 'text-danger';  // More installed than dispatched?!
+                    if (brecha === 0 && row.total_salida > 0) brechaClass = 'text-success'; // Perfect balance
+
+                    return (
+                      <tr key={row.codigo}>
+                        <td data-label="ID Producto"><strong>{row.codigo}</strong></td>
+                        <td data-label="Producto"><span>{row.nombre}</span></td>
+                        <td data-label="Grupo"><span>{row.grupo || '-'}</span></td>
+                        <td data-label="U.M."><span>{row.unidad}</span></td>
+                        <td data-label="Cant. OC" style={{ textAlign: 'right', color: 'var(--accent)', fontWeight: 'bold' }}>{row.total_cant_oc || 0}</td>
+                        <td data-label="Ingresó" style={{ textAlign: 'right' }}>{row.total_ingreso}</td>
+                        <td data-label="Stock" style={{ textAlign: 'right', fontWeight: 'bold' }}>{row.stock_almacen}</td>
+                        <td data-label="Salió" style={{ textAlign: 'right' }}>{row.total_salida}</td>
+                        <td data-label="Metrado OT" style={{ textAlign: 'right', color: 'var(--primary)', fontWeight: 'bold' }}>{row.total_metrado_ot || 0}</td>
+                        <td data-label="Instalado" style={{ textAlign: 'right' }}>{row.total_consumo}</td>
+                        <td data-label="Faltante" style={{ textAlign: 'right' }}>
+                          <strong className={brechaClass}>
+                            {brecha > 0 && <AlertCircle size={14} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />}
+                            {brecha}
+                          </strong>
+                        </td>
+                        <td data-label="% Faltante" style={{ textAlign: 'right' }}>
+                          <span className={brechaClass}>{row.porcentaje_brecha}%</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {showImport && (
+        <ConsumptionImport 
+          onClose={() => setShowImport(false)} 
+          onImportComplete={() => {
+            setShowImport(false);
+            fetchReport();
+          }}
+        />
+      )}
+    </div>
+  );
+}
