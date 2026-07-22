@@ -1910,13 +1910,24 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
 
         {/* Footer Navigation */}
         {currentStep < 6 && (
-          <div className="smart-wizard-footer">
-            <button
-              className="btn-outline"
-              onClick={currentStep === 0 ? onClose : handleBack}
-            >
-              {currentStep === 0 ? 'Cancelar' : <><ArrowLeft size={16} /> Anterior</>}
-            </button>
+          <div className="smart-wizard-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                className="btn-outline"
+                onClick={onClose}
+                style={{ color: 'var(--danger)', borderColor: 'var(--border-color)' }}
+              >
+                Cancelar
+              </button>
+              {currentStep > 0 && (
+                <button
+                  className="btn-outline"
+                  onClick={handleBack}
+                >
+                  <ArrowLeft size={16} /> Anterior
+                </button>
+              )}
+            </div>
 
             <button
               className="btn-primary"

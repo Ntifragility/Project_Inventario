@@ -621,13 +621,17 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
         </div>
 
         {/* Footer */}
-        <div className="smart-wizard-footer">
-          {currentStep > 0 && currentStep < 3 && (
-            <button className="btn btn-secondary" onClick={handleBack}>
-              <ArrowLeft size={14} /> Anterior
+        <div className="smart-wizard-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn btn-secondary" onClick={onClose} style={{ color: 'var(--danger)' }}>
+              Cancelar
             </button>
-          )}
-          <div style={{ flex: 1 }} />
+            {currentStep > 0 && currentStep < 3 && (
+              <button className="btn btn-secondary" onClick={handleBack}>
+                <ArrowLeft size={14} /> Anterior
+              </button>
+            )}
+          </div>
           {currentStep < 3 && (
             <button
               className="btn btn-primary"
@@ -638,7 +642,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
             </button>
           )}
           {currentStep === 3 && importResult && (
-            <button className="btn btn-primary" onClick={handleClose}>
+            <button className="btn btn-primary" onClick={onClose}>
               Cerrar
             </button>
           )}
