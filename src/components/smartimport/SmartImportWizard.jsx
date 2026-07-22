@@ -1500,7 +1500,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
 
               <div style={{ marginTop: 16, padding: '12px 16px', background: 'var(--bg-card-header)', borderRadius: 8, fontSize: '0.9rem' }}>
                 <p style={{ margin: 0 }}>
-                  <strong>Filtro aplicado:</strong>{' '}
+                  <strong>{pipelineType === 'ingresos' ? 'Filtro aplicado:' : 'Filtro aplicado de personal que retiró material:'}</strong>{' '}
                   {pipelineType === 'ingresos' ? (
                     <div style={{ marginTop: 12, padding: '12px', background: 'var(--bg-app)', borderRadius: 6, border: '1px solid var(--border-color)' }}>
                       <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, color: 'var(--text-primary)' }}>
