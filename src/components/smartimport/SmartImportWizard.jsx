@@ -1155,9 +1155,9 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
     const fields = [
       { key: 'key', label: 'Clave de Transacción', description: 'ID de fila único (TRANSACTION KEY / Nro)', required: true },
       { key: 'producto', label: 'Producto (Descripción)', description: 'Descripcion', required: true },
-      { key: 'cantidad', label: 'Cantidad', description: pipelineType === 'ingresos' ? 'Cantidad recepcionada en almacen' : 'Cantidad física transada', required: true },
+      { key: 'cantidad', label: 'Cantidad', description: pipelineType === 'ingresos' ? 'Cantidad recepcionada en almacen' : 'Cantidad entregeda', required: true },
       { key: 'unidad', label: 'Unidad de Medida', description: 'Unidad (UMP / UM / etc.)', required: true },
-      { key: 'fecha', label: 'Fecha Principal', description: pipelineType === 'ingresos' ? 'Fecha de recepcion en almacen' : 'Fecha del movimiento', required: false },
+      { key: 'fecha', label: 'Fecha Principal', description: pipelineType === 'ingresos' ? 'Fecha de recepcion en almacen' : 'Fecha de pedido', required: false },
       { key: 'fecha_fallback', label: 'Fecha Alternativa', description: 'Fallback si la principal está vacía', required: false },
     ];
     if (pipelineType === 'ingresos') {
