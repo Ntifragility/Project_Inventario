@@ -230,9 +230,11 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
         if (detectedProfile && (detectedProfile.type === currentType || !currentType)) {
           detectedProfileName = detectedProfile.name;
           setSelectedProfileId(detectedProfile.id);
-          Object.entries(detectedProfile.column_mapping || {}).forEach(([excelCol, sysField]) => {
-            if (sysField in initialMapping) {
-              initialMapping[sysField] = excelCol;
+          Object.entries(detectedProfile.column_mapping || {}).forEach(([k, v]) => {
+            if (v in initialMapping && headers.includes(k)) {
+              initialMapping[v] = k;
+            } else if (k in initialMapping && headers.includes(v)) {
+              initialMapping[k] = v;
             }
           });
         } else {
@@ -1183,8 +1185,33 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
     }
   };
 
-  const handleNext = () => {
-    if (currentStep === 4) {
+  const handleNext = async () => {
+    if (currentStep === 1) {
+      // User is advancing from Step 1 (Mapeo de Columnas) -> Auto-save column structure to Supabase
+      const dbMapping = {};
+      Object.entries(mappingState).forEach(([sysField, excelCol]) => {
+        if (excelCol) {
+          dbMapping[excelCol] = sysField;
+        }
+      });
+
+      const profileName = selectedProfileId
+        ? profiles.find(p => String(p.id) === String(selectedProfileId))?.name
+        : `Perfil ${pipelineType === 'ingresos' ? 'Ingresos' : 'Salidas'} (${rawHeaders.length} col)`;
+
+      const saved = await saveOrUpdateProfile({
+        name: profileName,
+        type: pipelineType,
+        headers: rawHeaders,
+        columnMapping: dbMapping
+      });
+
+      if (saved) {
+        const { data: updatedList } = await supabase.from('import_profiles').select('*');
+        if (updatedList) setProfiles(updatedList);
+      }
+      setCurrentStep(2);
+    } else if (currentStep === 4) {
       // Moving from Resolve to Preview
       setCurrentStep(5);
     } else if (currentStep === 5) {
