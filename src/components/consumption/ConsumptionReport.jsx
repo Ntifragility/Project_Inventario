@@ -34,11 +34,29 @@ export default function ConsumptionReport() {
   }, []);
 
   const filteredData = data.filter(r => {
-    if (!filterText) return true;
-    const q = filterText.toLowerCase();
-    return r.codigo?.toLowerCase().includes(q) || 
-           r.nombre?.toLowerCase().includes(q) ||
-           r.grupo?.toLowerCase().includes(q);
+    const cleanFilter = filterText.toLowerCase().trim();
+    if (!cleanFilter) return true;
+
+    if (cleanFilter.includes('*')) {
+      const regexStr = cleanFilter
+        .split('*')
+        .map(part => part.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'))
+        .join('.*');
+      try {
+        const regex = new RegExp(regexStr, 'i');
+        return (
+          regex.test(r.codigo || '') ||
+          regex.test(r.nombre || '') ||
+          regex.test(r.grupo || '')
+        );
+      } catch (e) {
+        return false;
+      }
+    }
+
+    return r.codigo?.toLowerCase().includes(cleanFilter) || 
+           r.nombre?.toLowerCase().includes(cleanFilter) ||
+           r.grupo?.toLowerCase().includes(cleanFilter);
   });
 
   return (
