@@ -737,7 +737,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
   const buildPreviewRow = (row, productCodigo, matchType) => {
     const product = productsList.find(p => p.codigo === productCodigo);
 
-    // Parse date
+    // Parse date: If primary date is missing/invalid, Fecha Alternativa MUST ALWAYS be today's date
     let fechaRaw = '';
     let dateFallbackApplied = false;
     const rawDate = row.fecha;
@@ -745,12 +745,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       fechaRaw = parseDateValue(rawDate);
     }
 
-    // Fallback 1: use fallback date if primary date is empty/invalid
-    if (!fechaRaw && row.fecha_fallback) {
-      fechaRaw = parseDateValue(row.fecha_fallback);
-    }
-
-    // Fallback 2: if still empty/invalid, use today's date so the row is not rejected
+    // Fallback: ALWAYS default to today's date if no valid primary date was found
     if (!fechaRaw) {
       const today = new Date();
       const yyyy = today.getFullYear();

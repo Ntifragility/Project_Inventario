@@ -192,7 +192,14 @@ export default function ConsumptionImport({ user, onClose, onImportComplete }) {
       const qty = parseFloat(row[colMetrado]);
       const qtyOt = colMetradoOt !== '' ? parseFloat(row[colMetradoOt]) : 0;
       const rawFecha = colFecha !== '' ? row[colFecha] : null;
-      const fecha = parseDateValue(rawFecha);
+      let fecha = parseDateValue(rawFecha);
+      if (!fecha) {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        fecha = `${yyyy}-${mm}-${dd}`;
+      }
 
       if (!desc || isNaN(qty) || qty <= 0) return;
 
