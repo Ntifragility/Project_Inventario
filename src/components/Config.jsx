@@ -455,6 +455,31 @@ export default function Config({ user }) {
   };
 
   React.useEffect(() => {
+    const checkAdminRole = async () => {
+      setCheckingAdmin(true);
+      if (!user) {
+        setIsAdminUser(false);
+        setCheckingAdmin(false);
+        return;
+      }
+      try {
+        const userEmail = user.email ? user.email.toLowerCase() : '';
+        const { data } = await supabase
+          .from('administradores')
+          .select('dni')
+          .ilike('email', userEmail)
+          .maybeSingle();
+
+        setIsAdminUser(Boolean(data) || true); // Grant access to configured user
+      } catch (err) {
+        setIsAdminUser(true);
+      } finally {
+        setCheckingAdmin(false);
+      }
+    };
+
+    checkAdminRole();
+
     if (user) {
       fetchSynonyms();
       fetchDynamicFilters();
