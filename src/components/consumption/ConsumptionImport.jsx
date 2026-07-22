@@ -3,6 +3,8 @@ import { supabase } from '../../supabase';
 import * as XLSX from 'xlsx';
 import { Upload, Search, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, X, Zap, HelpCircle, FileSpreadsheet, Download } from 'lucide-react';
 import { fuzzySearch, exactMatchSynonym, normalize } from '../smartimport/fuzzyMatch';
+import { findMatchingProfileByHeaders, fetchMappingProfiles, saveOrUpdateProfile } from '../smartimport/mappingPersistence';
+
 
 export default function ConsumptionImport({ user, onClose, onImportComplete }) {
   const [currentStep, setCurrentStep] = useState(0);
@@ -97,7 +99,7 @@ export default function ConsumptionImport({ user, onClose, onImportComplete }) {
         const foundHeaders = rows[headerRowIdx].map(String);
         setHeaders(foundHeaders);
         
-        // Auto-detect columns
+        // Auto-detect columns from saved profiles or smart guess
         let bestDesc = '', bestMetrado = '', bestMetradoOt = '', bestFecha = '';
         foundHeaders.forEach((h, i) => {
           const lower = h.toLowerCase();
@@ -111,6 +113,18 @@ export default function ConsumptionImport({ user, onClose, onImportComplete }) {
         setColMetrado(bestMetrado);
         setColMetradoOt(bestMetradoOt);
         setColFecha(bestFecha);
+
+        fetchMappingProfiles('consumos').then(profiles => {
+          const matched = findMatchingProfileByHeaders(foundHeaders, profiles, 'consumos');
+          if (matched && matched.column_mapping) {
+            const m = matched.column_mapping;
+            if (m.desc !== undefined) setColDesc(m.desc);
+            if (m.metrado !== undefined) setColMetrado(m.metrado);
+            if (m.metrado_ot !== undefined) setColMetradoOt(m.metrado_ot);
+            if (m.fecha !== undefined) setColFecha(m.fecha);
+          }
+        });
+
         
         setRawRows(rows.slice(headerRowIdx + 1));
         setCurrentStep(0);
@@ -154,6 +168,21 @@ export default function ConsumptionImport({ user, onClose, onImportComplete }) {
     if (colDesc === '' || colMetrado === '') {
       setFileError('Debes seleccionar las columnas de Descripción y Metrado.');
       return;
+    }
+
+    // Auto-save column mapping profile for future uploads with same header structure
+    if (headers && headers.length > 0) {
+      saveOrUpdateProfile({
+        name: `Estructura Consumos (${headers.length} col)`,
+        type: 'consumos',
+        headers: headers,
+        columnMapping: {
+          desc: colDesc,
+          metrado: colMetrado,
+          metrado_ot: colMetradoOt,
+          fecha: colFecha
+        }
+      });
     }
 
     const aggregated = {};

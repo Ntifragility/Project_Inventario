@@ -10,6 +10,8 @@ import {
   CABLE_SCHEDULE_SIGNATURES, CABLE_DESPACHO_SIGNATURES,
   detectImportType, autoMapColumns, transformRow
 } from './cableParserConfig';
+import { findMatchingProfileByHeaders, fetchMappingProfiles, saveOrUpdateProfile } from '../smartimport/mappingPersistence';
+
 
 /**
  * CableImportWizard — 5-step modal wizard for importing Cable Schedule

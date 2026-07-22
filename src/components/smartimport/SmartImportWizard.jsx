@@ -4,6 +4,8 @@ import * as XLSX from 'xlsx';
 import { Upload, FileSpreadsheet, Filter, Search, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, X, Download, ChevronDown, ChevronUp, Loader2, Zap, HelpCircle, Check, SkipForward, Grid, Calendar } from 'lucide-react';
 import { INGRESOS_CONFIG, SALIDAS_CONFIG, detectPipeline, findColumnIndex } from './pipelineConfig';
 import { fuzzySearch, exactMatchSynonym, normalize } from './fuzzyMatch';
+import { findMatchingProfileByHeaders, saveOrUpdateProfile } from './mappingPersistence';
+
 
 /**
  * SmartImportWizard — Multi-step wizard for importing raw procurement/warehouse files.
@@ -207,7 +209,10 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
         }
 
         const headers = rows[headerRowIndex].map(h => String(h || '').trim());
-        const detectedProfile = detectPipeline(headers, profiles);
+        let currentType = pipelineType;
+        
+        const matchedSigProfile = findMatchingProfileByHeaders(headers, profiles, currentType);
+        const detectedProfile = matchedSigProfile || detectPipeline(headers, profiles);
 
         let initialMapping = {
           key: '',
@@ -220,10 +225,9 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
           almacenero: ''
         };
 
-        let currentType = pipelineType;
         let detectedProfileName = 'Personalizado';
 
-        if (detectedProfile && detectedProfile.type === currentType) {
+        if (detectedProfile && (detectedProfile.type === currentType || !currentType)) {
           detectedProfileName = detectedProfile.name;
           setSelectedProfileId(detectedProfile.id);
           Object.entries(detectedProfile.column_mapping || {}).forEach(([excelCol, sysField]) => {
@@ -232,6 +236,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
             }
           });
         } else {
+
           setSelectedProfileId('');
           // Smart Guess mappings with broad synonyms
           const findBestMatch = (synonyms) => {
