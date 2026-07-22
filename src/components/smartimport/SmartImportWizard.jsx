@@ -1161,7 +1161,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       { key: 'fecha_fallback', label: 'Fecha Alternativa', description: 'Fallback si la principal está vacía', required: false },
     ];
     if (pipelineType === 'ingresos') {
-      fields.push({ key: 'disciplina', label: 'Disciplina', description: 'Usada para filtrar filas (e.g. Instrumentación)', required: true });
+      fields.push({ key: 'disciplina', label: 'Disciplina', description: 'Elegir disciplina que se va a filtrar', required: true });
       fields.push({ key: 'cant_oc', label: 'Cantidad OC', description: 'Cantidad OC', required: false });
     } else {
       fields.push({ key: 'almacenero', label: 'Código Almacenero', description: 'Usada para verificar personal de salida', required: true });
