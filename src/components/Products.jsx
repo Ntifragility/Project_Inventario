@@ -234,9 +234,9 @@ export default function Products() {
       if (countErr) throw countErr;
 
       if (count > 0) {
-        setDeleteMsg({ 
-          text: `Este producto tiene ${count} movimiento(s) asociado(s). Al eliminarlo, también se eliminarán todos sus movimientos (CASCADE). ¿Desea continuar?`, 
-          type: 'warning' 
+        setDeleteMsg({
+          text: `Este producto tiene ${count} movimiento(s) asociado(s). Al eliminarlo, también se eliminarán todos sus movimientos (CASCADE). ¿Desea continuar?`,
+          type: 'warning'
         });
         // Switch to a "force delete" flow
         setDeleting(false);
@@ -310,16 +310,16 @@ export default function Products() {
     setCsvMsg({ text: 'Procesando archivo...', type: 'info' });
 
     const reader = new FileReader();
-    reader.onload = async function(e) {
+    reader.onload = async function (e) {
       try {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
-        
+
         // Convert to array of arrays (header: 1)
         const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        
+
         if (rows.length < 2) {
           setCsvMsg({ text: 'El archivo está vacío o no contiene suficientes filas.', type: 'error' });
           event.target.value = '';
@@ -341,12 +341,12 @@ export default function Products() {
         const colNombre = normHeaders.indexOf(normalize('Producto'));
         const colUnidad = normHeaders.indexOf(normalize('Unidad'));
         const colGrupo = normHeaders.indexOf(normalize('Grupo'));
-        
+
         // Find stock min index
-        const colStockMin = normHeaders.findIndex(h => 
-          h === normalize('Stock Mín.') || 
-          h === normalize('Stock Mín') || 
-          h === normalize('Stock Min.') || 
+        const colStockMin = normHeaders.findIndex(h =>
+          h === normalize('Stock Mín.') ||
+          h === normalize('Stock Mín') ||
+          h === normalize('Stock Min.') ||
           h === normalize('Stock Min')
         );
 
@@ -449,9 +449,9 @@ export default function Products() {
         const { error: insertErr } = await supabase.from('productos').insert(productsToInsert);
         if (insertErr) throw insertErr;
 
-        setCsvMsg({ 
-          text: `Importación exitosa: se registraron ${productsToInsert.length} productos. (${skippedCount} omitidos por duplicados, ${emptyCount} filas vacías).`, 
-          type: 'success' 
+        setCsvMsg({
+          text: `Importación exitosa: se registraron ${productsToInsert.length} productos. (${skippedCount} omitidos por duplicados, ${emptyCount} filas vacías).`,
+          type: 'success'
         });
 
         event.target.value = '';
@@ -485,8 +485,8 @@ export default function Products() {
   return (
     <div id="productos" className="tab-content active">
       <div className="card">
-        <div 
-          className="card-header collapsible-header" 
+        <div
+          className="card-header collapsible-header"
           onClick={() => setIsFormOpen(!isFormOpen)}
           style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
         >
@@ -500,114 +500,114 @@ export default function Products() {
         </div>
         {isFormOpen && (
           <div className="card-body">
-          <form onSubmit={handleSubmit}>
-            <div className="form-grid">
-              <div className="form-group">
-                <label htmlFor="codigoProd">ID Producto *</label>
-                <div className="input-with-button">
-                  <input 
-                    type="text" 
-                    id="codigoProd" 
-                    placeholder="ID único del producto" 
-                    value={codigo}
-                    onChange={(e) => setCodigo(e.target.value)}
-                    maxLength={50}
-                    required 
+            <form onSubmit={handleSubmit}>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label htmlFor="codigoProd">ID Producto *</label>
+                  <div className="input-with-button">
+                    <input
+                      type="text"
+                      id="codigoProd"
+                      placeholder="ID único del producto"
+                      value={codigo}
+                      onChange={(e) => setCodigo(e.target.value)}
+                      maxLength={50}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => setShowScanner(true)}
+                      title="Escanear Código"
+                    >
+                      <Scan size={16} />
+                    </button>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="nombreProd">Producto *</label>
+                  <input
+                    type="text"
+                    id="nombreProd"
+                    placeholder="Nombre del producto"
+                    value={nombre}
+                    onChange={(e) => setNombre(e.target.value)}
+                    maxLength={255}
+                    required
                   />
-                  <button 
-                    type="button" 
-                    className="btn btn-secondary" 
-                    onClick={() => setShowScanner(true)}
-                    title="Escanear Código"
+                </div>
+                <div className="form-group">
+                  <label htmlFor="unidadProd">Unidad</label>
+                  <select
+                    id="unidadProd"
+                    value={unidad}
+                    onChange={(e) => setUnidad(e.target.value)}
+                    required
                   >
-                    <Scan size={16} />
-                  </button>
+                    {unidadesList.map((u) => (
+                      <option key={u.nombre} value={u.nombre}>{u.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="grupoProd">Grupo</label>
+                  <select
+                    id="grupoProd"
+                    value={grupo}
+                    onChange={(e) => setGrupo(e.target.value)}
+                    required
+                  >
+                    {gruposList.map((g) => (
+                      <option key={g.nombre} value={g.nombre}>{g.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="stockMinProd">Stock Mínimo</label>
+                  <input
+                    type="number"
+                    id="stockMinProd"
+                    min="0"
+                    value={stockMin}
+                    onChange={(e) => setStockMin(Math.max(0, parseInt(e.target.value) || 0))}
+                  />
                 </div>
               </div>
-              <div className="form-group">
-                <label htmlFor="nombreProd">Producto *</label>
-                <input 
-                  type="text" 
-                  id="nombreProd" 
-                  placeholder="Nombre del producto" 
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  maxLength={255}
-                  required 
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="unidadProd">Unidad</label>
-                <select 
-                  id="unidadProd" 
-                  value={unidad}
-                  onChange={(e) => setUnidad(e.target.value)}
-                  required
+              <div className="actions">
+                <button type="submit" className="btn btn-success" disabled={submitting}>
+                  <Plus size={16} />
+                  <span>Registrar Producto</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => setShowImportModal(true)}
                 >
-                  {unidadesList.map((u) => (
-                    <option key={u.nombre} value={u.nombre}>{u.nombre}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label htmlFor="grupoProd">Grupo</label>
-                <select 
-                  id="grupoProd" 
-                  value={grupo}
-                  onChange={(e) => setGrupo(e.target.value)}
-                  required
+                  <Upload size={16} />
+                  <span>Importar desde Excel / CSV</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setCodigo('');
+                    setNombre('');
+                    setStockMin(0);
+                    setFormMsg({ text: '', type: '' });
+                  }}
                 >
-                  {gruposList.map((g) => (
-                    <option key={g.nombre} value={g.nombre}>{g.nombre}</option>
-                  ))}
-                </select>
+                  Limpiar
+                </button>
               </div>
-              <div className="form-group">
-                <label htmlFor="stockMinProd">Stock Mínimo</label>
-                <input 
-                  type="number" 
-                  id="stockMinProd" 
-                  min="0" 
-                  value={stockMin}
-                  onChange={(e) => setStockMin(Math.max(0, parseInt(e.target.value) || 0))}
-                />
-              </div>
-            </div>
-            <div className="actions">
-              <button type="submit" className="btn btn-success" disabled={submitting}>
-                <Plus size={16} />
-                <span>Registrar Producto</span>
-              </button>
-              <button 
-                type="button" 
-                className="btn btn-primary" 
-                onClick={() => setShowImportModal(true)}
-              >
-                <Upload size={16} />
-                <span>Importar desde Excel / CSV</span>
-              </button>
-              <button 
-                type="button" 
-                className="btn btn-secondary" 
-                onClick={() => {
-                  setCodigo('');
-                  setNombre('');
-                  setStockMin(0);
-                  setFormMsg({ text: '', type: '' });
-                }}
-              >
-                Limpiar
-              </button>
-            </div>
-          </form>
+            </form>
 
-          {formMsg.text && (
-            <div className={`message ${formMsg.type}`}>
-              {formMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-              <span>{formMsg.text}</span>
-            </div>
-          )}
-        </div>
+            {formMsg.text && (
+              <div className={`message ${formMsg.type}`}>
+                {formMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                <span>{formMsg.text}</span>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -628,11 +628,11 @@ export default function Products() {
                 <label className="btn btn-primary" style={{ cursor: 'pointer', padding: '12px' }}>
                   <Upload size={16} />
                   <span>Seleccionar archivo</span>
-                  <input 
-                    type="file" 
-                    accept=".xlsx, .xls, .csv" 
-                    onChange={handleImportExcelCSV} 
-                    style={{ display: 'none' }} 
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls, .csv"
+                    onChange={handleImportExcelCSV}
+                    style={{ display: 'none' }}
                   />
                 </label>
               </div>
@@ -645,8 +645,8 @@ export default function Products() {
               )}
             </div>
             <div style={{ padding: '16px 24px', background: 'var(--bg-card-header)', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end' }}>
-              <button 
-                className="btn btn-secondary" 
+              <button
+                className="btn btn-secondary"
                 onClick={() => {
                   setShowImportModal(false);
                   setCsvMsg({ text: '', type: '' });
@@ -660,8 +660,8 @@ export default function Products() {
       )}
 
       <div className="card">
-        <div 
-          className="card-header collapsible-header" 
+        <div
+          className="card-header collapsible-header"
           onClick={() => setIsListOpen(!isListOpen)}
           style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
         >
@@ -675,155 +675,155 @@ export default function Products() {
         </div>
         {isListOpen && (
           <div className="card-body">
-          {!loadingList && productsList.length > 0 && (
-            <div className="search-filter-group">
-              <Search size={18} style={{ color: 'var(--text-muted)' }} />
-              <input 
-                type="text" 
-                placeholder="Buscar por código, nombre o grupo..." 
-                value={filterText}
-                onChange={(e) => setFilterText(e.target.value)}
-                style={{ flex: 1 }}
-              />
-              {filterText && (
-                <button 
-                  className="btn btn-secondary" 
-                  onClick={() => setFilterText('')}
-                  style={{ padding: '8px 12px' }}
-                >
-                  Limpiar
-                </button>
-              )}
-              <button
-                className="btn btn-secondary"
-                onClick={handleExportToExcel}
-                style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                title="Exportar productos a Excel"
-              >
-                <Download size={14} />
-                <span>Exportar Excel</span>
-              </button>
-            </div>
-          )}
-
-          {loadingList && productsList.length === 0 ? (
-            <div className="loading-container">
-              <span className="spinner"></span>
-              <span>Cargando lista de productos...</span>
-            </div>
-          ) : productsList.length === 0 ? (
-            <div className="message warning">No hay productos registrados en el sistema.</div>
-          ) : filteredProducts.length === 0 ? (
-            <div className="message warning">No se encontraron productos con el filtro especificado.</div>
-          ) : (
-            <div style={{ position: 'relative', opacity: loadingList ? 0.6 : 1, transition: 'opacity 0.2s ease' }}>
-              {loadingList && (
-                <div style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  background: 'var(--bg-card-header)',
-                  opacity: 0.7,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  zIndex: 2,
-                  backdropFilter: 'blur(1px)',
-                  borderRadius: 'var(--radius-md)'
-                }}>
-                  <span className="spinner" style={{ width: '40px', height: '40px' }}></span>
-                </div>
-              )}
-              <div className="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th>ID Producto</th>
-                    <th>Producto</th>
-                    <th>Unidad</th>
-                    <th>Grupo</th>
-                    <th>Stock Mín.</th>
-                    <th>Stock Actual</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedData.map((p) => {
-                    let statusClass = 'status-normal';
-                    if (p.cantidad <= 0) statusClass = 'status-zero';
-                    else if (p.cantidad <= p.stockMin && p.stockMin > 0) statusClass = 'status-low';
-
-                    return (
-                      <tr key={p.codigo} className={statusClass}>
-                        <td data-label="ID Producto"><strong>{p.codigo}</strong></td>
-                        <td data-label="Producto"><span>{p.nombre}</span></td>
-                        <td data-label="Unidad"><span>{p.unidad}</span></td>
-                        <td data-label="Grupo"><span>{p.grupo}</span></td>
-                        <td data-label="Stock Mín."><span>{p.stockMin}</span></td>
-                        <td data-label="Stock Actual" style={{ position: 'relative' }}>
-                          <span>{p.cantidad}</span>
-                          <div className="row-actions-hover">
-                            <button
-                              className="btn btn-secondary"
-                              style={{ padding: '4px 8px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }}
-                              onClick={() => handleStartEdit(p)}
-                              title="Editar producto"
-                            >
-                              <Pencil size={11} />
-                            </button>
-                            <button
-                              className="btn btn-danger"
-                              style={{ padding: '4px 8px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }}
-                              onClick={() => handleStartDelete(p)}
-                              title="Eliminar producto"
-                            >
-                              <Trash2 size={11} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination Controls (FUNC-2) */}
-            {totalPages > 1 && (
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'space-between',
-                marginTop: '16px',
-                padding: '12px 0',
-                borderTop: '1px solid var(--border-color)',
-                flexWrap: 'wrap',
-                gap: '12px'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  <span>Mostrando {startIdx + 1}–{Math.min(startIdx + rowsPerPage, filteredProducts.length)} de {filteredProducts.length}</span>
-                  <select 
-                    value={rowsPerPage} 
-                    onChange={(e) => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-                    style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+            {!loadingList && productsList.length > 0 && (
+              <div className="search-filter-group">
+                <Search size={18} style={{ color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  placeholder="Buscar por código, nombre o grupo..."
+                  value={filterText}
+                  onChange={(e) => setFilterText(e.target.value)}
+                  style={{ flex: 1 }}
+                />
+                {filterText && (
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => setFilterText('')}
+                    style={{ padding: '8px 12px' }}
                   >
-                    <option value={25}>25 filas</option>
-                    <option value={50}>50 filas</option>
-                    <option value={100}>100 filas</option>
-                  </select>
-                </div>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(1)} disabled={safeCurrentPage === 1}>«</button>
-                  <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safeCurrentPage === 1}>‹</button>
-                  <span style={{ padding: '4px 12px', fontSize: '0.85rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>{safeCurrentPage} / {totalPages}</span>
-                  <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safeCurrentPage === totalPages}>›</button>
-                </div>
+                    Limpiar
+                  </button>
+                )}
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleExportToExcel}
+                  style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  title="Exportar productos a Excel"
+                >
+                  <Download size={14} />
+                  <span>Exportar Excel</span>
+                </button>
               </div>
             )}
-            </div>
-          )}
-        </div>
+
+            {loadingList && productsList.length === 0 ? (
+              <div className="loading-container">
+                <span className="spinner"></span>
+                <span>Cargando lista de productos...</span>
+              </div>
+            ) : productsList.length === 0 ? (
+              <div className="message warning">No hay productos registrados en el sistema.</div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="message warning">No se encontraron productos con el filtro especificado.</div>
+            ) : (
+              <div style={{ position: 'relative', opacity: loadingList ? 0.6 : 1, transition: 'opacity 0.2s ease' }}>
+                {loadingList && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'var(--bg-card-header)',
+                    opacity: 0.7,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 2,
+                    backdropFilter: 'blur(1px)',
+                    borderRadius: 'var(--radius-md)'
+                  }}>
+                    <span className="spinner" style={{ width: '40px', height: '40px' }}></span>
+                  </div>
+                )}
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>ID Producto</th>
+                        <th>Producto</th>
+                        <th>Unidad</th>
+                        <th>Grupo</th>
+                        <th>Stock Mín.</th>
+                        <th>Stock Actual</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedData.map((p) => {
+                        let statusClass = 'status-normal';
+                        if (p.cantidad <= 0) statusClass = 'status-zero';
+                        else if (p.cantidad <= p.stockMin && p.stockMin > 0) statusClass = 'status-low';
+
+                        return (
+                          <tr key={p.codigo} className={statusClass}>
+                            <td data-label="ID Producto"><strong>{p.codigo}</strong></td>
+                            <td data-label="Producto"><span>{p.nombre}</span></td>
+                            <td data-label="Unidad"><span>{p.unidad}</span></td>
+                            <td data-label="Grupo"><span>{p.grupo}</span></td>
+                            <td data-label="Stock Mín."><span>{p.stockMin}</span></td>
+                            <td data-label="Stock Actual" style={{ position: 'relative' }}>
+                              <span>{p.cantidad}</span>
+                              <div className="row-actions-hover">
+                                <button
+                                  className="btn btn-secondary"
+                                  style={{ padding: '4px 8px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }}
+                                  onClick={() => handleStartEdit(p)}
+                                  title="Editar producto"
+                                >
+                                  <Pencil size={11} />
+                                </button>
+                                <button
+                                  className="btn btn-danger"
+                                  style={{ padding: '4px 8px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', height: '24px', cursor: 'pointer' }}
+                                  onClick={() => handleStartDelete(p)}
+                                  title="Eliminar producto"
+                                >
+                                  <Trash2 size={11} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Controls (FUNC-2) */}
+                {totalPages > 1 && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginTop: '16px',
+                    padding: '12px 0',
+                    borderTop: '1px solid var(--border-color)',
+                    flexWrap: 'wrap',
+                    gap: '12px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      <span>Mostrando {startIdx + 1}–{Math.min(startIdx + rowsPerPage, filteredProducts.length)} de {filteredProducts.length}</span>
+                      <select
+                        value={rowsPerPage}
+                        onChange={(e) => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                        style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                      >
+                        <option value={25}>25 filas</option>
+                        <option value={50}>50 filas</option>
+                        <option value={100}>100 filas</option>
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(1)} disabled={safeCurrentPage === 1}>«</button>
+                      <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safeCurrentPage === 1}>‹</button>
+                      <span style={{ padding: '4px 12px', fontSize: '0.85rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>{safeCurrentPage} / {totalPages}</span>
+                      <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safeCurrentPage === totalPages}>›</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -884,16 +884,16 @@ export default function Products() {
               )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
-                <button 
-                  className="btn btn-secondary" 
-                  onClick={() => setEditingProduct(null)} 
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setEditingProduct(null)}
                   disabled={editSubmitting}
                 >
                   Cancelar
                 </button>
-                <button 
-                  className="btn btn-success" 
-                  onClick={handleSaveEdit} 
+                <button
+                  className="btn btn-success"
+                  onClick={handleSaveEdit}
                   disabled={editSubmitting}
                 >
                   <Save size={16} />
@@ -928,26 +928,26 @@ export default function Products() {
               )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
-                <button 
-                  className="btn btn-secondary" 
-                  onClick={() => setDeleteTarget(null)} 
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setDeleteTarget(null)}
                   disabled={deleting}
                 >
                   Cancelar
                 </button>
                 {deleteMsg.type === 'warning' ? (
-                  <button 
-                    className="btn btn-danger" 
-                    onClick={executeDelete} 
+                  <button
+                    className="btn btn-danger"
+                    onClick={executeDelete}
                     disabled={deleting}
                   >
                     <Trash2 size={14} />
                     <span>{deleting ? 'Eliminando...' : 'Eliminar de Todos Modos'}</span>
                   </button>
                 ) : (
-                  <button 
-                    className="btn btn-danger" 
-                    onClick={handleConfirmDelete} 
+                  <button
+                    className="btn btn-danger"
+                    onClick={handleConfirmDelete}
                     disabled={deleting}
                   >
                     <Trash2 size={14} />
@@ -960,9 +960,9 @@ export default function Products() {
         </div>
       )}
       {showScanner && (
-        <BarcodeScanner 
-          onClose={() => setShowScanner(false)} 
-          onScanSuccess={(code) => setCodigo(code)} 
+        <BarcodeScanner
+          onClose={() => setShowScanner(false)}
+          onScanSuccess={(code) => setCodigo(code)}
         />
       )}
     </div>
