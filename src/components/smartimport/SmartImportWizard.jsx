@@ -876,35 +876,83 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       });
 
       // Check for existing keys
-      const keys = movements.map(m => m.key);
-      const { data: existingKeys, error: keyError } = await supabase
+      const keys = movements.map(m => m.key).filter(Boolean);
+      const { data: existingRows, error: keyError } = await supabase
         .from('movimientos')
-        .select('key')
+        .select('id, key, cantidad, fecha')
         .in('key', keys);
 
       if (keyError) throw keyError;
 
-      const existingKeySet = new Set((existingKeys || []).map(k => k.key?.toUpperCase()));
+      const existingMap = new Map();
+      (existingRows || []).forEach(r => {
+        if (r.key) existingMap.set(r.key.toUpperCase(), r);
+      });
+
+      const dictionaryDiscarded = previewData.length - validRows.length;
 
       if (config.movementType === 'INGRESO') {
-        // Ingresos: upsert (allows updates)
-        const { error } = await supabase
-          .from('movimientos')
-          .upsert(movements, { onConflict: 'key' });
-        if (error) throw error;
+        const toInsert = [];
+        const toUpdate = [];
+        let skippedDupes = 0;
+        let skippedLowerQty = 0;
 
-        const insertCount = movements.filter(m => !existingKeySet.has(m.key?.toUpperCase())).length;
-        const updateCount = movements.length - insertCount;
+        for (const mov of movements) {
+          const keyUpper = mov.key ? mov.key.toUpperCase() : '';
+          const existing = existingMap.get(keyUpper);
+
+          if (!existing) {
+            toInsert.push(mov);
+          } else {
+            const oldQty = parseFloat(existing.cantidad) || 0;
+            const newQty = parseFloat(mov.cantidad) || 0;
+
+            if (newQty > oldQty) {
+              // Quantity increased -> Update existing movement with new quantity and date
+              toUpdate.push({
+                id: existing.id,
+                ...mov
+              });
+            } else if (newQty < oldQty) {
+              // Quantity decreased -> Prevent downgrade
+              skippedLowerQty++;
+            } else {
+              // Quantity identical -> Skip duplicate
+              skippedDupes++;
+            }
+          }
+        }
+
+        if (toInsert.length > 0) {
+          const { error: insertErr } = await supabase.from('movimientos').insert(toInsert);
+          if (insertErr) throw insertErr;
+        }
+
+        if (toUpdate.length > 0) {
+          for (const u of toUpdate) {
+            const { id, ...updatePayload } = u;
+            const { error: updateErr } = await supabase
+              .from('movimientos')
+              .update(updatePayload)
+              .eq('id', id);
+            if (updateErr) console.warn('Update error for movement id', id, updateErr);
+          }
+        }
+
+        const totalSkipped = dictionaryDiscarded + skippedDupes + skippedLowerQty;
 
         setImportResult({
-          total: movements.length,
-          inserted: insertCount,
-          updated: updateCount,
-          skipped: previewData.length - validRows.length
+          total: previewData.length,
+          inserted: toInsert.length,
+          updated: toUpdate.length,
+          skipped: totalSkipped,
+          skippedDupes,
+          skippedLowerQty,
+          dictionaryDiscarded
         });
       } else {
-        // Salidas: insert only (no upsert), skip existing keys
-        const newMovements = movements.filter(m => !existingKeySet.has(m.key?.toUpperCase()));
+        // Salidas: insert only, skip existing keys
+        const newMovements = movements.filter(m => !existingMap.has(m.key?.toUpperCase()));
         const skippedDupes = movements.length - newMovements.length;
 
         if (newMovements.length > 0) {
@@ -919,7 +967,6 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
 
           const stockMap = new Map((stockData || []).map(s => [s.codigo, parseFloat(s.cantidad) || 0]));
 
-          // Track local stock changes during import
           const localStock = new Map(stockMap);
           const validMovements = [];
           let insufficientStock = 0;
@@ -941,21 +988,25 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
             if (error) throw error;
           }
 
+          const totalSkipped = dictionaryDiscarded + skippedDupes + insufficientStock;
+
           setImportResult({
-            total: movements.length,
+            total: previewData.length,
             inserted: validMovements.length,
             updated: 0,
-            skipped: previewData.length - validRows.length + skippedDupes + insufficientStock,
+            skipped: totalSkipped,
             skippedDupes,
-            insufficientStock
+            insufficientStock,
+            dictionaryDiscarded
           });
         } else {
           setImportResult({
-            total: movements.length,
+            total: previewData.length,
             inserted: 0,
             updated: 0,
             skipped: previewData.length - validRows.length + skippedDupes,
-            skippedDupes
+            skippedDupes,
+            dictionaryDiscarded
           });
         }
       }
@@ -1881,16 +1932,28 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                     )}
                   </div>
 
-                  {importResult.skippedDupes > 0 && (
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: 8 }}>
-                      {importResult.skippedDupes} claves duplicadas omitidas
-                    </p>
-                  )}
-                  {importResult.insufficientStock > 0 && (
-                    <p style={{ fontSize: '0.85rem', color: 'var(--warning)', marginTop: 4 }}>
-                      {importResult.insufficientStock} filas omitidas por stock insuficiente
-                    </p>
-                  )}
+                  <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.85rem' }}>
+                    {importResult.skippedDupes > 0 && (
+                      <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
+                        • <strong>{importResult.skippedDupes}</strong> claves duplicadas con datos idénticos omitidas
+                      </p>
+                    )}
+                    {importResult.skippedLowerQty > 0 && (
+                      <p style={{ margin: 0, color: 'var(--warning)' }}>
+                        • <strong>{importResult.skippedLowerQty}</strong> filas omitidas (cantidad menor a la ya registrada)
+                      </p>
+                    )}
+                    {importResult.dictionaryDiscarded > 0 && (
+                      <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
+                        • <strong>{importResult.dictionaryDiscarded}</strong> filas omitidas (sin coincidencia en diccionario o filtradas)
+                      </p>
+                    )}
+                    {importResult.insufficientStock > 0 && (
+                      <p style={{ margin: 0, color: 'var(--warning)' }}>
+                        • <strong>{importResult.insufficientStock}</strong> filas omitidas por stock insuficiente
+                      </p>
+                    )}
+                  </div>
 
                   <button
                     className="btn-primary"
