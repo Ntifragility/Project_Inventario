@@ -703,6 +703,23 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
     }
   };
 
+  const handleExportOmittedImportExcel = () => {
+    try {
+      if (!importResult || !importResult.omittedRows || importResult.omittedRows.length === 0) {
+        alert('No hay registros omitidos en la importación para descargar.');
+        return;
+      }
+
+      const worksheet = XLSX.utils.json_to_sheet(importResult.omittedRows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Omitidos en Importación');
+      XLSX.writeFile(workbook, `Movimientos_Omitidos_Importacion_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (err) {
+      console.error('Error exporting omitted rows from import result:', err);
+      alert('Error al exportar registros omitidos: ' + err.message);
+    }
+  };
+
   // ══════════════════════════════════════════════════════════════
   // STEP 5: BUILD PREVIEW DATA
   // ══════════════════════════════════════════════════════════════
@@ -892,6 +909,25 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       });
 
       const dictionaryDiscarded = previewData.length - validRows.length;
+      const omittedRowsList = [];
+
+      // 1. Add rows that failed pre-validation/dictionary matching (invalid rows)
+      const invalidRows = previewData.filter(r => !r._valid);
+      for (const r of invalidRows) {
+        omittedRowsList.push({
+          'Clave de Transacción': r.transactionKey || 'NO ASIGNADO',
+          'Fecha': r.fecha || 'NO ASIGNADO',
+          'ID Producto': r.productCodigo || 'NO COINCIDE DICCIONARIO',
+          'Producto': r.productName || r.descripcionOriginal || 'NO IDENTIFICADO',
+          'Cantidad': r.cantidad || 0,
+          'Unidad': r.unidad || '',
+          'Almacenero/Disciplina': r.almacenero || r.disciplina || '',
+          'Motivo de Omisión': !r.transactionKey ? 'Falta clave de transacción' :
+                               !r.productCodigo ? 'Producto no identificado/sin equivalencia' :
+                               r.cantidad <= 0 ? 'Cantidad debe ser mayor a 0' :
+                               !r._fechaRaw ? 'Fecha inválida o vacía' : 'Campos incompletos o incorrectos'
+        });
+      }
 
       if (config.movementType === 'INGRESO') {
         const toInsert = [];
@@ -902,6 +938,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
         for (const mov of movements) {
           const keyUpper = mov.key ? mov.key.toUpperCase() : '';
           const existing = existingMap.get(keyUpper);
+          const origRow = validRows.find(vr => vr.transactionKey === mov.key) || {};
 
           if (!existing) {
             toInsert.push(mov);
@@ -916,11 +953,29 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                 ...mov
               });
             } else if (newQty < oldQty) {
-              // Quantity decreased -> Prevent downgrade
               skippedLowerQty++;
+              omittedRowsList.push({
+                'Clave de Transacción': mov.key || '',
+                'Fecha': mov.fecha || '',
+                'ID Producto': mov.producto_codigo || '',
+                'Producto': origRow.productName || '',
+                'Cantidad': mov.cantidad || 0,
+                'Unidad': origRow.unidad || '',
+                'Almacenero/Disciplina': origRow.almacenero || origRow.disciplina || '',
+                'Motivo de Omisión': `Cantidad nueva (${newQty}) es menor que la ya registrada (${oldQty})`
+              });
             } else {
-              // Quantity identical -> Skip duplicate
               skippedDupes++;
+              omittedRowsList.push({
+                'Clave de Transacción': mov.key || '',
+                'Fecha': mov.fecha || '',
+                'ID Producto': mov.producto_codigo || '',
+                'Producto': origRow.productName || '',
+                'Cantidad': mov.cantidad || 0,
+                'Unidad': origRow.unidad || '',
+                'Almacenero/Disciplina': origRow.almacenero || origRow.disciplina || '',
+                'Motivo de Omisión': 'Clave duplicada con datos idénticos ya existente en base de datos'
+              });
             }
           }
         }
@@ -950,12 +1005,32 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
           skipped: totalSkipped,
           skippedDupes,
           skippedLowerQty,
-          dictionaryDiscarded
+          dictionaryDiscarded,
+          omittedRows: omittedRowsList
         });
       } else {
         // Salidas: insert only, skip existing keys
-        const newMovements = movements.filter(m => !existingMap.has(m.key?.toUpperCase()));
-        const skippedDupes = movements.length - newMovements.length;
+        const newMovements = [];
+        let skippedDupes = 0;
+
+        for (const mov of movements) {
+          const origRow = validRows.find(vr => vr.transactionKey === mov.key) || {};
+          if (existingMap.has(mov.key?.toUpperCase())) {
+            skippedDupes++;
+            omittedRowsList.push({
+              'Clave de Transacción': mov.key || '',
+              'Fecha': mov.fecha || '',
+              'ID Producto': mov.producto_codigo || '',
+              'Producto': origRow.productName || '',
+              'Cantidad': mov.cantidad || 0,
+              'Unidad': origRow.unidad || '',
+              'Almacenero/Disciplina': origRow.almacenero || origRow.disciplina || '',
+              'Motivo de Omisión': 'Salida ya registrada con esta clave de transacción'
+            });
+          } else {
+            newMovements.push(mov);
+          }
+        }
 
         if (newMovements.length > 0) {
           // Validate stock before inserting
@@ -975,8 +1050,19 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
 
           for (const mov of newMovements) {
             const available = localStock.get(mov.producto_codigo) || 0;
+            const origRow = validRows.find(vr => vr.transactionKey === mov.key) || {};
             if (available < mov.cantidad) {
               insufficientStock++;
+              omittedRowsList.push({
+                'Clave de Transacción': mov.key || '',
+                'Fecha': mov.fecha || '',
+                'ID Producto': mov.producto_codigo || '',
+                'Producto': origRow.productName || '',
+                'Cantidad': mov.cantidad || 0,
+                'Unidad': origRow.unidad || '',
+                'Almacenero/Disciplina': origRow.almacenero || origRow.disciplina || '',
+                'Motivo de Omisión': `Stock insuficiente (Disponible: ${available}, Requerido: ${mov.cantidad})`
+              });
               continue;
             }
             localStock.set(mov.producto_codigo, available - mov.cantidad);
@@ -999,16 +1085,19 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
             skipped: totalSkipped,
             skippedDupes,
             insufficientStock,
-            dictionaryDiscarded
+            dictionaryDiscarded,
+            omittedRows: omittedRowsList
           });
         } else {
+          const totalSkipped = dictionaryDiscarded + skippedDupes;
           setImportResult({
             total: previewData.length,
             inserted: 0,
             updated: 0,
-            skipped: previewData.length - validRows.length + skippedDupes,
+            skipped: totalSkipped,
             skippedDupes,
-            dictionaryDiscarded
+            dictionaryDiscarded,
+            omittedRows: omittedRowsList
           });
         }
       }
@@ -1981,6 +2070,31 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                       </p>
                     )}
                   </div>
+
+                  {importResult.skipped > 0 && importResult.omittedRows && importResult.omittedRows.length > 0 && (
+                    <div style={{ marginTop: 16 }}>
+                      <button
+                        className="btn-outline"
+                        onClick={handleExportOmittedImportExcel}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 16px',
+                          fontSize: '0.85rem',
+                          color: 'var(--warning)',
+                          borderColor: 'var(--warning)',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          borderRadius: '6px',
+                          fontWeight: '600'
+                        }}
+                      >
+                        <Download size={14} />
+                        Descargar Detalle de Omitidos (.xlsx)
+                      </button>
+                    </div>
+                  )}
 
                   <button
                     className="btn-primary"
