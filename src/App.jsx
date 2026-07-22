@@ -9,6 +9,8 @@ import Inventory from './components/Inventory';
 import Reports from './components/Reports';
 import Config from './components/Config';
 import CableDashboard from './components/cables/CableDashboard';
+import ConsumptionReport from './components/consumption/ConsumptionReport';
+import RecipeManager from './components/recipes/RecipeManager';
 import { Clock, Menu } from 'lucide-react';
 
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
@@ -142,6 +144,10 @@ export default function App() {
         return <Reports />;
       case 'cables':
         return <CableDashboard />;
+      case 'consumos':
+        return <ConsumptionReport />;
+      case 'recetas':
+        return <RecipeManager />;
       case 'configuracion':
         return <Config user={session.user} />;
       default:
@@ -157,6 +163,8 @@ export default function App() {
       case 'inventario': return 'Control de Inventario';
       case 'reportes': return 'Reportes';
       case 'cables': return 'Cable Schedule Manager';
+      case 'consumos': return 'Consumos de Campo';
+      case 'recetas': return 'Gestor de Ensambles (BOM)';
       case 'configuracion': return 'Configuración del Sistema';
       default: return 'Sistema de Inventario';
     }

@@ -180,8 +180,22 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
 
   const buildPreview = useCallback(() => {
     const errors = [];
-    const rows = rawRows.map((row, i) => {
+    const parsedRows = [];
+
+    rawRows.forEach((row, i) => {
       const obj = transformRow(row, mapping, columnDefs);
+      if (!obj.tag_unico) return;
+
+      if (importType === 'schedule') {
+        // Hardcode servicio to 'PAT'
+        obj.servicio = 'PAT';
+
+        // Filter material: keep only CABLE DESNUDO 2/0 AWG and CABLE DESNUDO 4/0 AWG
+        const mat = (obj.material || '').toString().trim().toUpperCase();
+        if (mat !== 'CABLE DESNUDO 2/0 AWG' && mat !== 'CABLE DESNUDO 4/0 AWG') {
+          return; // skip this row
+        }
+      }
 
       // Validate required fields
       for (const [field, def] of Object.entries(columnDefs)) {
@@ -190,15 +204,13 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
         }
       }
 
-      return obj;
+      parsedRows.push(obj);
     });
 
-    // Filter out rows without tag_unico
-    const valid = rows.filter(r => r.tag_unico);
-    setPreviewData(valid);
+    setPreviewData(parsedRows);
     setValidationErrors(errors.slice(0, 50)); // Cap at 50 errors
     setPreviewPage(1);
-  }, [rawRows, mapping, columnDefs]);
+  }, [rawRows, mapping, columnDefs, importType]);
 
   // ══════════════════════════════════════════════════════════════
   // STEP 4: IMPORT TO SUPABASE

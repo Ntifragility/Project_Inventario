@@ -125,11 +125,30 @@ export default function Inventory() {
 
   // Perform client-side searches and warning filters
   const filteredData = stockData.filter(p => {
-    const cleanFilter = filterText.toLowerCase();
-    const matchesQuery = 
-      p.codigo?.toLowerCase().includes(cleanFilter) ||
-      p.nombre?.toLowerCase().includes(cleanFilter) ||
-      p.grupo?.toLowerCase().includes(cleanFilter);
+    const cleanFilter = filterText.toLowerCase().trim();
+    if (!cleanFilter) return true;
+
+    let matchesQuery = false;
+    if (cleanFilter.includes('*')) {
+      const regexStr = cleanFilter
+        .split('*')
+        .map(part => part.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'))
+        .join('.*');
+      try {
+        const regex = new RegExp(regexStr, 'i');
+        matchesQuery = 
+          regex.test(p.codigo || '') ||
+          regex.test(p.nombre || '') ||
+          regex.test(p.grupo || '');
+      } catch (e) {
+        matchesQuery = false;
+      }
+    } else {
+      matchesQuery = 
+        p.codigo?.toLowerCase().includes(cleanFilter) ||
+        p.nombre?.toLowerCase().includes(cleanFilter) ||
+        p.grupo?.toLowerCase().includes(cleanFilter);
+    }
 
     if (!matchesQuery) return false;
 

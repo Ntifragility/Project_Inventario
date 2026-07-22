@@ -73,7 +73,8 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
     fecha: '',
     fecha_fallback: '',
     disciplina: '',
-    almacenero: ''
+    almacenero: '',
+    cant_oc: ''
   });
   const [newProfileName, setNewProfileName] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -219,80 +220,46 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
           almacenero: ''
         };
 
-        let currentType = 'ingresos';
+        let currentType = pipelineType;
         let detectedProfileName = 'Personalizado';
 
-        if (detectedProfile) {
-          currentType = detectedProfile.type;
+        if (detectedProfile && detectedProfile.type === currentType) {
           detectedProfileName = detectedProfile.name;
           setSelectedProfileId(detectedProfile.id);
-          Object.entries(detectedProfile.column_mapping).forEach(([excelCol, sysField]) => {
+          Object.entries(detectedProfile.column_mapping || {}).forEach(([excelCol, sysField]) => {
             if (sysField in initialMapping) {
               initialMapping[sysField] = excelCol;
             }
           });
         } else {
-          // If not detected, guess based on headers
           setSelectedProfileId('');
-          // Check if it looks more like salidas by checking for Cód.Almacenero or UM
-          const hasAlmacenero = findColumnIndex(headers, 'Cód.Almacenero') !== -1;
-          const hasCantEntregada = findColumnIndex(headers, 'Cant. entregada') !== -1;
-          if (hasAlmacenero || hasCantEntregada) {
-            currentType = 'salidas';
-          }
-          
-          // Guess mappings
-          const keyIdx = findColumnIndex(headers, 'TRANSACTION KEY');
-          if (keyIdx !== -1) initialMapping.key = headers[keyIdx];
-          else {
-            const nroIdx = findColumnIndex(headers, 'Nro');
-            if (nroIdx !== -1) initialMapping.key = headers[nroIdx];
-          }
+          // Smart Guess mappings with broad synonyms
+          const findBestMatch = (synonyms) => {
+            for (let i = 0; i < headers.length; i++) {
+              const h = String(headers[i] || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+              if (h && synonyms.some(s => h.includes(s) || s.includes(h))) {
+                return headers[i];
+              }
+            }
+            return '';
+          };
 
-          const prodIdx = findColumnIndex(headers, 'DESCRIPCION');
-          if (prodIdx !== -1) initialMapping.producto = headers[prodIdx];
-          else {
-            const descIdx = findColumnIndex(headers, 'Descr. Artículo');
-            if (descIdx !== -1) initialMapping.producto = headers[descIdx];
-          }
-
-          const qtyIdx = findColumnIndex(headers, 'CantRecep.');
-          if (qtyIdx !== -1) initialMapping.cantidad = headers[qtyIdx];
-          else {
-            const entIdx = findColumnIndex(headers, 'Cant. entregada');
-            if (entIdx !== -1) initialMapping.cantidad = headers[entIdx];
-          }
-
-          const unitIdx = findColumnIndex(headers, 'UMP');
-          if (unitIdx !== -1) initialMapping.unidad = headers[unitIdx];
-          else {
-            const umIdx = findColumnIndex(headers, 'UM');
-            if (umIdx !== -1) initialMapping.unidad = headers[umIdx];
-          }
-
-          const dateIdx = findColumnIndex(headers, 'F.Rec.Proy');
-          if (dateIdx !== -1) initialMapping.fecha = headers[dateIdx];
-          else {
-            const pedIdx = findColumnIndex(headers, 'Fecha de pedido');
-            if (pedIdx !== -1) initialMapping.fecha = headers[pedIdx];
-          }
-
-          const discIdx = findColumnIndex(headers, 'Disciplina');
-          if (discIdx !== -1) initialMapping.disciplina = headers[discIdx];
-
-          const almIdx = findColumnIndex(headers, 'Cód.Almacenero');
-          if (almIdx !== -1) initialMapping.almacenero = headers[almIdx];
+          initialMapping.key = findBestMatch(['transactionkey', 'key', 'clave', 'transkey', 'transactionid', 'nro']);
+          initialMapping.producto = findBestMatch(['descripcion', 'desc', 'articulo', 'producto', 'material']);
+          initialMapping.cantidad = findBestMatch(['cantrecepcionada', 'cantidadrecepcionada', 'cantidad', 'cant', 'qty', 'amount', 'cantentregada', 'cantidadentregada', 'cantrec']);
+          initialMapping.unidad = findBestMatch(['ump', 'um', 'unidad', 'unit', 'umd']);
+          initialMapping.fecha = findBestMatch(['fecharecproyecto', 'fecharec', 'fecharecepcion', 'fechadepedido', 'fecha', 'date']);
+          initialMapping.disciplina = currentType === 'ingresos' ? findBestMatch(['disciplina', 'discipline', 'area']) : '';
+          initialMapping.almacenero = currentType === 'salidas' ? findBestMatch(['codalmacenero', 'almacenero', 'keeper', 'solicitante']) : '';
         }
 
         setMappingState(initialMapping);
-        setPipelineType(currentType);
         
-        const simulatedConfig = {
+        setConfig({
           label: detectedProfileName,
           movementType: currentType === 'ingresos' ? 'INGRESO' : 'SALIDA',
           filterColumn: currentType === 'ingresos' ? 'Disciplina' : 'Cód.Almacenero'
-        };
-        setConfig(simulatedConfig);
+        });
         
         setRawHeaders(headers);
         setRawRows(rows.slice(headerRowIndex + 1));
@@ -372,6 +339,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
         fecha_fallback: mappingState.fecha_fallback ? row[rawHeaders.indexOf(mappingState.fecha_fallback)] : '',
         almacenero: mappingState.almacenero ? row[rawHeaders.indexOf(mappingState.almacenero)] : '',
         disciplina: mappingState.disciplina ? row[rawHeaders.indexOf(mappingState.disciplina)] : '',
+        cant_oc: mappingState.cant_oc ? parseFloat(row[rawHeaders.indexOf(mappingState.cant_oc)]) || 0 : 0,
       };
 
       // Skip completely empty rows
@@ -693,6 +661,41 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
     }
   };
 
+  const handleExportSkippedExcel = () => {
+    try {
+      if (skippedDescriptions.size === 0) {
+        alert('No hay elementos omitidos para exportar.');
+        return;
+      }
+
+      const skippedRows = filteredRows.filter(r => skippedDescriptions.has(r.producto));
+
+      if (skippedRows.length === 0) {
+        alert('No se encontraron filas omitidas para exportar.');
+        return;
+      }
+
+      const formattedRows = skippedRows.map(r => {
+        return {
+          'Descripción Original (Omitida)': r.producto,
+          'Transaction Key': r.key,
+          'Cantidad': r.cantidad,
+          'Unidad': r.unidad,
+          'Fecha': r.fecha,
+          'Motivo': 'Usuario seleccionó Omitir en la validación del diccionario'
+        };
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Datos Omitidos');
+      XLSX.writeFile(workbook, 'Datos_Omitidos.xlsx');
+    } catch (err) {
+      console.error('Error exporting skipped rows:', err);
+      alert('Error al exportar datos omitidos: ' + err.message);
+    }
+  };
+
   // ══════════════════════════════════════════════════════════════
   // STEP 5: BUILD PREVIEW DATA
   // ══════════════════════════════════════════════════════════════
@@ -782,6 +785,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       almacenero,
       matchType,
       descripcionOriginal: descripcion,
+      cant_oc: row.cant_oc || 0,
       extras,
       _valid: Boolean(transactionKey && productCodigo && cantidad > 0 && fechaRaw),
       _dateFallbackApplied: dateFallbackApplied
@@ -855,6 +859,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
           fecha: row._fechaRaw,
           tipo: row.tipo,
           cantidad: row.cantidad,
+          cant_oc: row.cant_oc,
           usuario: activeUserEmail,
           observaciones,
           key: row.transactionKey
@@ -993,7 +998,8 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
         fecha: '',
         fecha_fallback: '',
         disciplina: '',
-        almacenero: ''
+        almacenero: '',
+        cant_oc: ''
       };
       Object.entries(prof.column_mapping).forEach(([excelCol, sysField]) => {
         if (sysField in loadedMapping) {
@@ -1086,14 +1092,15 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
   const getExpectedFields = () => {
     const fields = [
       { key: 'key', label: 'Clave de Transacción', description: 'ID de fila único (TRANSACTION KEY / Nro)', required: true },
-      { key: 'producto', label: 'Producto (Descripción)', description: 'Texto del material para equivalencias', required: true },
-      { key: 'cantidad', label: 'Cantidad', description: 'Cantidad física transada', required: true },
+      { key: 'producto', label: 'Producto (Descripción)', description: 'Descripcion', required: true },
+      { key: 'cantidad', label: 'Cantidad', description: pipelineType === 'ingresos' ? 'Cantidad recepcionada en almacen' : 'Cantidad física transada', required: true },
       { key: 'unidad', label: 'Unidad de Medida', description: 'Unidad (UMP / UM / etc.)', required: true },
-      { key: 'fecha', label: 'Fecha Principal', description: 'Fecha del movimiento', required: false },
+      { key: 'fecha', label: 'Fecha Principal', description: pipelineType === 'ingresos' ? 'Fecha de recepcion en almacen' : 'Fecha del movimiento', required: false },
       { key: 'fecha_fallback', label: 'Fecha Alternativa', description: 'Fallback si la principal está vacía', required: false },
     ];
     if (pipelineType === 'ingresos') {
-      fields.push({ key: 'disciplina', label: 'Disciplina de Ingreso', description: 'Usada para filtrar filas (e.g. Instrumentación)', required: true });
+      fields.push({ key: 'disciplina', label: 'Disciplina', description: 'Usada para filtrar filas (e.g. Instrumentación)', required: true });
+      fields.push({ key: 'cant_oc', label: 'Cantidad OC', description: 'Cantidad OC', required: false });
     } else {
       fields.push({ key: 'almacenero', label: 'Código Almacenero', description: 'Usada para verificar personal de salida', required: true });
     }
@@ -1213,52 +1220,71 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
             <div className="smart-wizard-step-content">
               <h3>Paso 1: Cargar archivo fuente</h3>
               <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>
-                Suba directamente el archivo Excel sin procesar. El sistema detectará automáticamente
-                si es una <strong>Tabla de Procura</strong> (Ingresos) o una <strong>Tabla de Almacén</strong> (Salidas).
+                Seleccione el tipo de movimiento que va a importar y luego suba el documento Excel.
               </p>
 
-              <div
-                className={`smart-wizard-dropzone ${isDragging ? 'dragging' : ''} ${fileName ? 'has-file' : ''}`}
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  style={{ display: 'none' }}
-                  onChange={(e) => handleFile(e.target.files[0])}
-                />
-                 {isFileLoading ? (
-                  <>
-                    <Loader2 size={40} className="spin-animation" style={{ color: 'var(--accent)' }} />
-                    <p style={{ margin: '8px 0 0', fontWeight: 600 }}>Cargando y analizando archivo...</p>
-                    <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                      Por favor, espere un momento
-                    </p>
-                  </>
-                ) : fileName ? (
-                  <>
-                    <FileSpreadsheet size={40} style={{ color: 'var(--accent)' }} />
-                    <p style={{ margin: '8px 0 0', fontWeight: 600 }}>{fileName}</p>
-                    <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                      {rawRows.length} filas · {rawHeaders.length} columnas
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <Upload size={40} style={{ color: 'var(--text-secondary)' }} />
-                    <p style={{ margin: '8px 0 0', fontWeight: 600 }}>
-                      Arrastre un archivo aquí o haga clic para seleccionar
-                    </p>
-                    <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                      Formatos: .xlsx, .xls, .csv
-                    </p>
-                  </>
-                )}
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.85rem', color: 'var(--text-primary)' }}>Tipo de Movimiento a Importar</label>
+                <select 
+                  value={pipelineType}
+                  onChange={(e) => setPipelineType(e.target.value)}
+                  style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '1rem' }}
+                >
+                  <option value="">-- Seleccione Tipo --</option>
+                  <option value="ingresos">Ingresos (Tabla Procura)</option>
+                  <option value="salidas">Salidas (Tabla Almacén)</option>
+                </select>
               </div>
+
+              {pipelineType ? (
+                <div
+                  className={`smart-wizard-dropzone ${isDragging ? 'dragging' : ''} ${fileName ? 'has-file' : ''}`}
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    style={{ display: 'none' }}
+                    onChange={(e) => handleFile(e.target.files[0])}
+                  />
+                  {isFileLoading ? (
+                    <>
+                      <Loader2 size={40} className="spin-animation" style={{ color: 'var(--accent)' }} />
+                      <p style={{ margin: '8px 0 0', fontWeight: 600 }}>Cargando y analizando archivo...</p>
+                      <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        Por favor, espere un momento
+                      </p>
+                    </>
+                  ) : fileName ? (
+                    <>
+                      <FileSpreadsheet size={40} style={{ color: 'var(--accent)' }} />
+                      <p style={{ margin: '8px 0 0', fontWeight: 600 }}>{fileName}</p>
+                      <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        {rawRows.length} filas · {rawHeaders.length} columnas
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={40} style={{ color: 'var(--text-secondary)' }} />
+                      <p style={{ margin: '8px 0 0', fontWeight: 600 }}>
+                        Arrastre un archivo aquí o haga clic para seleccionar
+                      </p>
+                      <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        Formatos: .xlsx, .xls, .csv
+                      </p>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="smart-wizard-dropzone" style={{ opacity: 0.5, cursor: 'not-allowed', background: 'var(--bg-app)' }}>
+                  <Upload size={40} style={{ color: 'var(--text-secondary)' }} />
+                  <p style={{ margin: '8px 0 0', fontWeight: 600, color: 'var(--text-secondary)' }}>Seleccione el Tipo de Movimiento arriba para habilitar la carga</p>
+                </div>
+              )}
 
               {fileError && (
                 <div className="message error" style={{ marginTop: 12 }}>
@@ -1285,42 +1311,10 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                     onChange={handleProfileChange}
                     style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-primary)', cursor: 'pointer' }}
                   >
-                    <option value="">-- Personalizado / Crear Nuevo --</option>
-                    {profiles.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.type === 'ingresos' ? 'Ingresos' : 'Salidas'})</option>
+                    <option value="">-- Personalizado (Automático) --</option>
+                    {profiles.filter(p => p.type === pipelineType).map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
-                  </select>
-                </div>
-
-                <div style={{ flex: '1 1 200px' }}>
-                  <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.85rem', color: 'var(--text-primary)' }}>Tipo de Movimiento</label>
-                  <select 
-                    value={pipelineType}
-                    disabled={!isAdmin}
-                    onChange={(e) => {
-                      const newType = e.target.value;
-                      setPipelineType(newType);
-                      setConfig(prev => ({
-                        ...prev,
-                        movementType: newType === 'ingresos' ? 'INGRESO' : 'SALIDA',
-                        filterColumn: newType === 'ingresos' ? 'Disciplina' : 'Cód.Almacenero'
-                      }));
-                      setMappingState(prev => {
-                        const nextM = { ...prev };
-                        if (newType === 'ingresos') {
-                          nextM.disciplina = '';
-                          nextM.almacenero = '';
-                        } else {
-                          nextM.disciplina = '';
-                          nextM.almacenero = '';
-                        }
-                        return nextM;
-                      });
-                    }}
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-primary)', cursor: isAdmin ? 'pointer' : 'not-allowed' }}
-                  >
-                    <option value="ingresos">Ingresos (Tabla Procura)</option>
-                    <option value="salidas">Salidas (Tabla Almacén)</option>
                   </select>
                 </div>
               </div>
@@ -1344,7 +1338,6 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                         <td style={{ padding: '12px' }}>
                           <select
                             value={mappingState[f.key] || ''}
-                            disabled={!isAdmin}
                             onChange={(e) => handleMappingFieldChange(f.key, e.target.value)}
                             style={{ 
                               width: '100%', 
@@ -1353,7 +1346,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                               border: '1px solid var(--border-color)', 
                               background: 'var(--bg-app)', 
                               color: 'var(--text-primary)',
-                              cursor: isAdmin ? 'pointer' : 'not-allowed'
+                              cursor: 'pointer'
                             }}
                           >
                             <option value="">-- No Asignada --</option>
@@ -1464,7 +1457,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                   )}
                 </p>
                  <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)' }}>
-                  Columnas extraídas: {config.sourceColumns.length} de {rawHeaders.length}
+                  Columnas mapeadas: {config.sourceColumns ? config.sourceColumns.length : Object.values(mappingState).filter(Boolean).length} de {rawHeaders.length}
                 </p>
 
                 {/* Warnings for Missing Columns */}
@@ -1686,7 +1679,10 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                         )}
                       </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginTop: 12 }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                          ⚠️ Advertencia: Si omite este ítem, la fila se descartará y NO se importará.
+                        </span>
                         <button
                           className="btn-outline"
                           onClick={() => handleSkip(currentUnmatched)}
@@ -1722,9 +1718,15 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
                     Datos incompletos <Download size={14} />
                   </span>
                 </div>
-                <div className="smart-wizard-stat">
+                <div 
+                  className="smart-wizard-stat clickable-stat-card"
+                  onClick={handleExportSkippedExcel}
+                  title="Descargar datos omitidos en Excel"
+                >
                   <span className="stat-number">{skippedDescriptions.size}</span>
-                  <span className="stat-label">Omitidos</span>
+                  <span className="stat-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                    Omitidos <Download size={14} />
+                  </span>
                 </div>
               </div>
 

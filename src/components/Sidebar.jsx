@@ -12,7 +12,9 @@ import {
   Moon,
   Package,
   X,
-  Cable
+  Cable,
+  Activity,
+  Workflow
 } from 'lucide-react';
 
 export default function Sidebar({ activeTab, setActiveTab, user, onLogout, isDark, toggleTheme, isOpen, onClose }) {
@@ -22,6 +24,8 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, isDar
     { id: 'movimientos', label: 'Movimientos', icon: FileInput },
     { id: 'productos', label: 'Productos', icon: Package },
     { id: 'cables', label: 'Cable Schedule', icon: Cable },
+    { id: 'consumos', label: 'Consumos (Campo)', icon: Activity },
+    { id: 'recetas', label: 'BOM / Ensambles', icon: Workflow },
     { id: 'reportes', label: 'Reportes', icon: FileText },
     { id: 'configuracion', label: 'Configuración', icon: Settings },
   ];
