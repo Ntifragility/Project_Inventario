@@ -93,18 +93,35 @@ export function fuzzySearch(query, candidates, threshold = 0.45, maxResults = 5)
 }
 
 /**
- * Check if a text exactly matches (case-insensitive, accent-insensitive) any text in a synonym list.
+ * Check if a text matches any synonym in the dictionary.
+ * Supports exact matches and wildcard patterns containing '*' (e.g. 'TUBO*PVC', 'TUBO * PVC', 'TUBO* PVC', 'TUBO *PVC').
  * @param {string} text - The raw description text.
  * @param {Array<{texto_sinonimo: string, producto_codigo: string, tipo_columna: string}>} synonyms
  * @returns {string|null} The matched producto_codigo, or null.
  */
 export function exactMatchSynonym(text, synonyms) {
-  if (!text || !synonyms) return null;
+  if (!text || !synonyms || synonyms.length === 0) return null;
   const normText = normalize(text);
 
   for (const syn of synonyms) {
-    if (normalize(syn.texto_sinonimo) === normText) {
-      return syn.producto_codigo;
+    const rawSyn = String(syn.texto_sinonimo || '').trim();
+    if (!rawSyn) continue;
+
+    if (rawSyn.includes('*')) {
+      // Split by wildcard '*', normalize each section
+      const parts = rawSyn.split('*').map(p => normalize(p)).filter(Boolean);
+      if (parts.length > 0) {
+        // Create regex pattern where parts are joined by '.*' (matches any characters/spaces)
+        const regexPattern = parts.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*');
+        const regex = new RegExp(regexPattern, 'i');
+        if (regex.test(normText)) {
+          return syn.producto_codigo;
+        }
+      }
+    } else {
+      if (normalize(rawSyn) === normText) {
+        return syn.producto_codigo;
+      }
     }
   }
   return null;
