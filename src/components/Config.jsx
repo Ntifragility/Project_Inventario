@@ -120,7 +120,7 @@ export default function Config({ user }) {
       }
 
       if (synSearch.trim()) {
-        const term = `%${synSearch.trim()}%`;
+        const term = `%${synSearch.trim().replace(/\*/g, '%')}%`;
         query = query.or(`texto_sinonimo.ilike.${term},producto_codigo.ilike.${term}`);
       }
 

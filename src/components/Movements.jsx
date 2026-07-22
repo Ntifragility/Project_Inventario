@@ -122,13 +122,31 @@ export default function Movements({ user }) {
       }));
 
       if (ledgerSearch.trim()) {
-        const term = ledgerSearch.toLowerCase().trim();
-        formatted = formatted.filter(m => 
-          m.producto.toLowerCase().includes(term) ||
-          m.codigo.toLowerCase().includes(term) ||
-          m.key.toLowerCase().includes(term) ||
-          m.observaciones.toLowerCase().includes(term)
-        );
+        const cleanFilter = ledgerSearch.toLowerCase().trim();
+        if (cleanFilter.includes('*')) {
+          const regexStr = cleanFilter
+            .split('*')
+            .map(part => part.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'))
+            .join('.*');
+          try {
+            const regex = new RegExp(regexStr, 'i');
+            formatted = formatted.filter(m =>
+              regex.test(m.producto || '') ||
+              regex.test(m.codigo || '') ||
+              regex.test(m.key || '') ||
+              regex.test(m.observaciones || '')
+            );
+          } catch (e) {
+            // Fallback
+          }
+        } else {
+          formatted = formatted.filter(m => 
+            m.producto.toLowerCase().includes(cleanFilter) ||
+            m.codigo.toLowerCase().includes(cleanFilter) ||
+            m.key.toLowerCase().includes(cleanFilter) ||
+            m.observaciones.toLowerCase().includes(cleanFilter)
+          );
+        }
       }
 
       setLedgerMovements(formatted);

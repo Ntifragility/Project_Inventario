@@ -52,8 +52,9 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '' })
 
       if (filterArea) query = query.eq('area', filterArea);
       if (filterTipoServicio) query = query.eq('tipo_servicio', filterTipoServicio);
-      if (search) {
-        query = query.or(`tag_unico.ilike.%${search}%,tipo_cable.ilike.%${search}%,area.ilike.%${search}%,conexion_origen.ilike.%${search}%,conexion_destino.ilike.%${search}%`);
+      if (search.trim()) {
+        const searchTerm = search.trim().replace(/\*/g, '%');
+        query = query.or(`tag_unico.ilike.%${searchTerm}%,tipo_cable.ilike.%${searchTerm}%,area.ilike.%${searchTerm}%,conexion_origen.ilike.%${searchTerm}%,conexion_destino.ilike.%${searchTerm}%`);
       }
 
       // Sort
