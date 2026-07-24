@@ -468,11 +468,31 @@ export default function Products() {
 
   // Client-side search filtering
   const filteredProducts = productsList.filter(p => {
-    const cleanFilter = filterText.toLowerCase();
-    return (
-      p.codigo?.toLowerCase().includes(cleanFilter) ||
-      p.nombre?.toLowerCase().includes(cleanFilter) ||
-      p.grupo?.toLowerCase().includes(cleanFilter)
+    const cleanFilter = filterText.toLowerCase().trim();
+    if (!cleanFilter) return true;
+
+    if (cleanFilter.includes('*')) {
+      const regexStr = cleanFilter
+        .split('*')
+        .map(part => part.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'))
+        .join('.*');
+      try {
+        const regex = new RegExp(regexStr, 'i');
+        return (
+          regex.test(p.codigo || '') ||
+          regex.test(p.nombre || '') ||
+          regex.test(p.grupo || '')
+        );
+      } catch (e) {
+        return false;
+      }
+    }
+
+    const searchTerms = cleanFilter.split(/\s+/);
+    return searchTerms.every(term => 
+      (p.codigo || '').toLowerCase().includes(term) ||
+      (p.nombre || '').toLowerCase().includes(term) ||
+      (p.grupo || '').toLowerCase().includes(term)
     );
   });
 

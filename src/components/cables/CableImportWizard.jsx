@@ -6,8 +6,8 @@ import {
   ArrowRight, ArrowLeft, X, Loader2, Zap, ChevronDown, ChevronUp
 } from 'lucide-react';
 import {
-  CABLE_SCHEDULE_COLUMNS, CABLE_DESPACHO_COLUMNS,
-  CABLE_SCHEDULE_SIGNATURES, CABLE_DESPACHO_SIGNATURES,
+  CABLE_SCHEDULE_COLUMNS, CABLE_DESPACHO_COLUMNS, CABLE_PAT_COLUMNS,
+  CABLE_SCHEDULE_SIGNATURES, CABLE_DESPACHO_SIGNATURES, CABLE_PAT_SIGNATURES,
   detectImportType, autoMapColumns, transformRow
 } from './cableParserConfig';
 import { findMatchingProfileByHeaders, fetchMappingProfiles, saveOrUpdateProfile } from '../smartimport/mappingPersistence';
@@ -39,9 +39,14 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
   const fileInputRef = useRef(null);
   const workbookRef = useRef(null);
 
-  // Step 2: Column Mapping
   const [mapping, setMapping] = useState({});
   const [detectedType, setDetectedType] = useState(null);
+  const [profiles, setProfiles] = useState([]);
+
+  // Fetch profiles on mount
+  React.useEffect(() => {
+    fetchMappingProfiles().then(data => setProfiles(data));
+  }, []);
 
   // Step 3: Preview
   const [previewData, setPreviewData] = useState([]);
@@ -62,7 +67,8 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
     { label: 'Importar', icon: Zap },
   ];
 
-  const columnDefs = importType === 'schedule' ? CABLE_SCHEDULE_COLUMNS : CABLE_DESPACHO_COLUMNS;
+  const columnDefs = importType === 'schedule' ? CABLE_SCHEDULE_COLUMNS :
+    importType === 'pat' ? CABLE_PAT_COLUMNS : CABLE_DESPACHO_COLUMNS;
 
   // ══════════════════════════════════════════════════════════════
   // STEP 1: FILE UPLOAD & SHEET PARSING
@@ -105,13 +111,34 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
       return;
     }
 
-    // Find header row (first row with > 3 non-empty cells)
+    // Find header row by checking signatures in the first 5 rows
     let headerRowIdx = 0;
-    for (let i = 0; i < Math.min(10, json.length); i++) {
-      const nonEmpty = json[i].filter(c => c !== '').length;
-      if (nonEmpty >= 3) {
+    let maxScore = 0;
+
+    for (let i = 0; i < Math.min(5, json.length); i++) {
+      const rowHeaders = json[i].map(h => String(h || '').trim().toUpperCase());
+
+      const scheduleHits = CABLE_SCHEDULE_SIGNATURES.filter(sig => rowHeaders.some(h => h.includes(sig))).length;
+      const despachoHits = CABLE_DESPACHO_SIGNATURES.filter(sig => rowHeaders.some(h => h.includes(sig))).length;
+      const patHits = CABLE_PAT_SIGNATURES.filter(sig => rowHeaders.some(h => h.includes(sig))).length;
+
+      const score = Math.max(scheduleHits, despachoHits, patHits);
+
+      if (score > maxScore) {
+        maxScore = score;
         headerRowIdx = i;
-        break;
+      }
+    }
+
+    // Fallback if no signatures match, use the row with most non-empty strings
+    if (maxScore === 0) {
+      let maxNonEmpty = 0;
+      for (let i = 0; i < Math.min(5, json.length); i++) {
+        const nonEmpty = json[i].filter(c => c !== null && c !== undefined && String(c).trim() !== '').length;
+        if (nonEmpty > maxNonEmpty) {
+          maxNonEmpty = nonEmpty;
+          headerRowIdx = i;
+        }
       }
     }
 
@@ -128,13 +155,30 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
     setDetectedType(detected);
     if (detected) {
       setImportType(detected);
-      const defs = detected === 'schedule' ? CABLE_SCHEDULE_COLUMNS : CABLE_DESPACHO_COLUMNS;
-      const autoMap = autoMapColumns(headers, defs);
-      setMapping(autoMap);
+      const defs = detected === 'schedule' ? CABLE_SCHEDULE_COLUMNS :
+        detected === 'pat' ? CABLE_PAT_COLUMNS : CABLE_DESPACHO_COLUMNS;
+
+      const matchedProfile = findMatchingProfileByHeaders(headers, profiles, detected);
+
+      if (matchedProfile && matchedProfile.column_mapping) {
+        // Load mapping from profile
+        const loadedMapping = {};
+        Object.entries(matchedProfile.column_mapping).forEach(([k, v]) => {
+          if (headers.includes(k)) loadedMapping[v] = k;
+          else if (headers.includes(v)) loadedMapping[k] = v;
+        });
+
+        // Fill missing required fields with autoMap
+        const autoMap = autoMapColumns(headers, defs);
+        setMapping({ ...autoMap, ...loadedMapping });
+      } else {
+        const autoMap = autoMapColumns(headers, defs);
+        setMapping(autoMap);
+      }
     }
 
     setFileError('');
-  }, [forceType]);
+  }, [forceType, profiles]);
 
   const handleSheetChange = useCallback((sheetName) => {
     setSelectedSheet(sheetName);
@@ -188,15 +232,12 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
       const obj = transformRow(row, mapping, columnDefs);
       if (!obj.tag_unico) return;
 
-      if (importType === 'schedule') {
-        // Hardcode servicio to 'PAT'
-        obj.servicio = 'PAT';
+      if (importType === 'pat') {
+        obj.tipo_cable = 'PAT';
+      }
 
-        // Filter material: keep only CABLE DESNUDO 2/0 AWG and CABLE DESNUDO 4/0 AWG
-        const mat = (obj.material || '').toString().trim().toUpperCase();
-        if (mat !== 'CABLE DESNUDO 2/0 AWG' && mat !== 'CABLE DESNUDO 4/0 AWG') {
-          return; // skip this row
-        }
+      if (importType === 'schedule') {
+        obj.tipo_cable = 'CIRCUITO';
       }
 
       // Validate required fields
@@ -224,10 +265,18 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
     setImportProgress(0);
 
     try {
-      const table = importType === 'schedule' ? 'cable_schedule' : 'cable_despachos';
+      const table = importType === 'despacho' ? 'cable_despachos' : 'cable_schedule';
       const BATCH_SIZE = 100;
       let inserted = 0;
       let updated = 0;
+
+      // Save mapping profile
+      saveOrUpdateProfile({
+        name: `Auto ${importType} (${new Date().toLocaleDateString()})`,
+        type: importType,
+        headers: rawHeaders,
+        columnMapping: mapping
+      });
       let errors = 0;
 
       for (let i = 0; i < previewData.length; i += BATCH_SIZE) {
@@ -322,8 +371,8 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
         <div className="smart-wizard-header">
           <h3>
             {importType === 'schedule' ? '📋 Importar Cable Schedule' :
-             importType === 'despacho' ? '📦 Importar Despachos' :
-             '📋 Importar Cables'}
+              importType === 'despacho' ? '📦 Importar Despachos' :
+                '📋 Importar Cables'}
           </h3>
           <button className="smart-wizard-close" onClick={handleClose}>
             <X size={18} />

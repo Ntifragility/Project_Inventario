@@ -3,6 +3,7 @@
  * Defines the column mappings for the 2 import types:
  * 1. Cable Schedule (master list + installation tracking)
  * 2. Cable Despachos (warehouse dispatching)
+ * 3. Cable PAT (Puesta a Tierra)
  */
 
 // ─── Cable Schedule (Master) ─────────────────────────────────────────────────
@@ -51,11 +52,31 @@ export const CABLE_DESPACHO_SIGNATURES = [
   'LONG. DESPACHADA',
 ];
 
+// ─── Cable PAT (Puesta a Tierra) ─────────────────────────────────────────────
+export const CABLE_PAT_COLUMNS = {
+  wbs:                     { label: 'WBS',                     required: false, type: 'text' },
+  sistema:                 { label: 'SISTEMA',                 required: false, type: 'text' },
+  plano:                   { label: 'PLANO',                   required: false, type: 'text' },
+  tag_unico:               { label: 'TAG UNICO',               required: true,  type: 'text' },
+  material:                { label: 'DESCRIPCION DE CABLE',    required: false, type: 'text' },
+  total_estimado_m:        { label: 'METRADO OT',              required: false, type: 'number' },
+  metrado_reportado_campo: { label: 'METRADO CAMPO',           required: false, type: 'number' },
+  fecha_tendido:           { label: 'FECHA METRADO CAMPO',     required: false, type: 'date' },
+};
+
+export const CABLE_PAT_SIGNATURES = [
+  'WBS',
+  'PLANO',
+  'METRADO OT',
+  'METRADO CAMPO',
+  'DESCRIPCION DE CABLE'
+];
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
  * Auto-detect which import type a set of headers corresponds to.
- * Returns 'schedule' | 'despacho' | null
+ * Returns 'schedule' | 'despacho' | 'pat' | null
  */
 export function detectImportType(headers) {
   const upper = headers.map(h => (h || '').toString().toUpperCase().trim());
@@ -66,10 +87,19 @@ export function detectImportType(headers) {
   const despachoHits = CABLE_DESPACHO_SIGNATURES.filter(sig =>
     upper.some(h => h.includes(sig))
   );
+  const patHits = CABLE_PAT_SIGNATURES.filter(sig =>
+    upper.some(h => h.includes(sig))
+  );
 
-  // Require at least 2 signature matches
-  if (scheduleHits.length >= 2 && scheduleHits.length >= despachoHits.length) return 'schedule';
-  if (despachoHits.length >= 2) return 'despacho';
+  // Find max hits among the three
+  const maxHits = Math.max(scheduleHits.length, despachoHits.length, patHits.length);
+  
+  if (maxHits >= 2) {
+    if (patHits.length === maxHits) return 'pat';
+    if (scheduleHits.length === maxHits) return 'schedule';
+    if (despachoHits.length === maxHits) return 'despacho';
+  }
+  
   return null;
 }
 

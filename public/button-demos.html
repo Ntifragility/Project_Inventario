@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demos de Botones de Navegación</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+    :root {
+      --bg-color: #0f172a;
+      --sidebar-bg: #1e293b;
+      --content-bg: #0f172a;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --border: #334155;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Fake Layout */
+    .sidebar {
+      width: 260px;
+      background-color: var(--sidebar-bg);
+      border-right: 1px solid var(--border);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-content {
+      padding: 20px;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .fake-item {
+      height: 40px;
+      background: #334155;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+
+    .main-content {
+      flex: 1;
+      padding: 40px;
+      position: relative;
+      background-color: var(--content-bg);
+    }
+
+    .title {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+
+    .instructions {
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-width: 600px;
+      margin-bottom: 40px;
+    }
+
+    /* 
+      OPTION 1: Floating Action Button (FAB) Bottom Left 
+    */
+    .fab-button {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      width: 48px;
+      height: 48px;
+      background-color: var(--primary);
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      padding-left: 14px;
+      color: white;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+      overflow: hidden;
+      white-space: nowrap;
+      z-index: 100;
+    }
+
+    .fab-button:hover {
+      width: 160px;
+      background-color: var(--primary-hover);
+    }
+
+    .fab-icon {
+      font-size: 18px;
+      font-weight: bold;
+      margin-right: 12px;
+    }
+
+    .fab-text {
+      opacity: 0;
+      transition: opacity 0.2s;
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    .fab-button:hover .fab-text {
+      opacity: 1;
+      transition-delay: 0.1s;
+    }
+
+    /* 
+      OPTION 2: Glassmorphism Sticky Header 
+    */
+    .glass-header {
+      position: sticky;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      z-index: 50;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .glass-header:hover {
+      background: rgba(30, 41, 59, 0.9);
+    }
+
+    .glass-header span {
+      color: var(--primary);
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* 
+      OPTION 3: Edge-Attached Pull Tab 
+    */
+    .pull-tab {
+      position: absolute;
+      top: 50%;
+      left: 260px; /* Attached to sidebar edge */
+      transform: translateY(-50%);
+      background-color: #475569;
+      color: white;
+      padding: 12px 8px;
+      border-radius: 0 8px 8px 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.2);
+      transition: all 0.2s ease;
+      z-index: 100;
+    }
+
+    .pull-tab:hover {
+      background-color: var(--primary);
+      padding-right: 16px;
+    }
+
+    .pull-tab-text {
+      max-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      transition: max-width 0.3s ease, opacity 0.2s ease;
+      opacity: 0;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .pull-tab:hover .pull-tab-text {
+      max-width: 120px;
+      opacity: 1;
+      margin-left: 8px;
+    }
+
+    /* 
+      OPTION 4: Floating Top-Bar Pill (Breadcrumb)
+    */
+    .pill-breadcrumb {
+      position: absolute;
+      top: 30px;
+      left: 40px;
+      background: #1e293b;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      padding: 6px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      z-index: 100;
+    }
+
+    .pill-back {
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: color 0.2s;
+    }
+
+    .pill-back:hover {
+      color: white;
+    }
+
+    .pill-divider {
+      margin: 0 10px;
+      color: #475569;
+    }
+
+    .pill-current {
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- FAKE SIDEBAR -->
+  <div class="sidebar">
+    
+    <!-- OPTION 2: Glassmorphism Sticky Header -->
+    <div class="glass-header" title="Opción 2: Glassmorphism Sticky Header">
+      <span>&larr; Volver</span>
+    </div>
+
+    <div class="sidebar-content">
+      <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 20px;">
+        Módulo Activo: Material
+      </div>
+      <div class="fake-item"></div>
+      <div class="fake-item"></div>
+      <div class="fake-item"></div>
+      <div class="fake-item"></div>
+      <div class="fake-item"></div>
+      <div class="fake-item"></div>
+      <div class="fake-item"></div>
+      <div class="fake-item"></div>
+      <div class="fake-item"></div>
+      <div class="fake-item"></div>
+    </div>
+
+    <!-- OPTION 1: Floating Action Button (FAB) -->
+    <div class="fab-button" title="Opción 1: Floating Action Button">
+      <div class="fab-icon">&larr;</div>
+      <div class="fab-text">Menú Principal</div>
+    </div>
+
+  </div>
+
+  <!-- OPTION 3: Pull Tab -->
+  <div class="pull-tab" title="Opción 3: Edge-Attached Pull Tab">
+    <div>&larr;</div>
+    <div class="pull-tab-text">Menú Principal</div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main-content">
+    
+    <!-- OPTION 4: Floating Top-Bar Pill -->
+    <div class="pill-breadcrumb" title="Opción 4: Floating Top-Bar Pill">
+      <div class="pill-back">&larr; Menú Principal</div>
+      <div class="pill-divider">/</div>
+      <div class="pill-current">Dashboard</div>
+    </div>
+
+    <div style="margin-top: 80px;">
+      <h1 class="title">Demostración de Opciones UI</h1>
+      <p class="instructions">
+        Esta es una página completamente separada para visualizar las 4 opciones propuestos. Interactúa (pasa el ratón) sobre los distintos elementos para ver sus animaciones y diseño.<br><br>
+        <strong>Opción 1:</strong> Botón flotante circular en la parte inferior izquierda del menú (FAB). Pasa el ratón por encima para expandirlo.<br><br>
+        <strong>Opción 2:</strong> Cabecera pegajosa (Sticky Header) con efecto "Glassmorphism" (desenfoque) en la parte superior de la barra lateral. Se mantiene visible aunque hagas scroll en el menú.<br><br>
+        <strong>Opción 3:</strong> Pestaña lateral (Pull Tab) adjunta al borde de la barra lateral. Pasa el ratón por encima para que se deslice hacia afuera.<br><br>
+        <strong>Opción 4:</strong> Píldora de navegación (Breadcrumb) en la parte superior del área de contenido principal. Muy limpio y separado de la barra lateral.
+      </p>
+    </div>
+  </div>
+
+</body>
+</html>

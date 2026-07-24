@@ -1,5 +1,5 @@
--- ============================================================
--- Cable Schedule Manager — Supabase Migration
+﻿-- ============================================================
+-- Cable Schedule Manager â€” Supabase Migration
 -- Run this in the Supabase SQL Editor (Dashboard > SQL Editor)
 -- ============================================================
 
@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS cable_schedule (
     -- Design/Engineering Data
     numero INTEGER,
     area VARCHAR(100),
+    wbs VARCHAR(100),
+    plano VARCHAR(255),
     servicio VARCHAR(200),
     codigo VARCHAR(100),
     sistema VARCHAR(200),
@@ -46,6 +48,8 @@ CREATE TABLE IF NOT EXISTS cable_despachos (
     tag_unico VARCHAR(100) NOT NULL REFERENCES cable_schedule(tag_unico) ON DELETE CASCADE,
 
     area VARCHAR(100),
+    wbs VARCHAR(100),
+    plano VARCHAR(255),
     partida VARCHAR(50),
     sector VARCHAR(200),
     area_n VARCHAR(50),
@@ -66,6 +70,8 @@ CREATE INDEX IF NOT EXISTS idx_cd_tag ON cable_despachos(tag_unico);
 CREATE OR REPLACE VIEW v_cable_dashboard AS
 SELECT 
     cs.tag_unico,
+    cs.wbs,
+    cs.plano,
     cs.area,
     cs.servicio,
     cs.tipo_cable,

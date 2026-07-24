@@ -10,10 +10,9 @@ import CableImportWizard from './CableImportWizard';
 import CableTable from './CableTable';
 
 /**
- * CableDashboard — Main view for the Cable Schedule Manager.
- * Displays KPIs, charts, gauges, and a detail table matching the reference dashboard.
+ * PatDashboard — Dashboard specifically for PAT (Puesta a Tierra) cables.
  */
-export default function CableDashboard() {
+export default function PatDashboard() {
   // ── State ──
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -41,7 +40,7 @@ export default function CableDashboard() {
   });
 
   // Chart Data
-  const [servicioBars, setServicioBars] = useState([]);
+  const [materialBars, setMaterialBars] = useState([]);
   const [areaBars, setAreaBars] = useState([]);
 
   // Detail table
@@ -65,7 +64,7 @@ export default function CableDashboard() {
       if (selectedTipoServicio) {
         query = query.eq('tipo_servicio', selectedTipoServicio);
       }
-      query = query.eq('tipo_cable', 'CIRCUITO');
+      query = query.eq('tipo_cable', 'PAT');
 
       const { data, error: fetchErr } = await query;
       if (fetchErr) throw fetchErr;
@@ -94,29 +93,37 @@ export default function CableDashboard() {
         longitudPendiente,
         circuitosPendientes,
         tendidoPct,
-        conexOrigenPct: totalWithOrigen > 0 ? (withConexOrigen / totalWithOrigen) * 100 : 0,
-        conexDestinoPct: totalWithDestino > 0 ? (withConexDestino / totalWithDestino) * 100 : 0,
-        conexOrigenPendientes: totalWithOrigen - withConexOrigen,
-        conexDestinoPendientes: totalWithDestino - withConexDestino,
       });
 
-      // ── Compute bar chart data by SERVICIO ──
-      const servicioMap = new Map();
+      // ── Build Data for Charts ──
+      // Material (Tipo de Cable) Chart
+      const TARGET_MATERIALS = [
+        'CABLE DESNUDO 4/0 AWG',
+        'CABLE DESNUDO 2/0 AWG',
+        'CABLE AISLADO THHN/ THWN 2/0 AWG',
+        'CABLE AISLADO THHN/ THWN 4/0 AWG'
+      ];
+
+      const matMap = {};
+      TARGET_MATERIALS.forEach(mat => matMap[mat] = { name: mat, total: 0, tendido: 0, porTender: 0 });
+
       rows.forEach(r => {
-        const key = r.servicio || 'Sin Servicio';
-        if (!servicioMap.has(key)) servicioMap.set(key, { tendido: 0, porTender: 0 });
-        const entry = servicioMap.get(key);
-        entry.tendido += parseFloat(r.metrado_reportado_campo) || 0;
-        entry.porTender += parseFloat(r.longitud_pendiente_m) || 0;
+        const mat = (r.material || '').toString().trim().toUpperCase();
+        if (matMap[mat]) {
+          matMap[mat].tendido += (parseFloat(r.metrado_reportado_campo) || 0);
+          matMap[mat].porTender += (parseFloat(r.longitud_pendiente_m) || 0);
+        }
       });
-      setServicioBars(
-        Array.from(servicioMap.entries()).map(([name, v]) => ({
-          name,
+
+      const matData = Object.values(matMap)
+        .map(v => ({
+          name: v.name,
           tendido: v.tendido,
           porTender: v.porTender,
-          total: v.tendido + v.porTender,
+          total: v.tendido + v.porTender
         }))
-      );
+        .filter(d => d.total > 0 || d.tendido > 0);
+      setMaterialBars(matData);
 
       // ── Compute bar chart data by AREA ──
       const areaMap = new Map();
@@ -225,128 +232,97 @@ export default function CableDashboard() {
             <RefreshCw size={14} className={loading ? 'spin' : ''} />
           </button>
         </div>
-          <div className="cable-actions">
-            <button className="btn btn-primary btn-sm" onClick={() => openImport('schedule')}>
-              <Upload size={14} /> Importar Schedule
-            </button>
-            <button className="btn btn-secondary btn-sm" onClick={() => openImport('despacho')}>
-              <Package size={14} /> Importar Despachos
-            </button>
-          </div>
-        </div>
-
-        {error && (
-          <div className="message danger" style={{ margin: '0 0 16px 0' }}>
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* ── KPI Cards ── */}
-        <div className="cable-kpi-row">
-          <div className="cable-kpi-card">
-            <span className="cable-kpi-value accent">{formatNumber(kpis.longitudTotal)}</span>
-            <span className="cable-kpi-label">Longitud Total (m)</span>
-          </div>
-          <div className="cable-kpi-card">
-            <span className="cable-kpi-value accent">{kpis.circuitosTotales.toLocaleString()}</span>
-            <span className="cable-kpi-label">Circuitos Totales</span>
-          </div>
-          <div className="cable-kpi-card highlight">
-            <CableGauge
-              value={kpis.tendidoPct}
-              label="TENDIDO"
-              size={130}
-              strokeWidth={10}
-              color="#f59e0b"
-              bgColor="rgba(255,255,255,0.08)"
-              type="donut"
-            />
-          </div>
-          <div className="cable-kpi-card">
-            <span className="cable-kpi-value warning">{formatNumber(kpis.longitudPendiente)}</span>
-            <span className="cable-kpi-label">Longitud Pendiente</span>
-            <div className="cable-kpi-sub">
-              <span className="cable-kpi-sub-value">{kpis.circuitosPendientes.toLocaleString()}</span>
-              <span className="cable-kpi-sub-label">Circuitos Pendientes</span>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Charts Row ── */}
-        <div className="cable-charts-row">
-          <div className="cable-chart-col">
-            <CableBarChart
-              data={servicioBars}
-              title="Longitud de Cable (m) según Servicio"
-            />
-          </div>
-          <div className="cable-chart-col">
-            <CableBarChart
-              data={areaBars}
-              title="Longitud de Cable (m) según Área"
-            />
-          </div>
-          <div className="cable-chart-col cable-gauges-col">
-            <div className="cable-gauges-card">
-              <CableGauge
-                value={kpis.conexOrigenPct}
-                label="CONEX. ORIGEN"
-                sublabel={kpis.conexOrigenPendientes.toLocaleString()}
-                size={140}
-                strokeWidth={10}
-                color={kpis.conexOrigenPct > 50 ? '#10b981' : '#ef4444'}
-                bgColor="rgba(255,255,255,0.08)"
-                type="semi"
-              />
-              <CableGauge
-                value={kpis.conexDestinoPct}
-                label="CONEX. DESTINO"
-                sublabel={kpis.conexDestinoPendientes.toLocaleString()}
-                size={140}
-                strokeWidth={10}
-                color={kpis.conexDestinoPct > 50 ? '#10b981' : '#ef4444'}
-                bgColor="rgba(255,255,255,0.08)"
-                type="semi"
-              />
-              <div className="cable-gauges-footer">
-                <span>CIRCUITOS PENDIENTES</span>
-                <div className="cable-gauges-footer-values">
-                  <span>{kpis.conexOrigenPendientes.toLocaleString()}</span>
-                  <span>{kpis.conexDestinoPendientes.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Detail Table Toggle ── */}
-        <div className="cable-table-section">
-          <button
-            className="btn btn-secondary"
-            onClick={() => setShowTable(!showTable)}
-            style={{ marginBottom: 16 }}
-          >
-            <Search size={14} />
-            {showTable ? 'Ocultar Detalle' : 'Ver Detalle de Circuitos'}
+        <div className="cable-actions">
+          <button className="btn btn-primary btn-sm" onClick={() => openImport('schedule')}>
+            <Upload size={14} /> Importar Schedule
           </button>
-
-          {showTable && (
-            <CableTable
-              filterArea={selectedArea}
-              filterTipoServicio={selectedTipoServicio}
-              filterTipoCable="CIRCUITO"
-            />
-          )}
+          <button className="btn btn-secondary btn-sm" onClick={() => openImport('despacho')}>
+            <Package size={14} /> Importar Despachos
+          </button>
         </div>
+      </div>
 
-        {/* ── Import Wizard Modal ── */}
-        {showImportWizard && (
-          <CableImportWizard
-            forceType={importType}
-            onClose={() => setShowImportWizard(false)}
-            onImportComplete={handleImportComplete}
+      {error && (
+        <div className="message danger" style={{ margin: '0 0 16px 0' }}>
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* ── KPI Cards ── */}
+      <div className="cable-kpi-row">
+        <div className="cable-kpi-card">
+          <span className="cable-kpi-value accent">{formatNumber(kpis.longitudTotal)}</span>
+          <span className="cable-kpi-label">Longitud Total (m)</span>
+        </div>
+        <div className="cable-kpi-card">
+          <span className="cable-kpi-value accent">{kpis.circuitosTotales.toLocaleString()}</span>
+          <span className="cable-kpi-label">Circuitos Totales</span>
+        </div>
+        <div className="cable-kpi-card highlight">
+          <CableGauge
+            value={kpis.tendidoPct}
+            label="TENDIDO"
+            size={130}
+            strokeWidth={10}
+            color="#f59e0b"
+            bgColor="rgba(255,255,255,0.08)"
+            type="donut"
+          />
+        </div>
+        <div className="cable-kpi-card">
+          <span className="cable-kpi-value warning">{formatNumber(kpis.longitudPendiente)}</span>
+          <span className="cable-kpi-label">Longitud Pendiente</span>
+          <div className="cable-kpi-sub">
+            <span className="cable-kpi-sub-value">{kpis.circuitosPendientes.toLocaleString()}</span>
+            <span className="cable-kpi-sub-label">Circuitos Pendientes</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Charts Row ── */}
+      <div className="cable-charts-row">
+        <div className="cable-chart-col">
+          <CableBarChart
+            data={materialBars}
+            title="Longitud de Cable (m) según Tipo"
+          />
+        </div>
+        <div className="cable-chart-col">
+          <CableBarChart
+            data={areaBars}
+            title="Longitud de Cable (m) según Área"
+          />
+        </div>
+      </div>
+
+      {/* ── Detail Table Toggle ── */}
+      <div className="cable-table-section">
+        <button
+          className="btn btn-secondary"
+          onClick={() => setShowTable(!showTable)}
+          style={{ marginBottom: 16 }}
+        >
+          <Search size={14} />
+          {showTable ? 'Ocultar Detalle' : 'Ver Detalle de Circuitos'}
+        </button>
+
+        {showTable && (
+          <CableTable
+            filterArea={selectedArea}
+            filterTipoServicio={selectedTipoServicio}
+            filterTipoCable="PAT"
           />
         )}
       </div>
-      );
+
+      {/* ── Import Wizard Modal ── */}
+      {showImportWizard && (
+        <CableImportWizard
+          forceType={importType}
+          onClose={() => setShowImportWizard(false)}
+          onImportComplete={handleImportComplete}
+        />
+      )}
+    </div>
+  );
 }

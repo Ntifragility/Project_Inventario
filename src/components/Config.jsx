@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Settings, ShieldAlert, CheckCircle2, AlertCircle, X, HelpCircle, UserPlus, Shield, Mail, KeyRound, Trash2, ShieldCheck, User, UserMinus, Download, Database, Pencil, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
-export default function Config({ user }) {
+export default function Config({ user, mode = 'system' }) {
   const [resultMsg, setResultMsg] = useState({ text: '', type: '' });
   const [loadingAction, setLoadingAction] = useState(false);
 
@@ -1226,7 +1226,8 @@ export default function Config({ user }) {
       `}</style>
       {!checkingAdmin && isAdminUser && (
         <>
-          <div className="card">
+          {mode === 'system' && (
+            <div className="card">
             <div className="card-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Settings size={18} />
@@ -1271,9 +1272,11 @@ export default function Config({ user }) {
               )}
             </div>
           </div>
+          )}
 
           {/* Synonym/Equivalences Dictionary Card */}
-          <div className="card" style={{ marginTop: '24px' }}>
+          {mode === 'material' && (
+            <div className="card" style={{ marginTop: '24px' }}>
             <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Database size={18} />
@@ -1598,11 +1601,13 @@ export default function Config({ user }) {
               )}
             </div>
           </div>
+          )}
         </>
       )}
 
       {/* Dynamic Filters Config Card */}
-      <div className="card" style={{ marginTop: '24px' }}>
+      {mode === 'material' && (
+        <div className="card" style={{ marginTop: '24px' }}>
         <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Settings size={18} />
@@ -1745,10 +1750,11 @@ export default function Config({ user }) {
           </div>
 
         </div>
-      </div>
+        </div>
+      )}
 
       {/* User Account Assignment Card */}
-      {!checkingAdmin && isAdminUser && (
+      {!checkingAdmin && isAdminUser && mode === 'system' && (
         <>
           <div className="card" style={{ marginTop: '24px' }}>
           <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2124,8 +2130,6 @@ export default function Config({ user }) {
         </div>
 
 
-        </>
-      )}
 
         {/* Security Backups Card */}
         <div className="card" style={{ marginTop: '24px' }}>
@@ -2783,6 +2787,8 @@ export default function Config({ user }) {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

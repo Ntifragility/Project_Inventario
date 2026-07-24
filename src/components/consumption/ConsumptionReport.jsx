@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase';
-import { Layers, Search, RefreshCw, Upload, AlertCircle } from 'lucide-react';
+import { Layers, Search, RefreshCw, Upload, AlertCircle, Download, Activity } from 'lucide-react';
 import ConsumptionImport from './ConsumptionImport';
 
 export default function ConsumptionReport() {
@@ -40,7 +40,7 @@ export default function ConsumptionReport() {
     if (cleanFilter.includes('*')) {
       const regexStr = cleanFilter
         .split('*')
-        .map(part => part.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'))
+        .map(part => part.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')) // REMOVED trim() so spaces are respected!
         .join('.*');
       try {
         const regex = new RegExp(regexStr, 'i');
@@ -54,9 +54,13 @@ export default function ConsumptionReport() {
       }
     }
 
-    return r.codigo?.toLowerCase().includes(cleanFilter) || 
-           r.nombre?.toLowerCase().includes(cleanFilter) ||
-           r.grupo?.toLowerCase().includes(cleanFilter);
+    // Smart search: every word must match somewhere
+    const searchTerms = cleanFilter.split(/\s+/);
+    return searchTerms.every(term => 
+      (r.codigo || '').toLowerCase().includes(term) ||
+      (r.nombre || '').toLowerCase().includes(term) ||
+      (r.grupo || '').toLowerCase().includes(term)
+    );
   });
 
   return (
@@ -64,8 +68,8 @@ export default function ConsumptionReport() {
       <div className="card">
         <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Layers size={18} />
-            <span>Balance: Salidas vs Consumo Reportado</span>
+            <Activity size={18} />
+            <span>Balance General y Reportes de Stock</span>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button className="btn btn-primary" onClick={() => setShowImport(true)}>
@@ -80,15 +84,47 @@ export default function ConsumptionReport() {
         </div>
         
         <div className="card-body">
-          <div className="search-filter-group" style={{ marginBottom: '16px' }}>
-            <Search size={18} style={{ color: 'var(--text-muted)' }} />
-            <input 
-              type="text" 
-              placeholder="Buscar por código, nombre o grupo..." 
-              value={filterText}
-              onChange={(e) => setFilterText(e.target.value)}
-              style={{ flex: 1 }}
-            />
+          <div className="search-filter-group" style={{ marginBottom: '16px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+              <Search size={18} style={{ color: 'var(--text-muted)', position: 'absolute', left: '12px' }} />
+              <input 
+                type="text" 
+                placeholder="Buscar por código, nombre o grupo (Use * como comodín o palabras separadas por espacio)..." 
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+                style={{ width: '100%', paddingLeft: '38px', height: '40px' }}
+              />
+            </div>
+            <button 
+              className="btn btn-success" 
+              onClick={() => {
+                import('xlsx').then(XLSX => {
+                  const dataToExport = filteredData.map(r => ({
+                    'ID Producto': r.codigo,
+                    'Producto': r.nombre,
+                    'Grupo': r.grupo,
+                    'U.M.': r.unidad,
+                    'Metrado OT': r.total_metrado_ot || 0,
+                    'Cant. OC': r.total_cant_oc || 0,
+                    'Ingresó (Almacén)': r.total_ingreso,
+                    'Salió (A Campo)': r.total_salida,
+                    'Stock (Almacén)': r.stock_almacen,
+                    'Instalado (Campo)': r.total_consumo,
+                    'Faltante (Brecha)': r.brecha,
+                    '% Faltante': r.porcentaje_brecha
+                  }));
+                  const ws = XLSX.utils.json_to_sheet(dataToExport);
+                  const wb = XLSX.utils.book_new();
+                  XLSX.utils.book_append_sheet(wb, ws, 'Balance');
+                  XLSX.writeFile(wb, `Balance_Consumos_${new Date().toISOString().slice(0, 10)}.xlsx`);
+                });
+              }}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', height: '40px', whiteSpace: 'nowrap' }}
+              title="Exportar a Excel"
+            >
+              <Download size={16} />
+              <span>Exportar Excel ({filteredData.length})</span>
+            </button>
           </div>
 
           {error && <div className="message error" style={{ marginBottom: '16px' }}>{error}</div>}
@@ -123,12 +159,30 @@ export default function ConsumptionReport() {
                   {filteredData.map(row => {
                     const brecha = parseFloat(row.brecha) || 0;
                     let brechaClass = 'text-normal';
-                    if (brecha > 0) brechaClass = 'text-warning'; // More dispatched than installed
-                    if (brecha < 0) brechaClass = 'text-danger';  // More installed than dispatched?!
-                    if (brecha === 0 && row.total_salida > 0) brechaClass = 'text-success'; // Perfect balance
+                    if (brecha > 0) brechaClass = 'text-warning'; 
+                    if (brecha < 0) brechaClass = 'text-danger';  
+                    if (brecha === 0 && row.total_salida > 0) brechaClass = 'text-success'; 
+
+                    // Estado logic based on stock_min
+                    let statusClass = 'status-normal';
+                    let estado = 'Normal';
+                    let badgeClass = 'badge-normal';
+
+                    const qty = parseFloat(row.stock_almacen) || 0;
+                    const min = parseFloat(row.stock_min) || 0;
+
+                    if (qty <= 0) {
+                      statusClass = 'status-zero';
+                      estado = 'Sin Stock';
+                      badgeClass = 'badge-zero';
+                    } else if (qty <= min && min > 0) {
+                      statusClass = 'status-low';
+                      estado = 'Stock Bajo';
+                      badgeClass = 'badge-low';
+                    }
 
                     return (
-                      <tr key={row.codigo}>
+                      <tr key={row.codigo} className={statusClass}>
                         <td data-label="ID Producto"><strong>{row.codigo}</strong></td>
                         <td data-label="Producto"><span>{row.nombre}</span></td>
                         <td data-label="Grupo"><span>{row.grupo || '-'}</span></td>

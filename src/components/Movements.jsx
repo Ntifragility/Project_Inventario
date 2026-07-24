@@ -101,10 +101,10 @@ export default function Movements({ user }) {
         .order('created_at', { ascending: false });
 
       if (ledgerDateFrom) {
-        query = query.gte('fecha', ledgerDateFrom);
+        query = query.gte('fecha', parseDateValue(ledgerDateFrom, ledgerDateFrom));
       }
       if (ledgerDateTo) {
-        query = query.lte('fecha', ledgerDateTo);
+        query = query.lte('fecha', parseDateValue(ledgerDateTo, ledgerDateTo));
       }
       if (ledgerType) {
         query = query.eq('tipo', ledgerType);
@@ -132,7 +132,7 @@ export default function Movements({ user }) {
         if (cleanFilter.includes('*')) {
           const regexStr = cleanFilter
             .split('*')
-            .map(part => part.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'))
+            .map(part => part.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')) // removed trim()
             .join('.*');
           try {
             const regex = new RegExp(regexStr, 'i');
@@ -146,11 +146,14 @@ export default function Movements({ user }) {
             // Fallback
           }
         } else {
+          const searchTerms = cleanFilter.split(/\s+/);
           formatted = formatted.filter(m => 
-            m.producto.toLowerCase().includes(cleanFilter) ||
-            m.codigo.toLowerCase().includes(cleanFilter) ||
-            m.key.toLowerCase().includes(cleanFilter) ||
-            m.observaciones.toLowerCase().includes(cleanFilter)
+            searchTerms.every(term => 
+              (m.producto || '').toLowerCase().includes(term) ||
+              (m.codigo || '').toLowerCase().includes(term) ||
+              (m.key || '').toLowerCase().includes(term) ||
+              (m.observaciones || '').toLowerCase().includes(term)
+            )
           );
         }
       }

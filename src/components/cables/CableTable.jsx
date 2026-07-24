@@ -13,7 +13,7 @@ import {
  * - filterArea: string (active area filter)
  * - filterTipoServicio: string (active tipo servicio filter)
  */
-export default function CableTable({ filterArea = '', filterTipoServicio = '' }) {
+export default function CableTable({ filterArea = '', filterTipoServicio = '', filterTipoCable = '' }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -27,7 +27,17 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '' })
 
   const PAGE_SIZE = 25;
 
-  const COLUMNS = [
+  const COLUMNS = filterTipoCable === 'PAT' ? [
+    { field: 'tag_unico', label: 'TAG UNICO', width: '180px' },
+    { field: 'wbs', label: 'WBS', width: '100px' },
+    { field: 'sistema', label: 'Sistema', width: '150px' },
+    { field: 'plano', label: 'Plano', width: '150px' },
+    { field: 'material', label: 'Descripción de Cable', width: '200px' },
+    { field: 'total_estimado_m', label: 'Metrado OT (m)', width: '120px', align: 'right' },
+    { field: 'metrado_reportado_campo', label: 'Metrado Campo (m)', width: '130px', align: 'right' },
+    { field: 'avance', label: '% Avance', width: '100px', align: 'center', computed: true },
+    { field: 'fecha_tendido', label: 'Fecha Metrado Campo', width: '120px', align: 'center' },
+  ] : [
     { field: 'tag_unico', label: 'TAG UNICO', width: '180px' },
     { field: 'area', label: 'Área', width: '100px' },
     { field: 'tipo_cable', label: 'Tipo Cable', width: '180px' },
@@ -52,9 +62,10 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '' })
 
       if (filterArea) query = query.eq('area', filterArea);
       if (filterTipoServicio) query = query.eq('tipo_servicio', filterTipoServicio);
+      if (filterTipoCable) query = query.eq('tipo_cable', filterTipoCable);
       if (search.trim()) {
         const searchTerm = search.trim().replace(/\*/g, '%');
-        query = query.or(`tag_unico.ilike.%${searchTerm}%,tipo_cable.ilike.%${searchTerm}%,area.ilike.%${searchTerm}%,conexion_origen.ilike.%${searchTerm}%,conexion_destino.ilike.%${searchTerm}%`);
+        query = query.or(`tag_unico.ilike.%${searchTerm}%,tipo_cable.ilike.%${searchTerm}%,area.ilike.%${searchTerm}%,wbs.ilike.%${searchTerm}%,plano.ilike.%${searchTerm}%`);
       }
 
       // Sort
@@ -74,7 +85,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '' })
     } finally {
       setLoading(false);
     }
-  }, [filterArea, filterTipoServicio, search, sortField, sortDir, page]);
+  }, [filterArea, filterTipoServicio, filterTipoCable, search, sortField, sortDir, page]);
 
   useEffect(() => {
     fetchData();
@@ -83,7 +94,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '' })
   // Reset page on filter/search change
   useEffect(() => {
     setPage(1);
-  }, [filterArea, filterTipoServicio, search]);
+  }, [filterArea, filterTipoServicio, filterTipoCable, search]);
 
   // ── Fetch despachos for expanded row ──
   const fetchDespachos = useCallback(async (tagUnico) => {

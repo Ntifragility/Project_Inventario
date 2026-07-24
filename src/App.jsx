@@ -5,9 +5,9 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Products from './components/Products';
 import Movements from './components/Movements';
-import Inventory from './components/Inventory';
 import Config from './components/Config';
 import CableDashboard from './components/cables/CableDashboard';
+import PatDashboard from './components/cables/PatDashboard';
 import ConsumptionReport from './components/consumption/ConsumptionReport';
 import RecipeManager from './components/recipes/RecipeManager';
 import { Clock, Menu } from 'lucide-react';
@@ -23,6 +23,7 @@ export default function App() {
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
+  const [activeModule, setActiveModule] = useState('material');
   const inactivityTimer = useRef(null);
   const warningTimer = useRef(null);
 
@@ -137,16 +138,18 @@ export default function App() {
         return <Products />;
       case 'movimientos':
         return <Movements user={session.user} />;
-      case 'inventario':
-        return <Inventory />;
       case 'cables':
-        return <CableDashboard />;
+        return <CableDashboard user={session.user} />;
+      case 'cables_pat':
+        return <PatDashboard user={session.user} />;
       case 'consumos':
-        return <ConsumptionReport />;
+        return <ConsumptionReport user={session.user} />;
       case 'recetas':
         return <RecipeManager />;
-      case 'configuracion':
-        return <Config user={session.user} />;
+      case 'material_config':
+        return <Config user={session.user} mode="material" />;
+      case 'system_config':
+        return <Config user={session.user} mode="system" />;
       default:
         return <Dashboard />;
     }
@@ -157,11 +160,12 @@ export default function App() {
       case 'dashboard': return 'Dashboard General';
       case 'productos': return 'Gestión de Productos';
       case 'movimientos': return 'Registro de Movimientos';
-      case 'inventario': return 'Control de Inventario';
       case 'cables': return 'Cable Schedule Manager';
-      case 'consumos': return 'Consumos de Campo';
+      case 'cables_pat': return 'Puesta a Tierra (PAT)';
+      case 'consumos': return 'Reportes de Stock y Balance';
       case 'recetas': return 'Gestor de Ensambles (BOM)';
-      case 'configuracion': return 'Configuración del Sistema';
+      case 'material_config': return 'Configuración de Materiales';
+      case 'system_config': return 'Configuración del Sistema';
       default: return 'Sistema de Inventario';
     }
   };
@@ -169,6 +173,8 @@ export default function App() {
   return (
     <div className="app-container">
       <Sidebar 
+        activeModule={activeModule}
+        setActiveModule={setActiveModule}
         activeTab={activeTab} 
         setActiveTab={setActiveTab}
         user={session.user}
