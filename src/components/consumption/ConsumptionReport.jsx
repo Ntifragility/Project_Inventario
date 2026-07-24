@@ -109,11 +109,11 @@ export default function ConsumptionReport() {
                     <th>Producto</th>
                     <th>Grupo</th>
                     <th>U.M.</th>
+                    <th style={{ textAlign: 'right' }}>Metrado OT</th>
                     <th style={{ textAlign: 'right' }}>Cant. OC</th>
                     <th style={{ textAlign: 'right' }}>Ingresó (Almacén)</th>
-                    <th style={{ textAlign: 'right' }}>Stock (Almacén)</th>
                     <th style={{ textAlign: 'right' }}>Salió (A Campo)</th>
-                    <th style={{ textAlign: 'right' }}>Metrado OT</th>
+                    <th style={{ textAlign: 'right' }}>Stock (Almacén)</th>
                     <th style={{ textAlign: 'right' }}>Instalado (Campo)</th>
                     <th style={{ textAlign: 'right' }}>Faltante (Brecha)</th>
                     <th style={{ textAlign: 'right' }}>% Faltante</th>
@@ -133,11 +133,11 @@ export default function ConsumptionReport() {
                         <td data-label="Producto"><span>{row.nombre}</span></td>
                         <td data-label="Grupo"><span>{row.grupo || '-'}</span></td>
                         <td data-label="U.M."><span>{row.unidad}</span></td>
+                        <td data-label="Metrado OT" style={{ textAlign: 'right', color: 'var(--primary)', fontWeight: 'bold' }}>{row.total_metrado_ot || 0}</td>
                         <td data-label="Cant. OC" style={{ textAlign: 'right', color: 'var(--accent)', fontWeight: 'bold' }}>{row.total_cant_oc || 0}</td>
                         <td data-label="Ingresó" style={{ textAlign: 'right' }}>{row.total_ingreso}</td>
-                        <td data-label="Stock" style={{ textAlign: 'right', fontWeight: 'bold' }}>{row.stock_almacen}</td>
                         <td data-label="Salió" style={{ textAlign: 'right' }}>{row.total_salida}</td>
-                        <td data-label="Metrado OT" style={{ textAlign: 'right', color: 'var(--primary)', fontWeight: 'bold' }}>{row.total_metrado_ot || 0}</td>
+                        <td data-label="Stock" style={{ textAlign: 'right', fontWeight: 'bold' }}>{row.stock_almacen}</td>
                         <td data-label="Instalado" style={{ textAlign: 'right' }}>{row.total_consumo}</td>
                         <td data-label="Faltante" style={{ textAlign: 'right' }}>
                           <strong className={brechaClass}>
