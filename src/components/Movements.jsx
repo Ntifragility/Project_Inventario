@@ -1040,21 +1040,18 @@ export default function Movements({ user }) {
                   onChange={(e) => setLedgerSearch(e.target.value)} 
                 />
                 <button className="btn btn-primary" onClick={fetchLedgerMovements}>Buscar</button>
+                <button 
+                  className="btn btn-success" 
+                  onClick={handleExportLedgerExcel} 
+                  disabled={ledgerMovements.length === 0 || ledgerLoading}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+                  title="Exportar movimientos a Excel"
+                >
+                  <Download size={16} />
+                  <span>Exportar Excel ({ledgerMovements.length})</span>
+                </button>
               </div>
             </div>
-          </div>
-
-          <div className="actions" style={{ marginBottom: '16px', display: 'flex', gap: '10px' }}>
-            <button 
-              className="btn btn-success" 
-              onClick={handleExportLedgerExcel} 
-              disabled={ledgerMovements.length === 0 || ledgerLoading}
-              style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
-              title="Exportar movimientos a Excel"
-            >
-              <Download size={16} />
-              <span>Exportar a Excel ({ledgerMovements.length})</span>
-            </button>
           </div>
 
           {ledgerMsg.text && (
