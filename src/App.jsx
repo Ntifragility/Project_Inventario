@@ -6,7 +6,6 @@ import Dashboard from './components/Dashboard';
 import Products from './components/Products';
 import Movements from './components/Movements';
 import Inventory from './components/Inventory';
-import Reports from './components/Reports';
 import Config from './components/Config';
 import CableDashboard from './components/cables/CableDashboard';
 import ConsumptionReport from './components/consumption/ConsumptionReport';
@@ -140,8 +139,6 @@ export default function App() {
         return <Movements user={session.user} />;
       case 'inventario':
         return <Inventory />;
-      case 'reportes':
-        return <Reports />;
       case 'cables':
         return <CableDashboard />;
       case 'consumos':
@@ -161,7 +158,6 @@ export default function App() {
       case 'productos': return 'Gestión de Productos';
       case 'movimientos': return 'Registro de Movimientos';
       case 'inventario': return 'Control de Inventario';
-      case 'reportes': return 'Reportes';
       case 'cables': return 'Cable Schedule Manager';
       case 'consumos': return 'Consumos de Campo';
       case 'recetas': return 'Gestor de Ensambles (BOM)';

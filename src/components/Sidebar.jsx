@@ -26,7 +26,6 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, isDar
     { id: 'cables', label: 'Cable Schedule', icon: Cable },
     { id: 'consumos', label: 'Consumos (Campo)', icon: Activity },
     { id: 'recetas', label: 'BOM / Ensambles', icon: Workflow },
-    { id: 'reportes', label: 'Reportes', icon: FileText },
     { id: 'configuracion', label: 'Configuración', icon: Settings },
   ];
 

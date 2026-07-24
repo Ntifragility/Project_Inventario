@@ -166,6 +166,42 @@ export default function Movements({ user }) {
     }
   };
 
+  const handleExportLedgerExcel = () => {
+    if (ledgerMovements.length === 0) return;
+
+    try {
+      const dataToExport = ledgerMovements.map(m => ({
+        'Transaction Key': m.key,
+        'Fecha': m.fecha,
+        'ID Producto': m.codigo,
+        'Producto': m.producto,
+        'Cantidad': m.cantidad,
+        'Unidad': m.unidad,
+        'Tipo': m.tipo,
+        'Almacenero': getAlmaceneroFromObs(m.observaciones) || '',
+        'Observaciones': m.observaciones || '',
+        'Usuario': m.usuario
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Historial_Movimientos');
+
+      const maxLens = {};
+      dataToExport.forEach(row => {
+        Object.entries(row).forEach(([colName, val]) => {
+          const cellLen = Math.max(String(colName).length, String(val ?? '').length);
+          maxLens[colName] = Math.max(maxLens[colName] || 0, cellLen);
+        });
+      });
+      worksheet['!cols'] = Object.keys(maxLens).map(colName => ({ wch: maxLens[colName] + 3 }));
+
+      XLSX.writeFile(workbook, `Historial_Movimientos_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (err) {
+      console.error('Error exporting ledger to Excel:', err);
+    }
+  };
+
   // Set default dates on mount and fetch
   useEffect(() => {
     const today = new Date();
@@ -1006,6 +1042,19 @@ export default function Movements({ user }) {
                 <button className="btn btn-primary" onClick={fetchLedgerMovements}>Buscar</button>
               </div>
             </div>
+          </div>
+
+          <div className="actions" style={{ marginBottom: '16px', display: 'flex', gap: '10px' }}>
+            <button 
+              className="btn btn-success" 
+              onClick={handleExportLedgerExcel} 
+              disabled={ledgerMovements.length === 0 || ledgerLoading}
+              style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              title="Exportar movimientos a Excel"
+            >
+              <Download size={16} />
+              <span>Exportar a Excel ({ledgerMovements.length})</span>
+            </button>
           </div>
 
           {ledgerMsg.text && (
