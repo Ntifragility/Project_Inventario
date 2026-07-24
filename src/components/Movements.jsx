@@ -5,6 +5,12 @@ import * as XLSX from 'xlsx';
 import BarcodeScanner from './BarcodeScanner';
 import SmartImportWizard from './smartimport/SmartImportWizard';
 
+const getAlmaceneroFromObs = (obs) => {
+  if (!obs) return '';
+  const match = String(obs).match(/Almacenero:\s*([^,]+)/i);
+  return match ? match[1].trim() : '';
+};
+
 export default function Movements({ user }) {
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [tipo, setTipo] = useState('INGRESO');
