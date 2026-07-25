@@ -63,12 +63,42 @@ export default function Sidebar({ activeModule, setActiveModule, activeTab, setA
         <div className="sidebar-header">
           <h1>
             <img src="/favicon.svg" alt="Favicon" style={{ width: '20px', height: '20px' }} />
-            <span>OT E&I - Sistema</span>
+            <span>OT E&I</span>
           </h1>
           <button onClick={onClose} className="sidebar-close-btn" aria-label="Cerrar menú">
             <X size={20} />
           </button>
         </div>
+
+        {activeModule && (
+          <div className="sidebar-back-nav" style={{ padding: '4px 16px 12px 16px' }}>
+            <button
+              onClick={() => {
+                setActiveModule(null);
+                setActiveTab(null);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                width: '100%',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                color: 'var(--text-secondary)',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '0.85rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              className="back-to-main-btn"
+            >
+              <ChevronLeft size={16} />
+              <span>Menú Principal</span>
+            </button>
+          </div>
+        )}
 
         <div className="nav-modules">
           {modules.filter(m => !activeModule || m.id === activeModule).map((mod) => {
@@ -139,19 +169,6 @@ export default function Sidebar({ activeModule, setActiveModule, activeTab, setA
       </div>
 
       <div className="sidebar-footer">
-        {activeModule && (
-          <button
-            className="sidebar-fab"
-            onClick={() => {
-              setActiveModule(null);
-              setActiveTab(null);
-            }}
-            title="Volver al Menú Principal"
-          >
-            <div className="fab-icon"><ChevronLeft size={20} /></div>
-            <div className="fab-text">Menú Principal</div>
-          </button>
-        )}
 
         {user && (
           <div className="user-profile-card" style={{ marginBottom: '12px' }}>
