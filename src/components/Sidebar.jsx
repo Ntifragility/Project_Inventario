@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   BarChart2,
   PlusCircle,
@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 
 export default function Sidebar({ activeModule, setActiveModule, activeTab, setActiveTab, user, onLogout, isDark, toggleTheme, isOpen, onClose }) {
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+
   const modules = [
     {
       id: 'material',
@@ -60,45 +62,25 @@ export default function Sidebar({ activeModule, setActiveModule, activeTab, setA
   return (
     <nav className={`sidebar ${isOpen ? 'open' : ''}`}>
       <div className="nav-menu-container">
-        <div className="sidebar-header">
+        <div 
+          className={`sidebar-header ${activeModule ? 'clickable' : ''}`}
+          onClick={() => {
+            if (activeModule) {
+              setActiveModule(null);
+              setActiveTab(null);
+            }
+          }}
+          title={activeModule ? "Volver al Menú Principal" : ""}
+        >
           <h1>
+            {activeModule && <ChevronLeft size={18} className="sidebar-back-arrow" style={{ marginRight: '4px', cursor: 'pointer' }} />}
             <img src="/favicon.svg" alt="Favicon" style={{ width: '20px', height: '20px' }} />
             <span>OT E&I</span>
           </h1>
-          <button onClick={onClose} className="sidebar-close-btn" aria-label="Cerrar menú">
+          <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="sidebar-close-btn" aria-label="Cerrar menú">
             <X size={20} />
           </button>
         </div>
-
-        {activeModule && (
-          <div className="sidebar-back-nav" style={{ padding: '4px 16px 12px 16px' }}>
-            <button
-              onClick={() => {
-                setActiveModule(null);
-                setActiveTab(null);
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                width: '100%',
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                color: 'var(--text-secondary)',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-              className="back-to-main-btn"
-            >
-              <ChevronLeft size={16} />
-              <span>Menú Principal</span>
-            </button>
-          </div>
-        )}
 
         <div className="nav-modules">
           {modules.filter(m => !activeModule || m.id === activeModule).map((mod) => {
@@ -171,22 +153,26 @@ export default function Sidebar({ activeModule, setActiveModule, activeTab, setA
       <div className="sidebar-footer">
 
         {user && (
-          <div className="user-profile-card" style={{ marginBottom: '12px' }}>
-            <div className="user-info">
-              <span className="user-avatar">
-                <User size={18} />
-              </span>
-              <span className="user-email" title={user.email}>
-                {user.email}
-              </span>
-            </div>
-            <button
-              type="button"
-              className="btn-logout"
-              onClick={onLogout}
-              title="Cerrar Sesión"
+          <div className="sidebar-user-section" style={{ position: 'relative', marginBottom: '12px' }}>
+            {showProfileMenu && (
+              <div className="sidebar-user-popover">
+                <div className="popover-email" title={user.email}>{user.email}</div>
+                <button onClick={onLogout} className="popover-logout-btn">
+                  <LogOut size={14} />
+                  <span>Cerrar Sesión</span>
+                </button>
+              </div>
+            )}
+            <button 
+              className={`sidebar-user-avatar-btn ${showProfileMenu ? 'active' : ''}`}
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              title="Mi Cuenta"
             >
-              <LogOut size={14} />
+              <div className="avatar-circle">
+                {user.email ? user.email.slice(0, 2).toUpperCase() : 'US'}
+              </div>
+              <span className="avatar-label">Mi Cuenta</span>
+              <ChevronDown size={14} className={`avatar-chevron ${showProfileMenu ? 'open' : ''}`} />
             </button>
           </div>
         )}

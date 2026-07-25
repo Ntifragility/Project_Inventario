@@ -201,6 +201,23 @@ body {
 .sidebar-header {
   padding: 24px 20px;
   border-bottom: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+}
+
+.sidebar-header.clickable {
+  cursor: pointer;
+}
+
+.sidebar-header.clickable:hover {
+  background: var(--bg-sidebar-hover);
+}
+
+.sidebar-header.clickable:hover h1 {
+  color: var(--primary);
+}
+
+.sidebar-back-arrow {
+  animation: slideLeft 0.2s ease-out;
 }
 
 .sidebar-header h1 {
@@ -254,53 +271,132 @@ body {
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
 }
 
-/* Sidebar FAB Button */
-.sidebar-fab {
-  position: absolute;
-  top: -60px;
-  left: 20px;
-  width: 44px;
-  height: 44px;
-  background-color: var(--primary);
-  border-radius: 22px;
+/* Sidebar User Avatar and Popover */
+.sidebar-user-avatar-btn {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  padding-left: 14px;
-  color: white;
+  gap: 12px;
+  color: var(--text-secondary);
   cursor: pointer;
-  box-shadow: var(--shadow-lg);
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  overflow: hidden;
-  white-space: nowrap;
-  z-index: 100;
-  border: none;
+  transition: all 0.2s ease;
   outline: none;
 }
 
-.sidebar-fab:hover {
-  width: 160px;
-  background-color: var(--primary-hover);
-  box-shadow: var(--shadow-xl);
+.sidebar-user-avatar-btn:hover,
+.sidebar-user-avatar-btn.active {
+  background: var(--bg-sidebar-hover);
+  color: var(--text-primary);
+  border-color: var(--border-color);
 }
 
-.sidebar-fab .fab-icon {
+.avatar-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  box-shadow: 0 4px 6px rgba(37, 99, 235, 0.15);
 }
 
-.sidebar-fab .fab-text {
-  opacity: 0;
-  transition: opacity 0.2s;
-  font-weight: 500;
-  font-size: 14px;
+.avatar-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  flex: 1;
+  text-align: left;
 }
 
-.sidebar-fab:hover .fab-text {
-  opacity: 1;
-  transition-delay: 0.1s;
+.avatar-chevron {
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.avatar-chevron.open {
+  transform: rotate(180deg);
+}
+
+.sidebar-user-popover {
+  position: absolute;
+  bottom: 52px;
+  left: 12px;
+  right: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+  z-index: 150;
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.popover-email {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 12px;
+  text-align: center;
+  padding: 2px 4px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 8px;
+}
+
+.popover-logout-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  border-radius: var(--radius-sm);
+  color: #ef4444;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.popover-logout-btn:hover {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: transparent;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.2);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideLeft {
+  from {
+    opacity: 0;
+    transform: translateX(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .sidebar-footer {
