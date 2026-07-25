@@ -38,17 +38,10 @@ export default function MainMenu({ onSelectModule, user, onLogout, isDark, toggl
       <header className="main-menu-header">
         <div className="main-menu-brand">
           <img src="/favicon.svg" alt="Logo" style={{ width: '28px', height: '28px' }} />
-          <span>OT E&I - Sistema</span>
+          <span>OT E&I</span>
         </div>
         
         <div className="main-menu-user-actions">
-          {user && (
-            <div className="main-menu-user-info" title={user.email}>
-              <User size={16} className="user-icon" />
-              <span className="user-email">{user.email}</span>
-            </div>
-          )}
-          
           <button onClick={toggleTheme} className="theme-toggle-btn" title={isDark ? "Modo Claro" : "Modo Oscuro"}>
             {isDark ? <Sun size={18} /> : <Moon size={18} />}
           </button>
