@@ -19,7 +19,8 @@ import {
   ChevronRight,
   ChevronLeft,
   Box,
-  MonitorDot
+  MonitorDot,
+  Zap
 } from 'lucide-react';
 
 export default function Sidebar({ activeModule, setActiveModule, activeTab, setActiveTab, user, onLogout, isDark, toggleTheme, isOpen, onClose }) {

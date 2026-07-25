@@ -366,7 +366,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
 
   return (
     <div className="smart-wizard-overlay" onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
-      <div className="smart-wizard-modal cable-import-modal">
+      <div className="smart-wizard-container cable-import-modal">
         {/* Header */}
         <div className="smart-wizard-header">
           <h3>
@@ -454,7 +454,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
               )}
 
               {/* Import type selector */}
-              {rawHeaders.length > 0 && (
+              {rawHeaders.length > 0 && !forceType && (
                 <div className="cable-type-selector">
                   <label>Tipo de importación:</label>
                   <div className="cable-type-buttons">
@@ -467,6 +467,16 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
                     >
                       📋 Cable Schedule
                       {detectedType === 'schedule' && <span className="auto-badge">Auto-detectado</span>}
+                    </button>
+                    <button
+                      className={`cable-type-btn ${importType === 'pat' ? 'active' : ''}`}
+                      onClick={() => {
+                        setImportType('pat');
+                        setMapping(autoMapColumns(rawHeaders, CABLE_PAT_COLUMNS));
+                      }}
+                    >
+                      ⚡ Puesta a Tierra
+                      {detectedType === 'pat' && <span className="auto-badge">Auto-detectado</span>}
                     </button>
                     <button
                       className={`cable-type-btn ${importType === 'despacho' ? 'active' : ''}`}

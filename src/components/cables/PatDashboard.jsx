@@ -74,17 +74,14 @@ export default function PatDashboard() {
       // ── Compute KPIs ──
       const longitudTotal = rows.reduce((sum, r) => sum + (parseFloat(r.total_estimado_m) || 0), 0);
       const longitudTendida = rows.reduce((sum, r) => sum + (parseFloat(r.metrado_reportado_campo) || 0), 0);
-      const longitudPendiente = rows.reduce((sum, r) => sum + (parseFloat(r.longitud_pendiente_m) || 0), 0);
+      
+      const longitudPendiente = longitudTotal - longitudTendida;
       const circuitosTotales = rows.length;
-      const circuitosPendientes = rows.filter(r => !r.is_tendido).length;
+      
+      const countMetradoCampo = rows.filter(r => (parseFloat(r.metrado_reportado_campo) || 0) > 0).length;
+      const circuitosPendientes = circuitosTotales - countMetradoCampo;
+      
       const tendidoPct = longitudTotal > 0 ? (longitudTendida / longitudTotal) * 100 : 0;
-
-      // Connection stats (for now, based on the is_tendido / estado field)
-      // These will be refined when connection tracking is implemented
-      const withConexOrigen = rows.filter(r => r.conexion_origen && r.is_tendido).length;
-      const withConexDestino = rows.filter(r => r.conexion_destino && r.is_tendido).length;
-      const totalWithOrigen = rows.filter(r => r.conexion_origen).length;
-      const totalWithDestino = rows.filter(r => r.conexion_destino).length;
 
       setKpis({
         longitudTotal,
@@ -96,51 +93,45 @@ export default function PatDashboard() {
       });
 
       // ── Build Data for Charts ──
-      // Material (Tipo de Cable) Chart
-      const TARGET_MATERIALS = [
-        'CABLE DESNUDO 4/0 AWG',
-        'CABLE DESNUDO 2/0 AWG',
-        'CABLE AISLADO THHN/ THWN 2/0 AWG',
-        'CABLE AISLADO THHN/ THWN 4/0 AWG'
-      ];
-
-      const matMap = {};
-      TARGET_MATERIALS.forEach(mat => matMap[mat] = { name: mat, total: 0, tendido: 0, porTender: 0 });
-
+      
+      // 1. Longitud de Cable (m) según Tipo: Grouped by DESCRIPCION DE MATERIAL (material)
+      const matMap = new Map();
       rows.forEach(r => {
-        const mat = (r.material || '').toString().trim().toUpperCase();
-        if (matMap[mat]) {
-          matMap[mat].tendido += (parseFloat(r.metrado_reportado_campo) || 0);
-          matMap[mat].porTender += (parseFloat(r.longitud_pendiente_m) || 0);
-        }
+        const key = r.material ? r.material.toString().trim() : 'Sin Material';
+        if (!matMap.has(key)) matMap.set(key, { tendido: 0, porTender: 0 });
+        const entry = matMap.get(key);
+        const tendido = parseFloat(r.metrado_reportado_campo) || 0;
+        const total = parseFloat(r.total_estimado_m) || 0;
+        entry.tendido += tendido;
+        entry.porTender += (total - tendido > 0 ? total - tendido : 0);
       });
-
-      const matData = Object.values(matMap)
-        .map(v => ({
-          name: v.name,
-          tendido: v.tendido,
-          porTender: v.porTender,
-          total: v.tendido + v.porTender
-        }))
-        .filter(d => d.total > 0 || d.tendido > 0);
-      setMaterialBars(matData);
-
-      // ── Compute bar chart data by AREA ──
-      const areaMap = new Map();
-      rows.forEach(r => {
-        const key = r.area || 'Sin Área';
-        if (!areaMap.has(key)) areaMap.set(key, { tendido: 0, porTender: 0 });
-        const entry = areaMap.get(key);
-        entry.tendido += parseFloat(r.metrado_reportado_campo) || 0;
-        entry.porTender += parseFloat(r.longitud_pendiente_m) || 0;
-      });
-      setAreaBars(
-        Array.from(areaMap.entries()).map(([name, v]) => ({
+      setMaterialBars(
+        Array.from(matMap.entries()).map(([name, v]) => ({
           name,
           tendido: v.tendido,
           porTender: v.porTender,
           total: v.tendido + v.porTender,
-        }))
+        })).sort((a, b) => b.total - a.total)
+      );
+
+      // 2. Longitud de Cable (m) según Área: Grouped by WBS
+      const wbsMap = new Map();
+      rows.forEach(r => {
+        const key = r.wbs ? r.wbs.toString().trim() : 'Sin WBS';
+        if (!wbsMap.has(key)) wbsMap.set(key, { tendido: 0, porTender: 0 });
+        const entry = wbsMap.get(key);
+        const tendido = parseFloat(r.metrado_reportado_campo) || 0;
+        const total = parseFloat(r.total_estimado_m) || 0;
+        entry.tendido += tendido;
+        entry.porTender += (total - tendido > 0 ? total - tendido : 0);
+      });
+      setAreaBars(
+        Array.from(wbsMap.entries()).map(([name, v]) => ({
+          name,
+          tendido: v.tendido,
+          porTender: v.porTender,
+          total: v.tendido + v.porTender,
+        })).sort((a, b) => b.total - a.total)
       );
 
     } catch (err) {
@@ -233,11 +224,8 @@ export default function PatDashboard() {
           </button>
         </div>
         <div className="cable-actions">
-          <button className="btn btn-primary btn-sm" onClick={() => openImport('schedule')}>
-            <Upload size={14} /> Importar Schedule
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => openImport('despacho')}>
-            <Package size={14} /> Importar Despachos
+          <button className="btn btn-primary btn-sm" onClick={() => openImport('pat')}>
+            <Upload size={14} /> Importar PAT
           </button>
         </div>
       </div>
