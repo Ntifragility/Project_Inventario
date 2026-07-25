@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Box, Cable, MonitorDot, User, LogOut, Sun, Moon } from 'lucide-react';
 
 export default function MainMenu({ onSelectModule, user, onLogout, isDark, toggleTheme }) {
+  const [hoveredModule, setHoveredModule] = useState(null);
+  
   const menuItems = [
     {
       id: 'material',
@@ -33,7 +35,10 @@ export default function MainMenu({ onSelectModule, user, onLogout, isDark, toggl
   ];
 
   return (
-    <div className="main-menu-view">
+    <div className={`main-menu-view glow-${hoveredModule || 'none'}`}>
+      {/* Background Ambient Glow backdrop */}
+      <div className="main-menu-backdrop" />
+
       {/* Premium Main Header Bar */}
       <header className="main-menu-header">
         <div className="main-menu-brand">
@@ -62,6 +67,8 @@ export default function MainMenu({ onSelectModule, user, onLogout, isDark, toggl
                 key={item.id}
                 className="main-menu-card"
                 onClick={() => onSelectModule(item.id, item.defaultTab)}
+                onMouseEnter={() => setHoveredModule(item.id)}
+                onMouseLeave={() => setHoveredModule(null)}
                 style={{
                   '--glow-color': item.glowColor
                 }}

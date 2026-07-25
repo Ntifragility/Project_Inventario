@@ -3705,6 +3705,34 @@ tr:hover .row-actions-hover {
   position: relative;
 }
 
+.main-menu-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  transition: background 0.8s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 0;
+  background: radial-gradient(circle at 50% 50%, transparent 100%);
+}
+
+.main-menu-view.glow-material .main-menu-backdrop {
+  background: radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.25) 0%, transparent 60%);
+  opacity: 1;
+}
+
+.main-menu-view.glow-cable .main-menu-backdrop {
+  background: radial-gradient(circle at 50% 15%, rgba(16, 185, 129, 0.25) 0%, transparent 60%);
+  opacity: 1;
+}
+
+.main-menu-view.glow-system_config .main-menu-backdrop {
+  background: radial-gradient(circle at 85% 15%, rgba(139, 92, 246, 0.25) 0%, transparent 60%);
+  opacity: 1;
+}
+
 .main-menu-header {
   display: flex;
   justify-content: space-between;
@@ -3805,6 +3833,8 @@ tr:hover .row-actions-hover {
   align-items: center;
   justify-content: center;
   padding: 40px 24px;
+  position: relative;
+  z-index: 1;
 }
 
 .main-menu-grid {
