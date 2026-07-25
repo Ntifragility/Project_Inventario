@@ -509,16 +509,10 @@ export default function CableDashboard() {
           >
             Sistema
           </button>
-          <button
-            className={`cable-mobile-tab-btn ${activeMobileTab === 'medidores' ? 'active' : ''}`}
-            onClick={() => setActiveMobileTab('medidores')}
-          >
-            Medidores
-          </button>
         </div>
 
         {/* ── Charts Row ── */}
-        <div className="cable-charts-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 300px', gap: '16px', marginBottom: '20px' }}>
+        <div className="cable-charts-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
           <div className={`cable-chart-col ${activeMobileTab === 'tipo' ? 'mobile-active' : ''}`}>
             <CableBarChart
               data={tipoBars}
@@ -536,37 +530,6 @@ export default function CableDashboard() {
               data={sistemaBars}
               title="Longitud de Cable (m) según Sistema"
             />
-          </div>
-          <div className={`cable-chart-col cable-gauges-col ${activeMobileTab === 'medidores' ? 'mobile-active' : ''}`}>
-            <div className="cable-gauges-card">
-              <CableGauge
-                value={kpis.conexOrigenPct}
-                label="CONEX. ORIGEN"
-                sublabel={kpis.conexOrigenPendientes.toLocaleString()}
-                size={140}
-                strokeWidth={10}
-                color={kpis.conexOrigenPct > 50 ? '#10b981' : '#ef4444'}
-                bgColor="rgba(255,255,255,0.08)"
-                type="semi"
-              />
-              <CableGauge
-                value={kpis.conexDestinoPct}
-                label="CONEX. DESTINO"
-                sublabel={kpis.conexDestinoPendientes.toLocaleString()}
-                size={140}
-                strokeWidth={10}
-                color={kpis.conexDestinoPct > 50 ? '#10b981' : '#ef4444'}
-                bgColor="rgba(255,255,255,0.08)"
-                type="semi"
-              />
-              <div className="cable-gauges-footer">
-                <span>CIRCUITOS PENDIENTES</span>
-                <div className="cable-gauges-footer-values">
-                  <span>{kpis.conexOrigenPendientes.toLocaleString()}</span>
-                  <span>{kpis.conexDestinoPendientes.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 

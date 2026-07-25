@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   BarChart2,
   PlusCircle,
@@ -25,6 +25,17 @@ import {
 
 export default function Sidebar({ activeModule, setActiveModule, activeTab, setActiveTab, user, onLogout, isDark, toggleTheme, isOpen, onClose }) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const sidebarUserSectionRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (showProfileMenu && sidebarUserSectionRef.current && !sidebarUserSectionRef.current.contains(event.target)) {
+        setShowProfileMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showProfileMenu]);
 
   const modules = [
     {
@@ -153,7 +164,7 @@ export default function Sidebar({ activeModule, setActiveModule, activeTab, setA
       <div className="sidebar-footer">
 
         {user && (
-          <div className="sidebar-user-section" style={{ position: 'relative', marginBottom: '12px' }}>
+          <div className="sidebar-user-section" ref={sidebarUserSectionRef} style={{ position: 'relative', marginBottom: '12px' }}>
             {showProfileMenu && (
               <div className="sidebar-user-popover">
                 <div className="popover-email" title={user.email}>{user.email}</div>
