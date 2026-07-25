@@ -3527,14 +3527,11 @@ tr:hover .row-actions-hover {
   }
 
   .cable-actions {
-    width: 100% !important;
-    margin-top: 4px;
-    justify-content: stretch !important;
+    display: none !important;
   }
 
-  .cable-actions button {
-    flex: 1;
-    justify-content: center;
+  .cable-table-section {
+    display: none !important;
   }
 
   /* Grid KPIs in 2x2 */
