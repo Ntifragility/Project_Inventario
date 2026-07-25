@@ -26,6 +26,10 @@ export default function CableDashboard() {
   const [selectedSistema, setSelectedSistema] = useState('');
   const [selectedTipoCable, setSelectedTipoCable] = useState('');
 
+  // Mobile layout state
+  const [activeMobileTab, setActiveMobileTab] = useState('tipo');
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+
   // Dynamic filter lists derived from raw data and active selections
   const filteredWbs = useMemo(() => {
     if (!selectedSistema) {
@@ -355,7 +359,16 @@ export default function CableDashboard() {
     <div id="cable-dashboard" className="tab-content active">
       {/* ── Top Bar: Filters + Actions ── */}
       <div className="cable-topbar">
-        <div className="cable-filters">
+        <button
+          className="btn btn-secondary btn-sm cable-mobile-filter-toggle"
+          style={{ display: 'none' }}
+          onClick={() => setShowMobileFilters(!showMobileFilters)}
+        >
+          <Filter size={14} />
+          <span>{showMobileFilters ? 'Ocultar Filtros' : 'Filtros y Acciones'}</span>
+        </button>
+
+        <div className={`cable-filters ${showMobileFilters ? 'expanded' : ''}`}>
           <div className="cable-filter-group">
             <label>Tipo de Cable</label>
             <select
@@ -396,12 +409,12 @@ export default function CableDashboard() {
             </button>
           )}
         </div>
-          <div className="cable-actions">
-            <button className="btn btn-primary btn-sm" onClick={() => openImport('schedule')}>
-              <Upload size={14} /> Importar Excel
-            </button>
-          </div>
+        <div className="cable-actions">
+          <button className="btn btn-primary btn-sm" onClick={() => openImport('schedule')}>
+            <Upload size={14} /> Importar Excel
+          </button>
         </div>
+      </div>
 
         {error && (
           <div className="message danger" style={{ margin: '0 0 16px 0' }}>
@@ -476,27 +489,55 @@ export default function CableDashboard() {
           </div>
         </div>
 
+        {/* ── Mobile Chart Tabs ── */}
+        <div className="cable-mobile-tabs" style={{ display: 'none' }}>
+          <button
+            className={`cable-mobile-tab-btn ${activeMobileTab === 'tipo' ? 'active' : ''}`}
+            onClick={() => setActiveMobileTab('tipo')}
+          >
+            Tipo
+          </button>
+          <button
+            className={`cable-mobile-tab-btn ${activeMobileTab === 'wbs' ? 'active' : ''}`}
+            onClick={() => setActiveMobileTab('wbs')}
+          >
+            WBS
+          </button>
+          <button
+            className={`cable-mobile-tab-btn ${activeMobileTab === 'sistema' ? 'active' : ''}`}
+            onClick={() => setActiveMobileTab('sistema')}
+          >
+            Sistema
+          </button>
+          <button
+            className={`cable-mobile-tab-btn ${activeMobileTab === 'medidores' ? 'active' : ''}`}
+            onClick={() => setActiveMobileTab('medidores')}
+          >
+            Medidores
+          </button>
+        </div>
+
         {/* ── Charts Row ── */}
         <div className="cable-charts-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 300px', gap: '16px', marginBottom: '20px' }}>
-          <div className="cable-chart-col">
+          <div className={`cable-chart-col ${activeMobileTab === 'tipo' ? 'mobile-active' : ''}`}>
             <CableBarChart
               data={tipoBars}
               title="Longitud de Cable (m) según Tipo"
             />
           </div>
-          <div className="cable-chart-col">
+          <div className={`cable-chart-col ${activeMobileTab === 'wbs' ? 'mobile-active' : ''}`}>
             <CableBarChart
               data={wbsBars}
               title="Longitud de Cable (m) según WBS"
             />
           </div>
-          <div className="cable-chart-col">
+          <div className={`cable-chart-col ${activeMobileTab === 'sistema' ? 'mobile-active' : ''}`}>
             <CableBarChart
               data={sistemaBars}
               title="Longitud de Cable (m) según Sistema"
             />
           </div>
-          <div className="cable-chart-col cable-gauges-col">
+          <div className={`cable-chart-col cable-gauges-col ${activeMobileTab === 'medidores' ? 'mobile-active' : ''}`}>
             <div className="cable-gauges-card">
               <CableGauge
                 value={kpis.conexOrigenPct}

@@ -304,6 +304,127 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
       </div>
 
       <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '60vh', position: 'relative' }}>
+        {/* Mobile View: Card List */}
+        <div className="cable-mobile-card-list" style={{ display: 'none' }}>
+          {filteredData.length === 0 ? (
+            <div className="text-center text-muted" style={{ padding: '24px 0' }}>No se encontraron circuitos.</div>
+          ) : (
+            filteredData.map(row => {
+              const isExpanded = expandedRow === row.tag_unico;
+              const avance = getAvance(row);
+
+              return (
+                <div
+                  key={row.tag_unico}
+                  className="cable-mobile-card"
+                  onClick={() => toggleExpand(row.tag_unico)}
+                >
+                  <div className="cable-mobile-card-header">
+                    <span>{row.tag_unico}</span>
+                    {filterTipoCable === 'PAT' ? (
+                      <span className="status-badge" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>PAT</span>
+                    ) : (
+                      getEstadoBadge(row.estado)
+                    )}
+                  </div>
+
+                  <div className="cable-mobile-card-progress">
+                    <div className="cable-mobile-card-progress-bar-bg">
+                      <div
+                        className="cable-mobile-card-progress-bar-fill"
+                        style={{
+                          width: `${avance}%`,
+                          background: avance >= 100 ? '#10b981' : avance > 50 ? '#f59e0b' : '#ef4444',
+                        }}
+                      />
+                    </div>
+                    <span className="cable-mobile-card-progress-pct">{avance.toFixed(0)}%</span>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="cable-mobile-card-details" onClick={(e) => e.stopPropagation()}>
+                      {filterTipoCable === 'PAT' ? (
+                        <>
+                          <div className="cable-mobile-card-detail-item">
+                            <strong>WBS:</strong> <span>{row.wbs || '—'}</span>
+                          </div>
+                          <div className="cable-mobile-card-detail-item">
+                            <strong>Sistema:</strong> <span>{row.sistema || '—'}</span>
+                          </div>
+                          <div className="cable-mobile-card-detail-item">
+                            <strong>Descripción:</strong> <span>{row.material || '—'}</span>
+                          </div>
+                          <div className="cable-mobile-card-detail-item">
+                            <strong>Metrado OT (m):</strong> <span>{parseFloat(row.total_estimado_m || 0).toFixed(1)} m</span>
+                          </div>
+                          <div className="cable-mobile-card-detail-item">
+                            <strong>Metrado Despachado (m):</strong> <span>{parseFloat(row.total_despachado_m || 0).toFixed(1)} m</span>
+                          </div>
+                          <div className="cable-mobile-card-detail-item">
+                            <strong>Metrado Campo (m):</strong> <span>{parseFloat(row.metrado_reportado_campo || 0).toFixed(1)} m</span>
+                          </div>
+                          <div className="cable-mobile-card-detail-item">
+                            <strong>Fecha Metrado Campo:</strong> <span>{row.fecha_tendido || '—'}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="cable-mobile-card-detail-item">
+                            <strong>Área:</strong> <span>{row.area || '—'}</span>
+                          </div>
+                          <div className="cable-mobile-card-detail-item">
+                            <strong>Tipo Cable:</strong> <span>{row.tipo_cable || '—'}</span>
+                          </div>
+                          <div className="cable-mobile-card-detail-item">
+                            <strong>Long. Diseño (m):</strong> <span>{parseFloat(row.total_estimado_m || 0).toFixed(1)} m</span>
+                          </div>
+                          <div className="cable-mobile-card-detail-item">
+                            <strong>Metrado Despachado (m):</strong> <span>{parseFloat(row.total_despachado_m || 0).toFixed(1)} m</span>
+                          </div>
+                          <div className="cable-mobile-card-detail-item">
+                            <strong>Metrado Campo (m):</strong> <span>{parseFloat(row.metrado_reportado_campo || 0).toFixed(1)} m</span>
+                          </div>
+                          <div className="cable-mobile-card-detail-item">
+                            <strong>Conex. Origen:</strong> <span>{row.conexion_origen || '—'}</span>
+                          </div>
+                          <div className="cable-mobile-card-detail-item">
+                            <strong>Conex. Destino:</strong> <span>{row.conexion_destino || '—'}</span>
+                          </div>
+
+                          {/* Mobile subtable for Despachos */}
+                          <div className="cable-mobile-card-detail-subtable">
+                            <h4 style={{ margin: '0 0 8px 0', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <Package size={14} /> Despachos
+                            </h4>
+                            {loadingDespachos ? (
+                              <p className="text-muted" style={{ margin: 0, fontSize: '0.7rem' }}>Cargando despachos...</p>
+                            ) : despachos.length === 0 ? (
+                              <p className="text-muted" style={{ margin: 0, fontSize: '0.7rem' }}>Sin despachos registrados.</p>
+                            ) : (
+                              despachos.map(d => (
+                                <div key={d.id} style={{ display: 'flex', flexDirection: 'column', gap: '2px', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '4px', marginBottom: '4px', fontSize: '0.7rem' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <strong>Vale: {d.vale_almacen}</strong>
+                                    <span>{new Date(d.fecha_entrega).toLocaleDateString()}</span>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
+                                    <span>Cant: {d.longitud_despachada_m} m</span>
+                                    <span>Por: {d.solicitado_por || '—'}</span>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
         <table className="cable-table" style={{ tableLayout: 'fixed', width: '100%' }}>
           <thead>
             <tr>

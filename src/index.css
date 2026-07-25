@@ -3447,6 +3447,9 @@ tr:hover .row-actions-hover {
 }
 
 /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Responsive ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
+/* ══════════════════════════════════════════════════════════════
+   Responsive and Mobile Styling
+   ══════════════════════════════════════════════════════════════ */
 @media (max-width: 1024px) {
   .cable-kpi-row {
     grid-template-columns: repeat(2, 1fr);
@@ -3470,25 +3473,222 @@ tr:hover .row-actions-hover {
   }
 }
 
-@media (max-width: 640px) {
-  .cable-kpi-row {
-    grid-template-columns: 1fr;
+@media (max-width: 768px) {
+  .main-content {
+    padding: 12px !important;
   }
 
+  .content-header {
+    margin-bottom: 12px !important;
+  }
+
+  /* Compact topbar and Collapsible Filters */
   .cable-topbar {
+    flex-direction: column !important;
+    gap: 8px !important;
+    align-items: stretch !important;
+    margin-top: 0 !important;
+    margin-bottom: 12px !important;
+  }
+
+  .cable-filters {
+    display: none;
+    flex-direction: column !important;
+    gap: 8px !important;
+    background: var(--bg-card-header);
+    padding: 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+  }
+
+  .cable-filters.expanded {
+    display: flex !important;
+  }
+
+  .cable-filter-group {
     flex-direction: column;
-    align-items: stretch;
+    align-items: stretch !important;
+  }
+
+  .cable-filter-group label {
+    margin-bottom: 4px;
+  }
+
+  .cable-filter-group select {
+    width: 100% !important;
+  }
+
+  .cable-mobile-filter-toggle {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
   }
 
   .cable-actions {
-    justify-content: stretch;
+    width: 100% !important;
+    margin-top: 4px;
+    justify-content: stretch !important;
   }
 
-  .cable-actions .btn {
+  .cable-actions button {
     flex: 1;
+    justify-content: center;
   }
 
-  .cable-type-buttons {
+  /* Grid KPIs in 2x2 */
+  .cable-kpi-row {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .cable-kpi-card {
+    padding: 8px 12px !important;
+  }
+
+  .cable-kpi-val {
+    font-size: 1.4rem !important;
+  }
+
+  .cable-kpi-label {
+    font-size: 0.7rem !important;
+  }
+
+  /* Mobile Tabs for Charts */
+  .cable-mobile-tabs {
+    display: flex !important;
+    background: var(--bg-card-header);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 4px;
+    margin-bottom: 12px;
+    gap: 4px;
+  }
+
+  .cable-mobile-tab-btn {
+    flex: 1;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 8px 4px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s ease;
+  }
+
+  .cable-mobile-tab-btn.active {
+    background: var(--primary);
+    color: #fff;
+  }
+
+  /* Hide non-active charts on mobile */
+  .cable-charts-row {
+    grid-template-columns: 1fr !important;
+    gap: 0 !important;
+  }
+
+  .cable-charts-row > div,
+  .cable-charts-row > .cable-gauges-col {
+    display: none !important;
+  }
+
+  .cable-charts-row > div.mobile-active,
+  .cable-charts-row > .cable-gauges-col.mobile-active {
+    display: flex !important;
+  }
+
+  /* Table to Card List */
+  .cable-table-container .cable-table {
+    display: none !important;
+  }
+
+  .cable-mobile-card-list {
+    display: flex !important;
     flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .cable-mobile-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+  }
+
+  .cable-mobile-card:hover {
+    border-color: var(--primary);
+  }
+
+  .cable-mobile-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--primary);
+  }
+
+  .cable-mobile-card-progress {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .cable-mobile-card-progress-bar-bg {
+    flex: 1;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .cable-mobile-card-progress-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: var(--primary);
+  }
+
+  .cable-mobile-card-progress-pct {
+    font-size: 0.75rem;
+    font-weight: 600;
+    min-width: 32px;
+    text-align: right;
+  }
+
+  .cable-mobile-card-details {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border-color);
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .cable-mobile-card-detail-item {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .cable-mobile-card-detail-item strong {
+    color: var(--text-muted);
+  }
+
+  .cable-mobile-card-detail-subtable {
+    margin-top: 8px;
+    padding: 8px;
+    background: var(--bg-card-header);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
   }
 }
