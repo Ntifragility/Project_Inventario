@@ -2,10 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../supabase';
 import {
   Search, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
-  ArrowUpDown, Package, Filter, FilterX
+  ArrowUpDown, Package, Filter, FilterX, Download
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
-export default function CableTable({ filterArea = '', filterTipoServicio = '', filterTipoCable = '' }) {
+export default function CableTable({ filterArea = '', filterTipoServicio = '', filterTipoCable = '', filterWbs = '', filterSistema = '', filterCleanTipo = '' }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -23,18 +24,19 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     { field: 'tag_unico', label: 'TAG UNICO', width: '144px' },
     { field: 'wbs', label: 'WBS', width: '60px' },
     { field: 'sistema', label: 'Sistema', width: '252px' },
-    { field: 'plano', label: 'Plano', width: '150px' },
     { field: 'material', label: 'Descripción de Cable', width: '200px' },
-    { field: 'total_estimado_m', label: 'Metrado OT (m)', width: '120px', align: 'right' },
-    { field: 'metrado_reportado_campo', label: 'Metrado Campo (m)', width: '104px', align: 'right' },
-    { field: 'avance', label: '% Avance', width: '100px', align: 'center', computed: true },
-    { field: 'fecha_tendido', label: 'Fecha Metrado Campo', width: '120px', align: 'center' },
+    { field: 'total_estimado_m', label: 'Metrado\nOT (m)', width: '110px', align: 'right' },
+    { field: 'total_despachado_m', label: 'Metrado\nDespachado (m)', width: '130px', align: 'right' },
+    { field: 'metrado_reportado_campo', label: 'Metrado\nCampo (m)', width: '110px', align: 'right' },
+    { field: 'avance', label: '% Avance', width: '90px', align: 'center', computed: true },
+    { field: 'fecha_tendido', label: 'Fecha Metrado\nCampo', width: '120px', align: 'center' },
   ] : [
     { field: 'tag_unico', label: 'TAG UNICO', width: '180px' },
     { field: 'area', label: 'Área', width: '100px' },
     { field: 'tipo_cable', label: 'Tipo Cable', width: '180px' },
-    { field: 'total_estimado_m', label: 'Long. Diseño (m)', width: '120px', align: 'right' },
-    { field: 'metrado_reportado_campo', label: 'Metrado Campo (m)', width: '130px', align: 'right' },
+    { field: 'total_estimado_m', label: 'Long. Diseño\n(m)', width: '120px', align: 'right' },
+    { field: 'total_despachado_m', label: 'Metrado\nDespachado (m)', width: '140px', align: 'right' },
+    { field: 'metrado_reportado_campo', label: 'Metrado\nCampo (m)', width: '120px', align: 'right' },
     { field: 'avance', label: '% Avance', width: '100px', align: 'center', computed: true },
     { field: 'estado', label: 'Estado', width: '120px', align: 'center' },
     { field: 'conexion_origen', label: 'Conex. Origen', width: '150px' },
@@ -44,25 +46,95 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      let query = supabase.from('cable_schedule').select('*');
-      if (filterArea) query = query.eq('area', filterArea);
-      if (filterTipoServicio) query = query.eq('tipo_servicio', filterTipoServicio);
-      if (filterTipoCable) query = query.eq('tipo_cable', filterTipoCable);
-      if (search.trim()) {
-        const searchTerm = search.trim().replace(/\*/g, '%');
-        query = query.or(`tag_unico.ilike.%${searchTerm}%,tipo_cable.ilike.%${searchTerm}%,area.ilike.%${searchTerm}%,wbs.ilike.%${searchTerm}%,plano.ilike.%${searchTerm}%`);
-      }
-      query = query.order(sortField, { ascending: sortDir === 'asc' });
+      let rows = [];
+      let start = 0;
+      const batchSize = 1000;
+      let hasMore = true;
 
-      const { data: rows, error } = await query;
-      if (error) throw error;
-      setData(rows || []);
+      while (hasMore) {
+        let query = supabase
+          .from('cable_schedule')
+          .select('*')
+          .range(start, start + batchSize - 1)
+          .ilike('material', 'CABLE%');
+
+        if (filterArea) query = query.eq('area', filterArea);
+        if (filterTipoServicio) query = query.eq('tipo_servicio', filterTipoServicio);
+        if (filterTipoCable) query = query.eq('tipo_cable', filterTipoCable);
+        if (filterWbs) query = query.eq('wbs', filterWbs);
+        if (filterSistema) query = query.eq('sistema', filterSistema);
+
+        if (search.trim()) {
+          const searchTerm = search.trim().replace(/\*/g, '%');
+          query = query.or(`tag_unico.ilike.%${searchTerm}%,tipo_cable.ilike.%${searchTerm}%,area.ilike.%${searchTerm}%,wbs.ilike.%${searchTerm}%,plano.ilike.%${searchTerm}%`);
+        }
+        query = query.order(sortField, { ascending: sortDir === 'asc' });
+
+        const { data: batchData, error } = await query;
+        if (error) throw error;
+
+        if (!batchData || batchData.length === 0) {
+          hasMore = false;
+        } else {
+          rows = [...rows, ...batchData];
+          if (batchData.length < batchSize) {
+            hasMore = false;
+          } else {
+            start += batchSize;
+          }
+        }
+      }
+
+      // Fetch all despachos recursively
+      let allDespachos = [];
+      let despStart = 0;
+      let despHasMore = true;
+
+      while (despHasMore) {
+        const { data: despBatch, error: despErr } = await supabase
+          .from('cable_despachos')
+          .select('tag_unico, longitud_despachada_m')
+          .range(despStart, despStart + batchSize - 1);
+
+        if (despErr) throw despErr;
+
+        if (!despBatch || despBatch.length === 0) {
+          despHasMore = false;
+        } else {
+          allDespachos = [...allDespachos, ...despBatch];
+          if (despBatch.length < batchSize) {
+            despHasMore = false;
+          } else {
+            despStart += batchSize;
+          }
+        }
+      }
+
+      const despMap = new Map();
+      allDespachos.forEach(d => {
+        despMap.set(d.tag_unico, (despMap.get(d.tag_unico) || 0) + (parseFloat(d.longitud_despachada_m) || 0));
+      });
+      
+      let finalRows = (rows || []).map(r => ({
+        ...r,
+        total_despachado_m: despMap.get(r.tag_unico) || 0
+      }));
+
+      if (filterCleanTipo) {
+        finalRows = finalRows.filter(r => {
+          const materialStr = r.material || '';
+          const cleanTipo = materialStr.replace(/^cable\s+/i, '').trim().toUpperCase();
+          return cleanTipo === filterCleanTipo;
+        });
+      }
+      
+      setData(finalRows);
     } catch (err) {
       console.error('Cable table fetch error:', err);
     } finally {
       setLoading(false);
     }
-  }, [filterArea, filterTipoServicio, filterTipoCable, search, sortField, sortDir]);
+  }, [filterArea, filterTipoServicio, filterTipoCable, filterWbs, filterSistema, filterCleanTipo, search, sortField, sortDir]);
 
   useEffect(() => {
     fetchData();
@@ -164,6 +236,35 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     });
   });
 
+  const handleExportExcel = () => {
+    const sheetData = filteredData.map(row => {
+      const obj = {};
+      COLUMNS.forEach(col => {
+        let val = '';
+        if (col.field === 'avance') {
+          const total = parseFloat(row.total_estimado_m) || 0;
+          const metrado = parseFloat(row.metrado_reportado_campo) || 0;
+          val = total <= 0 ? '0%' : `${Math.min(100, Math.round((metrado / total) * 100))}%`;
+        } else {
+          val = row[col.field] ?? '—';
+        }
+        obj[col.label.replace(/\n/g, ' ')] = val;
+      });
+      return obj;
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(sheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, filterTipoCable === 'PAT' ? 'PAT' : 'Circuitos');
+    
+    const wbsStr = filterWbs ? `_${filterWbs}` : '';
+    const sistemaStr = filterSistema ? `_${filterSistema.slice(0, 15)}` : '';
+    const cleanTipoStr = filterCleanTipo ? `_${filterCleanTipo.slice(0, 15)}` : '';
+    const filename = `CableSchedule_${filterTipoCable === 'PAT' ? 'PAT' : 'Circuitos'}${wbsStr}${sistemaStr}${cleanTipoStr}.xlsx`;
+    
+    XLSX.writeFile(workbook, filename);
+  };
+
   return (
     <div className="cable-table-container">
       <div className="cable-table-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, marginBottom: 12 }}>
@@ -185,16 +286,28 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
             </button>
           )}
         </div>
-        <div className="cable-count text-muted" style={{ whiteSpace: 'nowrap' }}>
-          {filteredData.length} circuitos encontrados
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={handleExportExcel}
+            disabled={filteredData.length === 0}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            title="Exportar tabla filtrada a Excel"
+          >
+            <Download size={14} />
+            <span>Exportar Excel</span>
+          </button>
+          <div className="cable-count text-muted" style={{ whiteSpace: 'nowrap' }}>
+            {filteredData.length} circuitos encontrados
+          </div>
         </div>
       </div>
 
-      <div style={{ maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
-        <table className="cable-table" style={{ tableLayout: 'fixed' }}>
+      <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '60vh', position: 'relative' }}>
+        <table className="cable-table" style={{ tableLayout: 'fixed', width: '100%' }}>
           <thead>
             <tr>
-              <th style={{ width: '40px' }}></th>
+              <th style={{ width: '40px', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-card)', boxShadow: '0 1px 0 var(--border-color)' }}></th>
               {COLUMNS.map(col => {
                 const isFilterActive = activeFilter === col.field;
                 const allVals = isFilterActive ? getUniqueValues(col.field) : [];
@@ -204,11 +317,11 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                 return (
                   <th
                     key={col.field}
-                    style={{ width: col.width, textAlign: col.align || 'left', position: 'relative' }}
+                    style={{ width: col.width, textAlign: col.align || 'left', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-card)', boxShadow: '0 1px 0 var(--border-color)' }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'space-between' }}>
                       <div
-                        style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: col.computed ? 'default' : 'pointer' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: col.computed ? 'default' : 'pointer', whiteSpace: 'pre-line', lineHeight: '1.2' }}
                         onClick={() => !col.computed && handleSort(col.field)}
                       >
                         {col.label}
@@ -344,9 +457,9 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                         <>
                           <td>{row.wbs || '—'}</td>
                           <td>{row.sistema || '—'}</td>
-                          <td>{row.plano || '—'}</td>
                           <td>{row.material || '—'}</td>
                           <td style={{ textAlign: 'right' }}>{parseFloat(row.total_estimado_m || 0).toFixed(1)}</td>
+                          <td style={{ textAlign: 'right' }}>{parseFloat(row.total_despachado_m || 0).toFixed(1)}</td>
                           <td style={{ textAlign: 'right' }}>{parseFloat(row.metrado_reportado_campo || 0).toFixed(1)}</td>
                           <td style={{ textAlign: 'center' }}>
                             <div className="cable-avance-bar">
@@ -367,6 +480,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                           <td>{row.area || '—'}</td>
                           <td>{row.tipo_cable || '—'}</td>
                           <td style={{ textAlign: 'right' }}>{parseFloat(row.total_estimado_m || 0).toFixed(1)}</td>
+                          <td style={{ textAlign: 'right' }}>{parseFloat(row.total_despachado_m || 0).toFixed(1)}</td>
                           <td style={{ textAlign: 'right' }}>{parseFloat(row.metrado_reportado_campo || 0).toFixed(1)}</td>
                           <td style={{ textAlign: 'center' }}>
                             <div className="cable-avance-bar">

@@ -19,10 +19,9 @@ export default function CableBarChart({ data = [], title = '', maxItems = 10 }) 
     );
   }
 
-  // Sort by total descending and limit
+  // Sort by total descending
   const sorted = [...data]
-    .sort((a, b) => b.total - a.total)
-    .slice(0, maxItems);
+    .sort((a, b) => b.total - a.total);
 
   const maxTotal = Math.max(...sorted.map(d => d.total), 1);
 
@@ -49,36 +48,36 @@ export default function CableBarChart({ data = [], title = '', maxItems = 10 }) 
           const porTenderPct = (item.porTender / maxTotal) * 100;
 
           return (
-            <div className="cable-bar-row" key={i}>
+            <div className="cable-bar-row" key={i} title={`${item.name} — Tendido: ${item.tendido.toLocaleString()} m, Por Tender: ${item.porTender.toLocaleString()} m (Total: ${item.total.toLocaleString()} m)`}>
               <div className="cable-bar-label" title={item.name}>
-                {truncate(item.name, 14)}
+                {item.name}
               </div>
               <div className="cable-bar-track">
                 <div
                   className="cable-bar-fill cable-bar-tendido"
                   style={{ width: `${tendidoPct}%` }}
                 >
-                  {item.tendido >= 1000
+                  {tendidoPct >= 6 && (item.tendido >= 10000
                     ? `${(item.tendido / 1000).toFixed(0)}K`
                     : item.tendido > 0
-                    ? item.tendido.toFixed(0)
-                    : ''}
+                    ? Math.round(item.tendido).toLocaleString()
+                    : '')}
                 </div>
                 <div
                   className="cable-bar-fill cable-bar-portender"
                   style={{ width: `${porTenderPct}%` }}
                 >
-                  {item.porTender >= 1000
+                  {porTenderPct >= 6 && (item.porTender >= 10000
                     ? `${(item.porTender / 1000).toFixed(0)}K`
                     : item.porTender > 0
-                    ? item.porTender.toFixed(0)
-                    : ''}
+                    ? Math.round(item.porTender).toLocaleString()
+                    : '')}
                 </div>
               </div>
               <div className="cable-bar-total">
-                {item.total >= 1000
+                {item.total >= 10000
                   ? `${(item.total / 1000).toFixed(0)}K`
-                  : item.total.toFixed(0)}
+                  : Math.round(item.total).toLocaleString()}
               </div>
             </div>
           );

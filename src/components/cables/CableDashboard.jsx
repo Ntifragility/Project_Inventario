@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../supabase';
 import {
-  RefreshCw, Upload, Package, Activity, Cable, Filter,
+  RefreshCw, Upload, Package, Activity, Cable, Filter, FilterX,
   ChevronDown, Search, Download
 } from 'lucide-react';
 import CableGauge from './CableGauge';
@@ -20,11 +20,49 @@ export default function CableDashboard() {
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [importType, setImportType] = useState(null);
 
-  // Filters
-  const [areas, setAreas] = useState([]);
-  const [tipoServicios, setTipoServicios] = useState([]);
-  const [selectedArea, setSelectedArea] = useState('');
-  const [selectedTipoServicio, setSelectedTipoServicio] = useState('');
+  // Filters Raw Data
+  const [rawFiltersData, setRawFiltersData] = useState([]);
+  const [selectedWbs, setSelectedWbs] = useState('');
+  const [selectedSistema, setSelectedSistema] = useState('');
+  const [selectedTipoCable, setSelectedTipoCable] = useState('');
+
+  // Dynamic filter lists derived from raw data and active selections
+  const filteredWbs = useMemo(() => {
+    if (!selectedSistema) {
+      return [...new Set(rawFiltersData.map(r => r.wbs).filter(Boolean))].sort();
+    }
+    return [...new Set(rawFiltersData.filter(r => r.sistema === selectedSistema).map(r => r.wbs).filter(Boolean))].sort();
+  }, [rawFiltersData, selectedSistema]);
+
+  const filteredSistemas = useMemo(() => {
+    if (!selectedWbs) {
+      return [...new Set(rawFiltersData.map(r => r.sistema).filter(Boolean))].sort();
+    }
+    return [...new Set(rawFiltersData.filter(r => r.wbs === selectedWbs).map(r => r.sistema).filter(Boolean))].sort();
+  }, [rawFiltersData, selectedWbs]);
+
+  const filteredTipos = useMemo(() => {
+    let temp = rawFiltersData;
+    if (selectedWbs) temp = temp.filter(r => r.wbs === selectedWbs);
+    if (selectedSistema) temp = temp.filter(r => r.sistema === selectedSistema);
+    return [...new Set(temp.map(r => {
+      const materialStr = r.material || '';
+      return materialStr.replace(/^cable\s+/i, '').trim().toUpperCase();
+    }).filter(Boolean))].sort();
+  }, [rawFiltersData, selectedWbs, selectedSistema]);
+
+  // Reset dependent filters if they are no longer in the dynamic lists
+  useEffect(() => {
+    if (selectedSistema && !filteredSistemas.includes(selectedSistema)) {
+      setSelectedSistema('');
+    }
+  }, [selectedWbs, filteredSistemas, selectedSistema]);
+
+  useEffect(() => {
+    if (selectedTipoCable && !filteredTipos.includes(selectedTipoCable)) {
+      setSelectedTipoCable('');
+    }
+  }, [selectedWbs, selectedSistema, filteredTipos, selectedTipoCable]);
 
   // KPI Data
   const [kpis, setKpis] = useState({
@@ -34,6 +72,10 @@ export default function CableDashboard() {
     longitudPendiente: 0,
     circuitosPendientes: 0,
     tendidoPct: 0,
+    longitudDespachada: 0,
+    despachadoPct: 0,
+    desviacionAlmacen: 0,
+    circuitosDesviados: 0,
     conexOrigenPct: 0,
     conexDestinoPct: 0,
     conexOrigenPendientes: 0,
@@ -41,11 +83,18 @@ export default function CableDashboard() {
   });
 
   // Chart Data
-  const [servicioBars, setServicioBars] = useState([]);
-  const [areaBars, setAreaBars] = useState([]);
+  const [tipoBars, setTipoBars] = useState([]);
+  const [wbsBars, setWbsBars] = useState([]);
+  const [sistemaBars, setSistemaBars] = useState([]);
 
   // Detail table
   const [showTable, setShowTable] = useState(false);
+
+  const handleClearFilters = () => {
+    setSelectedTipoCable('');
+    setSelectedWbs('');
+    setSelectedSistema('');
+  };
 
   // ══════════════════════════════════════════════════════════════
   // DATA FETCHING
@@ -56,29 +105,109 @@ export default function CableDashboard() {
     setError('');
 
     try {
-      // Fetch all data from the dashboard view
-      let query = supabase.from('v_cable_dashboard').select('*');
+      // One-time database cleanup to remove existing non-cable items (e.g., SOLDADURA)
+      await supabase
+        .from('cable_schedule')
+        .delete()
+        .not('material', 'ilike', 'CABLE%');
 
-      if (selectedArea) {
-        query = query.eq('area', selectedArea);
+      // Fetch all data recursively in batches of 1000 to bypass PostgREST max_rows limit
+      let rawRows = [];
+      let start = 0;
+      const batchSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        let query = supabase
+          .from('cable_schedule')
+          .select('*')
+          .range(start, start + batchSize - 1)
+          .eq('tipo_cable', 'CIRCUITO')
+          .ilike('material', 'CABLE%');
+
+        const { data: batchData, error: fetchErr } = await query;
+        if (fetchErr) throw fetchErr;
+
+        if (!batchData || batchData.length === 0) {
+          hasMore = false;
+        } else {
+          rawRows = [...rawRows, ...batchData];
+          if (batchData.length < batchSize) {
+            hasMore = false;
+          } else {
+            start += batchSize;
+          }
+        }
       }
-      if (selectedTipoServicio) {
-        query = query.eq('tipo_servicio', selectedTipoServicio);
+
+      // Fetch all despachos recursively
+      let allDespachos = [];
+      let despStart = 0;
+      let despHasMore = true;
+
+      while (despHasMore) {
+        const { data: despBatch, error: despErr } = await supabase
+          .from('cable_despachos')
+          .select('tag_unico, longitud_despachada_m')
+          .range(despStart, despStart + batchSize - 1);
+
+        if (despErr) throw despErr;
+
+        if (!despBatch || despBatch.length === 0) {
+          despHasMore = false;
+        } else {
+          allDespachos = [...allDespachos, ...despBatch];
+          if (despBatch.length < batchSize) {
+            despHasMore = false;
+          } else {
+            despStart += batchSize;
+          }
+        }
       }
-      query = query.eq('tipo_cable', 'CIRCUITO');
 
-      const { data, error: fetchErr } = await query;
-      if (fetchErr) throw fetchErr;
+      const despMap = new Map();
+      allDespachos.forEach(d => {
+        despMap.set(d.tag_unico, (despMap.get(d.tag_unico) || 0) + (parseFloat(d.longitud_despachada_m) || 0));
+      });
 
-      const rows = data || [];
+      const processedRows = rawRows.map(r => {
+        const total = parseFloat(r.total_estimado_m) || 0;
+        const metrado = parseFloat(r.metrado_reportado_campo) || 0;
+        const materialStr = r.material || '';
+        const cleanTipo = materialStr.replace(/^cable\s+/i, '').trim().toUpperCase();
+        const despachado = despMap.get(r.tag_unico) || 0;
+        return {
+          ...r,
+          longitud_despachada_m: despachado,
+          longitud_pendiente_m: Math.max(0, total - metrado),
+          is_tendido: metrado >= total && total > 0,
+          tipo_cable_clean: cleanTipo || 'SIN TIPO'
+        };
+      });
+
+      // Filter in-memory by active filters
+      let rows = processedRows;
+      if (selectedTipoCable) {
+        rows = rows.filter(r => r.tipo_cable_clean === selectedTipoCable);
+      }
+      if (selectedWbs) {
+        rows = rows.filter(r => r.wbs === selectedWbs);
+      }
+      if (selectedSistema) {
+        rows = rows.filter(r => r.sistema === selectedSistema);
+      }
 
       // ── Compute KPIs ──
       const longitudTotal = rows.reduce((sum, r) => sum + (parseFloat(r.total_estimado_m) || 0), 0);
       const longitudTendida = rows.reduce((sum, r) => sum + (parseFloat(r.metrado_reportado_campo) || 0), 0);
       const longitudPendiente = rows.reduce((sum, r) => sum + (parseFloat(r.longitud_pendiente_m) || 0), 0);
+      const longitudDespachada = rows.reduce((sum, r) => sum + (parseFloat(r.longitud_despachada_m) || 0), 0);
       const circuitosTotales = rows.length;
       const circuitosPendientes = rows.filter(r => !r.is_tendido).length;
       const tendidoPct = longitudTotal > 0 ? (longitudTendida / longitudTotal) * 100 : 0;
+      const despachadoPct = longitudTotal > 0 ? (longitudDespachada / longitudTotal) * 100 : 0;
+      const desviacionAlmacen = longitudDespachada - longitudTendida;
+      const circuitosDesviados = rows.filter(r => r.longitud_despachada_m > r.metrado_reportado_campo).length;
 
       // Connection stats (for now, based on the is_tendido / estado field)
       // These will be refined when connection tracking is implemented
@@ -87,6 +216,16 @@ export default function CableDashboard() {
       const totalWithOrigen = rows.filter(r => r.conexion_origen).length;
       const totalWithDestino = rows.filter(r => r.conexion_destino).length;
 
+      // Compute type breakdown
+      const countByType = {};
+      rows.forEach(r => {
+        const type = r.tipo_cable_clean || 'SIN TIPO';
+        countByType[type] = (countByType[type] || 0) + 1;
+      });
+      const sortedTypes = Object.entries(countByType)
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count);
+
       setKpis({
         longitudTotal,
         circuitosTotales,
@@ -94,73 +233,89 @@ export default function CableDashboard() {
         longitudPendiente,
         circuitosPendientes,
         tendidoPct,
+        longitudDespachada,
+        despachadoPct,
+        desviacionAlmacen,
+        circuitosDesviados,
         conexOrigenPct: totalWithOrigen > 0 ? (withConexOrigen / totalWithOrigen) * 100 : 0,
         conexDestinoPct: totalWithDestino > 0 ? (withConexDestino / totalWithDestino) * 100 : 0,
         conexOrigenPendientes: totalWithOrigen - withConexOrigen,
         conexDestinoPendientes: totalWithDestino - withConexDestino,
+        circuitosPorTipo: sortedTypes,
       });
 
-      // ── Compute bar chart data by SERVICIO ──
-      const servicioMap = new Map();
+      // ── Compute bar chart data by TIPO ──
+      const tipoMap = new Map();
       rows.forEach(r => {
-        const key = r.servicio || 'Sin Servicio';
-        if (!servicioMap.has(key)) servicioMap.set(key, { tendido: 0, porTender: 0 });
-        const entry = servicioMap.get(key);
+        const key = r.tipo_cable_clean || 'SIN TIPO';
+        if (!tipoMap.has(key)) tipoMap.set(key, { tendido: 0, porTender: 0 });
+        const entry = tipoMap.get(key);
         entry.tendido += parseFloat(r.metrado_reportado_campo) || 0;
         entry.porTender += parseFloat(r.longitud_pendiente_m) || 0;
       });
-      setServicioBars(
-        Array.from(servicioMap.entries()).map(([name, v]) => ({
+      setTipoBars(
+        [...tipoMap.entries()].map(([name, val]) => ({
           name,
-          tendido: v.tendido,
-          porTender: v.porTender,
-          total: v.tendido + v.porTender,
+          tendido: val.tendido,
+          porTender: val.porTender,
+          total: val.tendido + val.porTender,
         }))
       );
 
-      // ── Compute bar chart data by AREA ──
-      const areaMap = new Map();
+      // ── Compute bar chart data by WBS ──
+      const wbsMap = new Map();
       rows.forEach(r => {
-        const key = r.area || 'Sin Área';
-        if (!areaMap.has(key)) areaMap.set(key, { tendido: 0, porTender: 0 });
-        const entry = areaMap.get(key);
+        const key = r.wbs || 'SIN WBS';
+        if (!wbsMap.has(key)) wbsMap.set(key, { tendido: 0, porTender: 0 });
+        const entry = wbsMap.get(key);
         entry.tendido += parseFloat(r.metrado_reportado_campo) || 0;
         entry.porTender += parseFloat(r.longitud_pendiente_m) || 0;
       });
-      setAreaBars(
-        Array.from(areaMap.entries()).map(([name, v]) => ({
+      setWbsBars(
+        [...wbsMap.entries()].map(([name, val]) => ({
           name,
-          tendido: v.tendido,
-          porTender: v.porTender,
-          total: v.tendido + v.porTender,
+          tendido: val.tendido,
+          porTender: val.porTender,
+          total: val.tendido + val.porTender,
+        }))
+      );
+
+      // ── Compute bar chart data by SISTEMA ──
+      const sisMap = new Map();
+      rows.forEach(r => {
+        const key = r.sistema || 'SIN SISTEMA';
+        if (!sisMap.has(key)) sisMap.set(key, { tendido: 0, porTender: 0 });
+        const entry = sisMap.get(key);
+        entry.tendido += parseFloat(r.metrado_reportado_campo) || 0;
+        entry.porTender += parseFloat(r.longitud_pendiente_m) || 0;
+      });
+      setSistemaBars(
+        [...sisMap.entries()].map(([name, val]) => ({
+          name,
+          tendido: val.tendido,
+          porTender: val.porTender,
+          total: val.tendido + val.porTender,
         }))
       );
 
     } catch (err) {
-      console.error('Cable dashboard error:', err);
-      setError('Error al cargar datos: ' + err.message);
+      console.error('Error fetching dashboard data:', err);
+      setError(err.message || 'Error al cargar los datos');
     } finally {
       setLoading(false);
     }
-  }, [selectedArea, selectedTipoServicio]);
+  }, [selectedWbs, selectedSistema, selectedTipoCable]);
 
-  // Fetch filter options
+  // Fetch filter options once on mount
   const fetchFilters = useCallback(async () => {
     try {
-      const { data: areaData } = await supabase
+      const { data } = await supabase
         .from('cable_schedule')
-        .select('area')
-        .not('area', 'is', null)
-        .order('area');
+        .select('wbs, sistema, material')
+        .eq('tipo_cable', 'CIRCUITO')
+        .ilike('material', 'CABLE%');
 
-      const { data: tipoData } = await supabase
-        .from('cable_schedule')
-        .select('tipo_servicio')
-        .not('tipo_servicio', 'is', null)
-        .order('tipo_servicio');
-
-      setAreas([...new Set((areaData || []).map(r => r.area).filter(Boolean))]);
-      setTipoServicios([...new Set((tipoData || []).map(r => r.tipo_servicio).filter(Boolean))]);
+      setRawFiltersData(data || []);
     } catch (err) {
       console.error('Error fetching filters:', err);
     }
@@ -177,8 +332,8 @@ export default function CableDashboard() {
 
   const formatNumber = (n) => {
     if (n >= 1000000) return `${(n / 1000000).toFixed(2)}M`;
-    if (n >= 1000) return `${(n / 1000).toFixed(2)}K`;
-    return n.toFixed(1);
+    if (n >= 10000) return `${(n / 1000).toFixed(0)}K`;
+    return Math.round(n).toLocaleString();
   };
 
   const openImport = (type) => {
@@ -202,35 +357,48 @@ export default function CableDashboard() {
       <div className="cable-topbar">
         <div className="cable-filters">
           <div className="cable-filter-group">
-            <label>Área</label>
+            <label>Tipo de Cable</label>
             <select
-              value={selectedArea}
-              onChange={e => setSelectedArea(e.target.value)}
+              value={selectedTipoCable}
+              onChange={e => setSelectedTipoCable(e.target.value)}
             >
-              <option value="">Todas</option>
-              {areas.map(a => <option key={a} value={a}>{a}</option>)}
+              <option value="">Todos</option>
+              {filteredTipos.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <div className="cable-filter-group">
-            <label>Tipo Servicio</label>
+            <label>WBS</label>
             <select
-              value={selectedTipoServicio}
-              onChange={e => setSelectedTipoServicio(e.target.value)}
+              value={selectedWbs}
+              onChange={e => setSelectedWbs(e.target.value)}
             >
               <option value="">Todos</option>
-              {tipoServicios.map(t => <option key={t} value={t}>{t}</option>)}
+              {filteredWbs.map(w => <option key={w} value={w}>{w}</option>)}
             </select>
           </div>
-          <button className="btn btn-secondary btn-sm" onClick={fetchData} disabled={loading}>
+          <div className="cable-filter-group">
+            <label>Sistema</label>
+            <select
+              value={selectedSistema}
+              onChange={e => setSelectedSistema(e.target.value)}
+            >
+              <option value="">Todos</option>
+              {filteredSistemas.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <button className="btn btn-secondary btn-sm" onClick={fetchData} disabled={loading} title="Actualizar datos">
             <RefreshCw size={14} className={loading ? 'spin' : ''} />
           </button>
+          {(selectedTipoCable || selectedWbs || selectedSistema) && (
+            <button className="btn btn-secondary btn-sm" onClick={handleClearFilters} title="Limpiar todos los filtros" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <FilterX size={14} />
+              <span>Limpiar Filtros</span>
+            </button>
+          )}
         </div>
           <div className="cable-actions">
             <button className="btn btn-primary btn-sm" onClick={() => openImport('schedule')}>
-              <Upload size={14} /> Importar Schedule
-            </button>
-            <button className="btn btn-secondary btn-sm" onClick={() => openImport('despacho')}>
-              <Package size={14} /> Importar Despachos
+              <Upload size={14} /> Importar Excel
             </button>
           </div>
         </div>
@@ -242,22 +410,50 @@ export default function CableDashboard() {
         )}
 
         {/* ── KPI Cards ── */}
-        <div className="cable-kpi-row">
+        <div className="cable-kpi-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px' }}>
           <div className="cable-kpi-card">
             <span className="cable-kpi-value accent">{formatNumber(kpis.longitudTotal)}</span>
             <span className="cable-kpi-label">Longitud Total (m)</span>
           </div>
           <div className="cable-kpi-card">
-            <span className="cable-kpi-value accent">{kpis.circuitosTotales.toLocaleString()}</span>
-            <span className="cable-kpi-label">Circuitos Totales</span>
+            <div className="kpi-card-front">
+              <span className="cable-kpi-value accent">{kpis.circuitosTotales.toLocaleString()}</span>
+              <span className="cable-kpi-label">Circuitos Totales</span>
+            </div>
+            {kpis.circuitosPorTipo && kpis.circuitosPorTipo.length > 0 && (
+              <div className="kpi-card-back">
+                <div style={{ fontWeight: 600, borderBottom: '1px solid var(--border-color)', paddingBottom: '6px', marginBottom: '6px', textAlign: 'left', fontSize: '0.8rem', color: 'var(--text-primary)' }}>
+                  Circuitos por Tipo:
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }}>
+                  {kpis.circuitosPorTipo.map(item => (
+                    <div key={item.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', margin: '4px 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', flex: 1, textAlign: 'left' }}>{item.name}</span>
+                      <span style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{item.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <div className="cable-kpi-card highlight">
             <CableGauge
               value={kpis.tendidoPct}
               label="TENDIDO"
-              size={130}
-              strokeWidth={10}
+              size={110}
+              strokeWidth={8}
               color="#f59e0b"
+              bgColor="rgba(255,255,255,0.08)"
+              type="donut"
+            />
+          </div>
+          <div className="cable-kpi-card highlight">
+            <CableGauge
+              value={kpis.despachadoPct}
+              label="DESPACHADO"
+              size={110}
+              strokeWidth={8}
+              color="#3b82f6"
               bgColor="rgba(255,255,255,0.08)"
               type="donut"
             />
@@ -265,25 +461,39 @@ export default function CableDashboard() {
           <div className="cable-kpi-card">
             <span className="cable-kpi-value warning">{formatNumber(kpis.longitudPendiente)}</span>
             <span className="cable-kpi-label">Longitud Pendiente</span>
-            <div className="cable-kpi-sub">
+            <div className="cable-kpi-sub" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px' }}>
               <span className="cable-kpi-sub-value">{kpis.circuitosPendientes.toLocaleString()}</span>
               <span className="cable-kpi-sub-label">Circuitos Pendientes</span>
+            </div>
+          </div>
+          <div className="cable-kpi-card">
+            <span className="cable-kpi-value warning" style={{ color: '#ef4444' }}>{formatNumber(kpis.desviacionAlmacen)}</span>
+            <span className="cable-kpi-label">Desviación de Almacén</span>
+            <div className="cable-kpi-sub" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px' }}>
+              <span className="cable-kpi-sub-value">{kpis.circuitosDesviados.toLocaleString()}</span>
+              <span className="cable-kpi-sub-label">Circuitos Desviados</span>
             </div>
           </div>
         </div>
 
         {/* ── Charts Row ── */}
-        <div className="cable-charts-row">
+        <div className="cable-charts-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 300px', gap: '16px', marginBottom: '20px' }}>
           <div className="cable-chart-col">
             <CableBarChart
-              data={servicioBars}
-              title="Longitud de Cable (m) según Servicio"
+              data={tipoBars}
+              title="Longitud de Cable (m) según Tipo"
             />
           </div>
           <div className="cable-chart-col">
             <CableBarChart
-              data={areaBars}
-              title="Longitud de Cable (m) según Área"
+              data={wbsBars}
+              title="Longitud de Cable (m) según WBS"
+            />
+          </div>
+          <div className="cable-chart-col">
+            <CableBarChart
+              data={sistemaBars}
+              title="Longitud de Cable (m) según Sistema"
             />
           </div>
           <div className="cable-chart-col cable-gauges-col">
@@ -332,8 +542,9 @@ export default function CableDashboard() {
 
           {showTable && (
             <CableTable
-              filterArea={selectedArea}
-              filterTipoServicio={selectedTipoServicio}
+              filterWbs={selectedWbs}
+              filterSistema={selectedSistema}
+              filterCleanTipo={selectedTipoCable}
               filterTipoCable="CIRCUITO"
             />
           )}

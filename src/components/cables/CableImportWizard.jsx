@@ -161,11 +161,13 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
       const matchedProfile = findMatchingProfileByHeaders(headers, profiles, detected);
 
       if (matchedProfile && matchedProfile.column_mapping) {
-        // Load mapping from profile
+        // Load mapping from profile by resolving header name strings to current indices
         const loadedMapping = {};
-        Object.entries(matchedProfile.column_mapping).forEach(([k, v]) => {
-          if (headers.includes(k)) loadedMapping[v] = k;
-          else if (headers.includes(v)) loadedMapping[k] = v;
+        Object.entries(matchedProfile.column_mapping).forEach(([headerName, fieldName]) => {
+          const idx = headers.indexOf(headerName);
+          if (idx !== -1) {
+            loadedMapping[fieldName] = idx;
+          }
         });
 
         // Fill missing required fields with autoMap
@@ -227,6 +229,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
   const buildPreview = useCallback(() => {
     const errors = [];
     const parsedRows = [];
+    let filteredByCable = 0;
 
     rawRows.forEach((row, i) => {
       const obj = transformRow(row, mapping, columnDefs);
@@ -238,6 +241,15 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
 
       if (importType === 'schedule') {
         obj.tipo_cable = 'CIRCUITO';
+      }
+
+      // ── Internal filter: only rows whose DESCRIPCION DE CABLE starts with "CABLE"
+      if (importType === 'schedule' || importType === 'pat') {
+        const desc = String(obj.material || '').trim().toUpperCase();
+        if (!desc.startsWith('CABLE')) {
+          filteredByCable++;
+          return; // skip this row silently
+        }
       }
 
       // Validate required fields
@@ -271,33 +283,84 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
       let updated = 0;
 
       // Save mapping profile
+      const savedMapping = {};
+      Object.entries(mapping).forEach(([field, idx]) => {
+        if (idx !== undefined && idx !== null) {
+          const headerName = rawHeaders[idx];
+          if (headerName) {
+            savedMapping[headerName] = field;
+          }
+        }
+      });
+
       saveOrUpdateProfile({
         name: `Auto ${importType} (${new Date().toLocaleDateString()})`,
         type: importType,
         headers: rawHeaders,
-        columnMapping: mapping
+        columnMapping: savedMapping
       });
       let errors = 0;
 
       for (let i = 0; i < previewData.length; i += BATCH_SIZE) {
         const batch = previewData.slice(i, i + BATCH_SIZE);
 
-        if (importType === 'schedule') {
-          // Upsert on tag_unico for cable_schedule
-          const { data, error } = await supabase
-            .from(table)
-            .upsert(batch.map(row => ({
-              ...row,
+        if (importType === 'schedule' || importType === 'pat') {
+          // Extract despachado if present
+          const scheduleBatch = batch.map(row => {
+            const copy = { ...row };
+            delete copy.total_despachado_m;
+            return {
+              ...copy,
               updated_at: new Date().toISOString(),
-            })), {
+            };
+          });
+
+          // Upsert on tag_unico for cable_schedule
+          const { error } = await supabase
+            .from('cable_schedule')
+            .upsert(scheduleBatch, {
               onConflict: 'tag_unico',
               ignoreDuplicates: false,
             });
 
           if (error) throw error;
+
+          // If there is total_despachado_m mapped, insert/upsert into cable_despachos
+          const despachadoRows = batch
+            .filter(row => row.total_despachado_m !== undefined && parseFloat(row.total_despachado_m) > 0)
+            .map(row => ({
+              tag_unico: row.tag_unico,
+              longitud_despachada_m: parseFloat(row.total_despachado_m),
+              vale_almacen: 'IMPORT_PAT',
+              fecha_entrega: new Date().toISOString().split('T')[0]
+            }));
+
+          if (despachadoRows.length > 0) {
+            // Delete old despachos for these tags first
+            const tagsToDelete = despachadoRows.map(r => r.tag_unico);
+            await supabase
+              .from('cable_despachos')
+              .delete()
+              .in('tag_unico', tagsToDelete);
+
+            const { error: despErr } = await supabase
+              .from('cable_despachos')
+              .insert(despachadoRows);
+            if (despErr) throw despErr;
+          }
+
           inserted += batch.length;
         } else {
-          // Insert for cable_despachos (multiple despachos per tag_unico)
+          // Simulated upsert: delete existing records for these tags first to prevent duplicate entries
+          const tagsToDelete = batch.map(row => row.tag_unico).filter(Boolean);
+          if (tagsToDelete.length > 0) {
+            const { error: delErr } = await supabase
+              .from('cable_despachos')
+              .delete()
+              .in('tag_unico', tagsToDelete);
+            if (delErr) throw delErr;
+          }
+
           const { data, error } = await supabase
             .from(table)
             .insert(batch);
@@ -307,6 +370,14 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
         }
 
         setImportProgress(Math.round(((i + batch.length) / previewData.length) * 100));
+      }
+
+      // Cleanup database from non-cable items after import (only if material was mapped to prevent accidental wipes)
+      if ((importType === 'schedule' || importType === 'pat') && mapping.material !== undefined) {
+        await supabase
+          .from('cable_schedule')
+          .delete()
+          .not('material', 'ilike', 'CABLE%');
       }
 
       setImportResult({
@@ -386,13 +457,15 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
             const isActive = i === currentStep;
             const isDone = i < currentStep;
             return (
-              <div key={i} className={`step-item ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`}>
-                <div className="step-circle">
-                  {isDone ? <CheckCircle2 size={16} /> : <Icon size={16} />}
+              <React.Fragment key={i}>
+                <div className={`smart-wizard-step ${isActive ? 'active' : ''} ${isDone ? 'completed' : ''}`}>
+                  <div className="smart-wizard-step-icon">
+                    {isDone ? <CheckCircle2 size={16} /> : <Icon size={16} />}
+                  </div>
+                  <span className="smart-wizard-step-label">{step.label}</span>
                 </div>
-                <span className="step-label">{step.label}</span>
-                {i < STEPS.length - 1 && <div className="step-connector" />}
-              </div>
+                {i < STEPS.length - 1 && <div className={`smart-wizard-step-connector ${isDone ? 'completed' : ''}`} />}
+              </React.Fragment>
             );
           })}
         </div>
@@ -403,7 +476,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
           {currentStep === 0 && (
             <div className="import-step">
               <div
-                className={`upload-dropzone ${isDragging ? 'dragging' : ''} ${fileName ? 'has-file' : ''}`}
+                className={`smart-wizard-dropzone ${isDragging ? 'dragging' : ''} ${fileName ? 'has-file' : ''}`}
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={handleFileDrop}
@@ -417,20 +490,20 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
                   style={{ display: 'none' }}
                 />
                 {isFileLoading ? (
-                  <div className="upload-loading">
+                  <div className="smart-wizard-dropzone-loading">
                     <Loader2 size={32} className="spin" />
                     <p>Procesando archivo...</p>
                   </div>
                 ) : fileName ? (
-                  <div className="upload-success">
-                    <FileSpreadsheet size={32} />
+                  <div className="smart-wizard-dropzone-success">
+                    <FileSpreadsheet size={32} color="var(--success)" />
                     <p><strong>{fileName}</strong></p>
                     <p className="text-muted">{rawRows.length} filas · {rawHeaders.length} columnas</p>
                   </div>
                 ) : (
-                  <div className="upload-prompt">
-                    <Upload size={40} />
-                    <p><strong>Arrastra tu archivo aquí</strong></p>
+                  <div className="smart-wizard-dropzone-prompt">
+                    <Upload size={40} style={{ color: 'var(--primary)', marginBottom: '12px' }} />
+                    <p style={{ fontSize: '1.1rem', fontWeight: '600' }}><strong>Arrastra tu archivo aquí</strong></p>
                     <p className="text-muted">o haz clic para seleccionar (.xlsx, .xls, .csv)</p>
                   </div>
                 )}
@@ -525,11 +598,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
                           <option key={i} value={i}>{h || `Columna ${i + 1}`}</option>
                         ))}
                       </select>
-                      {isMapped && (
-                        <div className="cable-mapping-preview">
-                          Ej: {String(rawRows[0]?.[mappedIdx] ?? '').slice(0, 30)}
-                        </div>
-                      )}
+                      {/* Preview removed */}
                     </div>
                   );
                 })}
@@ -551,13 +620,13 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
           {/* ── STEP 2: PREVIEW ── */}
           {currentStep === 2 && (
             <div className="import-step">
-              <div className="cable-preview-stats">
-                <div className="cable-preview-stat success">
+              <div className="cable-preview-stats" style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                <div className="cable-preview-stat success" style={{ background: 'var(--success-bg)', color: 'var(--success-text)', padding: '6px 12px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <CheckCircle2 size={16} />
                   <span>{previewData.length} filas válidas</span>
                 </div>
                 {validationErrors.length > 0 && (
-                  <div className="cable-preview-stat warning">
+                  <div className="cable-preview-stat warning" style={{ background: 'var(--warning-bg)', color: 'var(--warning-text)', padding: '6px 12px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <AlertCircle size={16} />
                     <span>{validationErrors.length} advertencias</span>
                   </div>

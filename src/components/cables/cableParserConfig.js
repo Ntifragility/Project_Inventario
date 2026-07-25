@@ -56,17 +56,17 @@ export const CABLE_DESPACHO_SIGNATURES = [
 export const CABLE_PAT_COLUMNS = {
   wbs:                     { label: 'WBS',                     required: false, type: 'text' },
   sistema:                 { label: 'SISTEMA',                 required: false, type: 'text' },
-  plano:                   { label: 'PLANO',                   required: false, type: 'text' },
   tag_unico:               { label: 'TAG UNICO',               required: true,  type: 'text' },
   material:                { label: 'DESCRIPCION DE CABLE',    required: false, type: 'text' },
   total_estimado_m:        { label: 'METRADO OT',              required: false, type: 'number' },
+  total_despachado_m:      { label: 'METRADO DESPACHADO (M)',  required: false, type: 'number' },
   metrado_reportado_campo: { label: 'METRADO CAMPO',           required: false, type: 'number' },
   fecha_tendido:           { label: 'FECHA METRADO CAMPO',     required: false, type: 'date' },
 };
 
 export const CABLE_PAT_SIGNATURES = [
   'WBS',
-  'PLANO',
+  'METRADO DESPACHADO',
   'METRADO OT',
   'METRADO CAMPO',
   'DESCRIPCION DE CABLE'
@@ -111,26 +111,42 @@ export function autoMapColumns(headers, columnDefs) {
   const mapping = {};
   const upperHeaders = headers.map(h => (h || '').toString().toUpperCase().trim());
 
+  const ALIASES = {
+    tag_unico: ['TAG UNICO', 'TAG_UNICO', 'TAG'],
+    numero: ['N°', 'N', 'NUMERO'],
+    area: ['AREA', 'WBS', 'ZONA'],
+    sistema: ['SISTEMA', 'SUBSISTEMA', 'SUB-SISTEMA'],
+    material: ['DESCRIPCION DE CABLE', 'DESCRIPCION DE MATERIAL', 'DESCRIPCION CABLE', 'DESCRIPCION', 'MATERIAL'],
+    total_estimado_m: ['TOTAL ESTIMADO', 'TOTAL ESTIM', 'TOTAL ESTIM. (M)', 'METRADO OT', 'METRADO OT (M)'],
+    conexion_origen: ['CONEXION DE ORIGEN', 'CONEXION ORIGEN', 'ORIGEN'],
+    conexion_destino: ['CONEXION DE DESTINO', 'CONEXION DESTINO', 'DESTINO'],
+    tipo_servicio: ['TIPO SERVICIO', 'TIPO', 'SERVICIO'],
+    metrado_reportado_campo: ['METRADO REPORTADO CAMPO', 'METRADO CAMPO', 'METRADO CAMPO (M)', 'METRADO EN CAMPO'],
+    fecha_tendido: ['FECHA', 'FECHA METRADO CAMPO', 'FECHA DE METRADO', 'FECHA TENDIDO', 'FECHA_TENDIDO']
+  };
+
   for (const [field, def] of Object.entries(columnDefs)) {
-    const target = def.label.toUpperCase();
-
-    // Try exact match first
-    let idx = upperHeaders.findIndex(h => h === target);
-
-    // Try partial / contains match
-    if (idx === -1) {
-      idx = upperHeaders.findIndex(h => h.includes(target) || target.includes(h));
+    const list = ALIASES[field] || [def.label];
+    
+    // Find the first header that matches any alias
+    let idx = -1;
+    for (const alias of list) {
+      const aliasUpper = alias.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      idx = upperHeaders.findIndex(h => h.replace(/[^A-Z0-9]/g, '') === aliasUpper);
+      if (idx !== -1) break;
     }
 
-    // Try word-start matching for abbreviated headers
+    // Fallback: search if alias is contained in header or vice versa
     if (idx === -1) {
-      const targetWords = target.split(/\s+/);
-      idx = upperHeaders.findIndex(h => {
-        const hWords = h.split(/\s+/);
-        return targetWords.every(tw =>
-          hWords.some(hw => hw.startsWith(tw) || tw.startsWith(hw))
-        );
-      });
+      for (const alias of list) {
+        const aliasUpper = alias.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (!aliasUpper) continue;
+        idx = upperHeaders.findIndex(h => {
+          const cleanH = h.replace(/[^A-Z0-9]/g, '');
+          return cleanH.includes(aliasUpper) || aliasUpper.includes(cleanH);
+        });
+        if (idx !== -1) break;
+      }
     }
 
     if (idx !== -1) {
