@@ -74,10 +74,6 @@ export default function MainMenu({ onSelectModule, user, onLogout, isDark, toggl
                 </div>
                 <h3 className="main-menu-card-title">{item.label}</h3>
                 <p className="main-menu-card-desc">{item.description}</p>
-                <div className="main-menu-card-action">
-                  <span>Ingresar al Módulo</span>
-                  <span className="arrow">→</span>
-                </div>
               </div>
             );
           })}
