@@ -12,18 +12,20 @@ import ConsumptionReport from './components/consumption/ConsumptionReport';
 import RecipeManager from './components/recipes/RecipeManager';
 import { Clock, Menu } from 'lucide-react';
 
+import MainMenu from './components/MainMenu';
+
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 const WARNING_BEFORE_MS = 60 * 1000; // Show warning 1 minute before logout
 
 export default function App() {
   const [session, setSession] = useState(null);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(null);
   const [isDark, setIsDark] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  const [activeModule, setActiveModule] = useState('material');
+  const [activeModule, setActiveModule] = useState(null);
   const inactivityTimer = useRef(null);
   const warningTimer = useRef(null);
 
@@ -131,6 +133,20 @@ export default function App() {
 
   // Render view router based on tab selections
   const renderTabContent = () => {
+    if (!activeModule) {
+      return (
+        <MainMenu
+          onSelectModule={(moduleId, tabId) => {
+            setActiveModule(moduleId);
+            setActiveTab(tabId);
+          }}
+          user={session.user}
+          onLogout={handleLogout}
+          isDark={isDark}
+          toggleTheme={toggleTheme}
+        />
+      );
+    }
     switch (activeTab) {
       case 'dashboard':
         return <Dashboard />;
@@ -156,6 +172,7 @@ export default function App() {
   };
 
   const getTabTitle = () => {
+    if (!activeModule) return 'Menú Principal';
     switch (activeTab) {
       case 'dashboard': return 'Dashboard General';
       case 'productos': return 'Gestión de Productos';
@@ -171,38 +188,44 @@ export default function App() {
   };
 
   return (
-    <div className="app-container">
-      <Sidebar 
-        activeModule={activeModule}
-        setActiveModule={setActiveModule}
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab}
-        user={session.user}
-        onLogout={handleLogout}
-        isDark={isDark}
-        toggleTheme={toggleTheme}
-        isOpen={isMobileSidebarOpen}
-        onClose={() => setIsMobileSidebarOpen(false)}
-      />
-      {isMobileSidebarOpen && (
-        <div 
-          className="sidebar-overlay" 
-          onClick={() => setIsMobileSidebarOpen(false)}
-        ></div>
+    <div className={`app-container ${!activeModule ? 'no-sidebar' : ''}`}>
+      {activeModule && (
+        <>
+          <Sidebar 
+            activeModule={activeModule}
+            setActiveModule={setActiveModule}
+            activeTab={activeTab} 
+            setActiveTab={setActiveTab}
+            user={session.user}
+            onLogout={handleLogout}
+            isDark={isDark}
+            toggleTheme={toggleTheme}
+            isOpen={isMobileSidebarOpen}
+            onClose={() => setIsMobileSidebarOpen(false)}
+          />
+          {isMobileSidebarOpen && (
+            <div 
+              className="sidebar-overlay" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+            ></div>
+          )}
+        </>
       )}
       <div className="main-content">
-        <header className="content-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <button 
-              className="sidebar-toggle-btn" 
-              onClick={() => setIsMobileSidebarOpen(true)}
-              aria-label="Abrir menú"
-            >
-              <Menu size={20} />
-            </button>
-            <h2>{getTabTitle()}</h2>
-          </div>
-        </header>
+        {activeModule && (
+          <header className="content-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button 
+                className="sidebar-toggle-btn" 
+                onClick={() => setIsMobileSidebarOpen(true)}
+                aria-label="Abrir menú"
+              >
+                <Menu size={20} />
+              </button>
+              <h2>{getTabTitle()}</h2>
+            </div>
+          </header>
+        )}
 
         {showTimeoutWarning && (
           <div className="message warning" style={{ 

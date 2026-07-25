@@ -88,6 +88,7 @@ export default function Sidebar({ activeModule, setActiveModule, activeTab, setA
                     } else {
                       // Clicking the active header again goes back to main menu
                       setActiveModule(null);
+                      setActiveTab(null);
                     }
                   }}
                   style={{
@@ -141,7 +142,10 @@ export default function Sidebar({ activeModule, setActiveModule, activeTab, setA
         {activeModule && (
           <button
             className="sidebar-fab"
-            onClick={() => setActiveModule(null)}
+            onClick={() => {
+              setActiveModule(null);
+              setActiveTab(null);
+            }}
             title="Volver al Menú Principal"
           >
             <div className="fab-icon"><ChevronLeft size={20} /></div>
