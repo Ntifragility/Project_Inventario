@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Box, Cable, MonitorDot, User, LogOut, Sun, Moon } from 'lucide-react';
+import { Box, Cable, MonitorDot, User, LogOut, Sun, Moon, Zap, ChevronLeft } from 'lucide-react';
 
 export default function MainMenu({ onSelectModule, user, onLogout, isDark, toggleTheme }) {
   const [hoveredModule, setHoveredModule] = useState(null);
+  const [showCableSubmenu, setShowCableSubmenu] = useState(false);
   
   const menuItems = [
     {
@@ -59,32 +60,103 @@ export default function MainMenu({ onSelectModule, user, onLogout, isDark, toggl
 
       {/* Grid containing cards */}
       <div className="main-menu-content">
-        <div className="main-menu-grid">
-          {menuItems.map(item => {
-            const IconComponent = item.icon;
-            return (
+        {showCableSubmenu ? (
+          <div className="submenu-container" style={{ animation: 'slideUp 0.25s ease-out', width: '100%', maxWidth: '800px', margin: '0 auto' }}>
+            <button 
+              className="btn btn-secondary btn-sm submenu-back-btn" 
+              onClick={() => setShowCableSubmenu(false)}
+              style={{ 
+                marginBottom: '20px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                padding: '8px 14px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                color: 'var(--text-primary)'
+              }}
+            >
+              <ChevronLeft size={16} />
+              <span>Volver a Módulos</span>
+            </button>
+            <h2 className="submenu-title" style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '24px', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'left' }}>
+              Cable Scheduling
+            </h2>
+            <div className="main-menu-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
               <div
-                key={item.id}
                 className="main-menu-card"
-                onClick={() => onSelectModule(item.id, item.defaultTab)}
-                onMouseEnter={() => setHoveredModule(item.id)}
+                onClick={() => onSelectModule('cable', 'cables')}
+                onMouseEnter={() => setHoveredModule('cable')}
                 onMouseLeave={() => setHoveredModule(null)}
                 style={{
-                  '--glow-color': item.glowColor
+                  '--glow-color': 'rgba(16, 185, 129, 0.4)'
                 }}
               >
                 <div 
                   className="main-menu-card-icon-wrapper"
-                  style={{ background: item.gradient }}
+                  style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
                 >
-                  <IconComponent size={36} color="#fff" />
+                  <Cable size={36} color="#fff" />
                 </div>
-                <h3 className="main-menu-card-title">{item.label}</h3>
-                <p className="main-menu-card-desc">{item.description}</p>
+                <h3 className="main-menu-card-title">Circuitos</h3>
+                <p className="main-menu-card-desc">Control de tendido, estados y metrados de circuitos de fuerza y control.</p>
               </div>
-            );
-          })}
-        </div>
+              <div
+                className="main-menu-card"
+                onClick={() => onSelectModule('cable', 'cables_pat')}
+                onMouseEnter={() => setHoveredModule('cable')}
+                onMouseLeave={() => setHoveredModule(null)}
+                style={{
+                  '--glow-color': 'rgba(5, 150, 105, 0.4)'
+                }}
+              >
+                <div 
+                  className="main-menu-card-icon-wrapper"
+                  style={{ background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }}
+                >
+                  <Zap size={36} color="#fff" />
+                </div>
+                <h3 className="main-menu-card-title">Puesta a Tierra (PAT)</h3>
+                <p className="main-menu-card-desc">Seguimiento de conductores desnudos, electrodos y conexiones a tierra.</p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="main-menu-grid">
+            {menuItems.map(item => {
+              const IconComponent = item.icon;
+              return (
+                <div
+                  key={item.id}
+                  className="main-menu-card"
+                  onClick={() => {
+                    if (item.id === 'cable') {
+                      setShowCableSubmenu(true);
+                    } else {
+                      onSelectModule(item.id, item.defaultTab);
+                    }
+                  }}
+                  onMouseEnter={() => setHoveredModule(item.id)}
+                  onMouseLeave={() => setHoveredModule(null)}
+                  style={{
+                    '--glow-color': item.glowColor
+                  }}
+                >
+                  <div 
+                    className="main-menu-card-icon-wrapper"
+                    style={{ background: item.gradient }}
+                  >
+                    <IconComponent size={36} color="#fff" />
+                  </div>
+                  <h3 className="main-menu-card-title">{item.label}</h3>
+                  <p className="main-menu-card-desc">{item.description}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
