@@ -8,6 +8,7 @@ import CableGauge from './CableGauge';
 import CableBarChart from './CableBarChart';
 import CableImportWizard from './CableImportWizard';
 import CableTable from './CableTable';
+import CustomDropdown from './CustomDropdown';
 
 /**
  * CableDashboard — Main view for the Cable Schedule Manager.
@@ -369,36 +370,24 @@ export default function CableDashboard() {
         </button>
 
         <div className={`cable-filters ${showMobileFilters ? 'expanded' : ''}`}>
-          <div className="cable-filter-group">
-            <label>Tipo de Cable</label>
-            <select
-              value={selectedTipoCable}
-              onChange={e => setSelectedTipoCable(e.target.value)}
-            >
-              <option value="">Todos</option>
-              {filteredTipos.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          <div className="cable-filter-group">
-            <label>WBS</label>
-            <select
-              value={selectedWbs}
-              onChange={e => setSelectedWbs(e.target.value)}
-            >
-              <option value="">Todos</option>
-              {filteredWbs.map(w => <option key={w} value={w}>{w}</option>)}
-            </select>
-          </div>
-          <div className="cable-filter-group">
-            <label>Sistema</label>
-            <select
-              value={selectedSistema}
-              onChange={e => setSelectedSistema(e.target.value)}
-            >
-              <option value="">Todos</option>
-              {filteredSistemas.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
+          <CustomDropdown
+            label="Tipo de Cable"
+            value={selectedTipoCable}
+            options={filteredTipos}
+            onChange={setSelectedTipoCable}
+          />
+          <CustomDropdown
+            label="WBS"
+            value={selectedWbs}
+            options={filteredWbs}
+            onChange={setSelectedWbs}
+          />
+          <CustomDropdown
+            label="Sistema"
+            value={selectedSistema}
+            options={filteredSistemas}
+            onChange={setSelectedSistema}
+          />
           <button className="btn btn-secondary btn-sm" onClick={fetchData} disabled={loading} title="Actualizar datos">
             <RefreshCw size={14} className={loading ? 'spin' : ''} />
           </button>
