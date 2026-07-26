@@ -388,9 +388,6 @@ export default function CableDashboard() {
             options={filteredSistemas}
             onChange={setSelectedSistema}
           />
-          <button className="btn btn-secondary btn-sm" onClick={fetchData} disabled={loading} title="Actualizar datos">
-            <RefreshCw size={14} className={loading ? 'spin' : ''} />
-          </button>
           {(selectedTipoCable || selectedWbs || selectedSistema) && (
             <button className="btn btn-secondary btn-sm" onClick={handleClearFilters} title="Limpiar todos los filtros" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <FilterX size={14} />
