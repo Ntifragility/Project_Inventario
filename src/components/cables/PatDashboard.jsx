@@ -656,7 +656,7 @@ export default function PatDashboard() {
         <button
           className="btn btn-secondary"
           onClick={() => setShowTable(!showTable)}
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: showTable ? 8 : 16 }}
         >
           <Search size={14} />
           {showTable ? 'Ocultar Detalle' : `Ver Detalle de ${itemLabel}`}
