@@ -5,8 +5,9 @@ import {
   ArrowUpDown, Package, Filter, FilterX, Download
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { cleanPatMaterialType, deriveCableMetrics, matchesDashboardFilter } from './cableMetrics';
 
-export default function CableTable({ filterArea = '', filterTipoServicio = '', filterTipoCable = '', filterWbs = '', filterSistema = '', filterCleanTipo = '', filterMaterialPrefix = 'CABLE' }) {
+export default function CableTable({ filterArea = '', filterTipoServicio = '', filterTipoCable = '', filterWbs = '', filterSistema = '', filterCleanTipo = '', filterMaterialPrefix = 'CABLE', sourceData = null, dashboardFilter = null }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -49,6 +50,39 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      if (Array.isArray(sourceData)) {
+        let localRows = sourceData.map(row => ({
+          ...deriveCableMetrics(row),
+          tipo_cable_clean: row.tipo_cable_clean || cleanPatMaterialType(row.material, isPvc) || 'SIN TIPO',
+        }));
+
+        if (filterArea) localRows = localRows.filter(row => row.area === filterArea);
+        if (filterTipoServicio) localRows = localRows.filter(row => row.tipo_servicio === filterTipoServicio);
+        if (filterTipoCable) localRows = localRows.filter(row => row.tipo_cable === filterTipoCable);
+        if (filterWbs) localRows = localRows.filter(row => row.wbs === filterWbs);
+        if (filterSistema) localRows = localRows.filter(row => row.sistema === filterSistema);
+        if (filterCleanTipo) localRows = localRows.filter(row => row.tipo_cable_clean === filterCleanTipo);
+
+        if (search.trim()) {
+          const term = search.trim().toUpperCase();
+          localRows = localRows.filter(row => [row.tag_unico, row.tipo_cable, row.area, row.wbs, row.sistema, row.plano]
+            .some(value => String(value || '').toUpperCase().includes(term)));
+        }
+
+        localRows.sort((a, b) => {
+          const aValue = sortField === 'avance' ? a.advancePercent : a[sortField];
+          const bValue = sortField === 'avance' ? b.advancePercent : b[sortField];
+          const direction = sortDir === 'asc' ? 1 : -1;
+          if (typeof aValue === 'number' || typeof bValue === 'number') {
+            return ((parseFloat(aValue) || 0) - (parseFloat(bValue) || 0)) * direction;
+          }
+          return String(aValue || '').localeCompare(String(bValue || '')) * direction;
+        });
+
+        setData(localRows);
+        return;
+      }
+
       let rows = [];
       let start = 0;
       const batchSize = 1000;
@@ -119,16 +153,13 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
       });
       
       let finalRows = (rows || []).map(r => ({
-        ...r,
-        total_despachado_m: despMap.get(r.tag_unico) || 0
+        ...deriveCableMetrics(r, despMap.get(r.tag_unico) || 0),
+        tipo_cable_clean: cleanPatMaterialType(r.material, isPvc) || 'SIN TIPO',
       }));
 
       if (filterCleanTipo) {
         finalRows = finalRows.filter(r => {
-          const materialStr = r.material || '';
-          const prefix = isPvc ? /^tuberia\s+pvc\s+/i : /^cable\s+/i;
-          const cleanTipo = materialStr.replace(prefix, '').trim().toUpperCase();
-          return cleanTipo === filterCleanTipo;
+          return r.tipo_cable_clean === filterCleanTipo;
         });
       }
       
@@ -138,7 +169,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     } finally {
       setLoading(false);
     }
-  }, [filterArea, filterTipoServicio, filterTipoCable, filterWbs, filterSistema, filterCleanTipo, filterMaterialPrefix, isPvc, search, sortField, sortDir]);
+  }, [filterArea, filterTipoServicio, filterTipoCable, filterWbs, filterSistema, filterCleanTipo, filterMaterialPrefix, isPvc, search, sortField, sortDir, sourceData]);
 
   useEffect(() => {
     fetchData();
@@ -184,6 +215,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   };
 
   const getAvance = (row) => {
+    if (Number.isFinite(row.advancePercent)) return row.advancePercent;
     const total = parseFloat(row.total_estimado_m) || 0;
     const metrado = parseFloat(row.metrado_reportado_campo) || 0;
     if (total <= 0) return 0;
@@ -242,6 +274,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   };
 
   const filteredData = data.filter(row => {
+    if (!matchesDashboardFilter(row, dashboardFilter)) return false;
     return Object.entries(headerFilters).every(([key, selectedValues]) => {
       if (!selectedValues) return true;
       const cellValue = getFilterValue(row, key);

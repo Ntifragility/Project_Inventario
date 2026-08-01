@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../../supabase';
 import {
   RefreshCw, Upload, Package, Activity, Cable, Filter, FilterX,
@@ -9,6 +9,7 @@ import CableBarChart from './CableBarChart';
 import CableImportWizard from './CableImportWizard';
 import CableTable from './CableTable';
 import CustomDropdown from './CustomDropdown';
+import { cleanPatMaterialType, deriveCableMetrics } from './cableMetrics';
 
 /**
  * PatDashboard — Dashboard specifically for PAT (Puesta a Tierra) cables.
@@ -28,14 +29,16 @@ export default function PatDashboard() {
   const [selectedWbs, setSelectedWbs] = useState('');
   const [selectedSistema, setSelectedSistema] = useState('');
   const [selectedTipoCable, setSelectedTipoCable] = useState('');
+  const [processedSourceRows, setProcessedSourceRows] = useState([]);
+  const [detailFilter, setDetailFilter] = useState(null);
+  const detailSectionRef = useRef(null);
 
   const isPvc = activePatSection === 'pvc';
   const materialPattern = isPvc ? 'TUBERIA PVC SCH%' : 'CABLE%';
   const itemLabel = isPvc ? 'Tramos' : 'Circuitos';
 
   const getCleanMaterialType = useCallback((material = '') => {
-    const prefix = isPvc ? /^tuberia\s+pvc\s+/i : /^cable\s+/i;
-    return material.replace(prefix, '').trim().toUpperCase();
+    return cleanPatMaterialType(material, isPvc);
   }, [isPvc]);
 
   // Mobile layout state
@@ -113,6 +116,8 @@ export default function PatDashboard() {
     setShowTable(false);
     setShowMobileDispatch(false);
     setShowMobileTypeBreakdown(false);
+    setDetailFilter(null);
+    setProcessedSourceRows([]);
   }, [activePatSection]);
 
   const toggleMobileGauge = () => {
@@ -131,6 +136,28 @@ export default function PatDashboard() {
     setSelectedTipoCable('');
     setSelectedWbs('');
     setSelectedSistema('');
+    setDetailFilter(null);
+  };
+
+  const activateDetailFilter = useCallback((nextFilter) => {
+    setDetailFilter(current => {
+      const isSame = current
+        && current.dimension === nextFilter.dimension
+        && current.value === nextFilter.value
+        && current.condition === nextFilter.condition;
+      return isSame ? null : nextFilter;
+    });
+    setShowTable(true);
+    window.requestAnimationFrame(() => {
+      detailSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, []);
+
+  const activateDetailFilterFromKeyboard = (event, filter) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      activateDetailFilter(filter);
+    }
   };
 
   // ══════════════════════════════════════════════════════════════
@@ -201,18 +228,16 @@ export default function PatDashboard() {
         despMap.set(d.tag_unico, (despMap.get(d.tag_unico) || 0) + (parseFloat(d.longitud_despachada_m) || 0));
       });
       const processedRows = rawRows.map(r => {
-        const total = parseFloat(r.total_estimado_m) || 0;
-        const metrado = parseFloat(r.metrado_reportado_campo) || 0;
         const cleanTipo = getCleanMaterialType(r.material || '');
         const despachado = despMap.get(r.tag_unico) || 0;
+        const metrics = deriveCableMetrics(r, despachado);
         return {
-          ...r,
-          longitud_despachada_m: despachado,
-          longitud_pendiente_m: Math.max(0, total - metrado),
-          is_tendido: metrado >= total && total > 0,
+          ...metrics,
+          is_tendido: metrics.isComplete,
           tipo_cable_clean: cleanTipo || 'SIN TIPO'
         };
       });
+      setProcessedSourceRows(processedRows);
 
       // Filter in-memory by active filters
       let rows = processedRows;
@@ -232,8 +257,8 @@ export default function PatDashboard() {
       const longitudPendiente = rows.reduce((sum, r) => sum + (parseFloat(r.longitud_pendiente_m) || 0), 0);
       const longitudDespachada = rows.reduce((sum, r) => sum + (parseFloat(r.longitud_despachada_m) || 0), 0);
       const circuitosTotales = rows.length;
-      const circuitosPendientes = rows.filter(r => !r.is_tendido).length;
-      const circuitosEjecutados = rows.filter(r => r.is_tendido).length;
+      const circuitosPendientes = rows.filter(r => r.isPending).length;
+      const circuitosEjecutados = rows.filter(r => r.hasAdvance).length;
       const tendidoPct = longitudTotal > 0 ? (longitudTendida / longitudTotal) * 100 : 0;
       const despachadoPct = longitudTotal > 0 ? (longitudDespachada / longitudTotal) * 100 : 0;
       const desviacionAlmacen = longitudDespachada - longitudTendida;
@@ -278,14 +303,15 @@ export default function PatDashboard() {
       const tipoMap = new Map();
       rows.forEach(r => {
         const key = r.tipo_cable_clean || 'SIN TIPO';
-        if (!tipoMap.has(key)) tipoMap.set(key, { tendido: 0, porTender: 0 });
+        if (!tipoMap.has(key)) tipoMap.set(key, { name: key, filterValue: key, tendido: 0, porTender: 0 });
         const entry = tipoMap.get(key);
         entry.tendido += parseFloat(r.metrado_reportado_campo) || 0;
         entry.porTender += parseFloat(r.longitud_pendiente_m) || 0;
       });
       setTipoBars(
-        [...tipoMap.entries()].map(([name, val]) => ({
-          name,
+        [...tipoMap.values()].map(val => ({
+          name: val.name,
+          filterValue: val.filterValue,
           tendido: val.tendido,
           porTender: val.porTender,
           total: val.tendido + val.porTender,
@@ -295,15 +321,17 @@ export default function PatDashboard() {
       // ── Compute bar chart data by WBS ──
       const wbsMap = new Map();
       rows.forEach(r => {
-        const key = r.wbs || 'SIN WBS';
-        if (!wbsMap.has(key)) wbsMap.set(key, { tendido: 0, porTender: 0 });
+        const filterValue = r.wbs || null;
+        const key = filterValue ?? '__SIN_WBS__';
+        if (!wbsMap.has(key)) wbsMap.set(key, { name: filterValue || 'SIN WBS', filterValue, tendido: 0, porTender: 0 });
         const entry = wbsMap.get(key);
         entry.tendido += parseFloat(r.metrado_reportado_campo) || 0;
         entry.porTender += parseFloat(r.longitud_pendiente_m) || 0;
       });
       setWbsBars(
-        [...wbsMap.entries()].map(([name, val]) => ({
-          name,
+        [...wbsMap.values()].map(val => ({
+          name: val.name,
+          filterValue: val.filterValue,
           tendido: val.tendido,
           porTender: val.porTender,
           total: val.tendido + val.porTender,
@@ -313,15 +341,17 @@ export default function PatDashboard() {
       // ── Compute bar chart data by SISTEMA ──
       const sisMap = new Map();
       rows.forEach(r => {
-        const key = r.sistema || 'SIN SISTEMA';
-        if (!sisMap.has(key)) sisMap.set(key, { tendido: 0, porTender: 0 });
+        const filterValue = r.sistema || null;
+        const key = filterValue ?? '__SIN_SISTEMA__';
+        if (!sisMap.has(key)) sisMap.set(key, { name: filterValue || 'SIN SISTEMA', filterValue, tendido: 0, porTender: 0 });
         const entry = sisMap.get(key);
         entry.tendido += parseFloat(r.metrado_reportado_campo) || 0;
         entry.porTender += parseFloat(r.longitud_pendiente_m) || 0;
       });
       setSistemaBars(
-        [...sisMap.entries()].map(([name, val]) => ({
-          name,
+        [...sisMap.values()].map(val => ({
+          name: val.name,
+          filterValue: val.filterValue,
           tendido: val.tendido,
           porTender: val.porTender,
           total: val.tendido + val.porTender,
@@ -373,6 +403,7 @@ export default function PatDashboard() {
 
   const handleImportComplete = () => {
     setShowImportWizard(false);
+    setDetailFilter(null);
     fetchData();
     fetchFilters();
   };
@@ -414,19 +445,19 @@ export default function PatDashboard() {
             label={isPvc ? 'Tipo de Tubería' : 'Tipo de Cable'}
             value={selectedTipoCable}
             options={filteredTipos}
-            onChange={setSelectedTipoCable}
+            onChange={(value) => { setSelectedTipoCable(value); setDetailFilter(null); }}
           />
           <CustomDropdown
             label="WBS"
             value={selectedWbs}
             options={filteredWbs}
-            onChange={setSelectedWbs}
+            onChange={(value) => { setSelectedWbs(value); setDetailFilter(null); }}
           />
           <CustomDropdown
             label="Sistema"
             value={selectedSistema}
             options={filteredSistemas}
-            onChange={setSelectedSistema}
+            onChange={(value) => { setSelectedSistema(value); setDetailFilter(null); }}
           />
           {(selectedTipoCable || selectedWbs || selectedSistema) && (
             <button className="btn btn-secondary btn-sm" onClick={handleClearFilters} title="Limpiar todos los filtros" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -483,12 +514,18 @@ export default function PatDashboard() {
           </div>
         </div>
 
-        <div className="cable-kpi-card">
+        <div
+          className={`cable-kpi-card dashboard-drilldown-target ${detailFilter?.dimension === null && detailFilter?.condition === 'advance' ? 'active' : ''}`}
+          onClick={() => activateDetailFilter({ source: 'kpi', dimension: null, value: null, label: 'Con avance', condition: 'advance' })}
+          onKeyDown={(event) => activateDetailFilterFromKeyboard(event, { source: 'kpi', dimension: null, value: null, label: 'Con avance', condition: 'advance' })}
+          role="button"
+          tabIndex={0}
+        >
           <span className="cable-kpi-value" style={{ color: '#10b981' }}>{formatNumber(kpis.longitudTendida)}</span>
           <span className="cable-kpi-label">Longitud Ejecutada (m)</span>
           <div className="cable-kpi-sub" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px' }}>
             <span className="cable-kpi-sub-value" style={{ color: '#10b981' }}>{kpis.circuitosEjecutados.toLocaleString()}</span>
-            <span className="cable-kpi-sub-label">{itemLabel} Ejecutados (und)</span>
+            <span className="cable-kpi-sub-label">{itemLabel} con Avance (und)</span>
           </div>
         </div>
 
@@ -531,7 +568,13 @@ export default function PatDashboard() {
           </div>
         </div>
 
-        <div className="cable-kpi-card">
+        <div
+          className={`cable-kpi-card dashboard-drilldown-target ${detailFilter?.dimension === null && detailFilter?.condition === 'pending' ? 'active' : ''}`}
+          onClick={() => activateDetailFilter({ source: 'kpi', dimension: null, value: null, label: 'Pendientes', condition: 'pending' })}
+          onKeyDown={(event) => activateDetailFilterFromKeyboard(event, { source: 'kpi', dimension: null, value: null, label: 'Pendientes', condition: 'pending' })}
+          role="button"
+          tabIndex={0}
+        >
           <span className="cable-kpi-value warning">{formatNumber(kpis.longitudPendiente)}</span>
           <span className="cable-kpi-label">Longitud Pendiente (m)</span>
           <div className="cable-kpi-sub" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px' }}>
@@ -539,7 +582,13 @@ export default function PatDashboard() {
             <span className="cable-kpi-sub-label">{itemLabel} Pendientes (und)</span>
           </div>
         </div>
-        <div className="cable-kpi-card">
+        <div
+          className={`cable-kpi-card dashboard-drilldown-target ${detailFilter?.dimension === null && detailFilter?.condition === 'deviation' ? 'active' : ''}`}
+          onClick={() => activateDetailFilter({ source: 'kpi', dimension: null, value: null, label: 'Desviación de almacén', condition: 'deviation' })}
+          onKeyDown={(event) => activateDetailFilterFromKeyboard(event, { source: 'kpi', dimension: null, value: null, label: 'Desviación de almacén', condition: 'deviation' })}
+          role="button"
+          tabIndex={0}
+        >
           <span className="cable-kpi-value warning" style={{ color: '#ef4444' }}>{formatNumber(kpis.desviacionAlmacen)}</span>
           <span className="cable-kpi-label">Desviación de Almacén (m)</span>
           <div className="cable-kpi-sub" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px' }}>
@@ -577,24 +626,33 @@ export default function PatDashboard() {
           <CableBarChart
             data={tipoBars}
             title={`Longitud de ${isPvc ? 'Tubería PVC' : 'Cable'} (m) según Tipo`}
+            dimension="tipo"
+            onSegmentClick={activateDetailFilter}
+            activeSelection={detailFilter}
           />
         </div>
         <div className={`cable-chart-col ${activeMobileTab === 'wbs' ? 'mobile-active' : ''}`}>
           <CableBarChart
             data={wbsBars}
             title={`Longitud de ${isPvc ? 'Tubería PVC' : 'Cable'} (m) según WBS`}
+            dimension="wbs"
+            onSegmentClick={activateDetailFilter}
+            activeSelection={detailFilter}
           />
         </div>
         <div className={`cable-chart-col ${activeMobileTab === 'sistema' ? 'mobile-active' : ''}`}>
           <CableBarChart
             data={sistemaBars}
             title={`Longitud de ${isPvc ? 'Tubería PVC' : 'Cable'} (m) según Sistema`}
+            dimension="sistema"
+            onSegmentClick={activateDetailFilter}
+            activeSelection={detailFilter}
           />
         </div>
       </div>
 
       {/* ── Detail Table Toggle ── */}
-      <div className="cable-table-section">
+      <div className="cable-table-section" ref={detailSectionRef}>
         <button
           className="btn btn-secondary"
           onClick={() => setShowTable(!showTable)}
@@ -605,13 +663,29 @@ export default function PatDashboard() {
         </button>
 
         {showTable && (
+          <>
+          {detailFilter && (
+            <div className="dashboard-detail-filter-banner">
+              <div>
+                <strong>Filtro del dashboard:</strong>{' '}
+                {detailFilter.dimension ? `${detailFilter.dimension.toUpperCase()}: ${detailFilter.label} · ` : ''}
+                {detailFilter.segmentLabel || detailFilter.label}
+              </div>
+              <button className="btn btn-secondary btn-sm" onClick={() => setDetailFilter(null)}>
+                <FilterX size={14} /> Limpiar selección
+              </button>
+            </div>
+          )}
           <CableTable
             filterWbs={selectedWbs}
             filterSistema={selectedSistema}
             filterCleanTipo={selectedTipoCable}
             filterTipoCable="PAT"
             filterMaterialPrefix={isPvc ? 'TUBERIA PVC SCH' : 'CABLE'}
+            sourceData={processedSourceRows}
+            dashboardFilter={detailFilter}
           />
+          </>
         )}
       </div>
 
