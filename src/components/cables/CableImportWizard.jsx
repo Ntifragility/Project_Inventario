@@ -8,7 +8,7 @@ import {
 import {
   CABLE_SCHEDULE_COLUMNS, CABLE_DESPACHO_COLUMNS, CABLE_PAT_COLUMNS,
   CABLE_SCHEDULE_SIGNATURES, CABLE_DESPACHO_SIGNATURES, CABLE_PAT_SIGNATURES,
-  detectImportType, autoMapColumns, transformRow
+  detectImportType, autoMapColumns, transformRow, normalizeImportText
 } from './cableParserConfig';
 import { findMatchingProfileByHeaders, fetchMappingProfiles, saveOrUpdateProfile } from '../smartimport/mappingPersistence';
 
@@ -51,6 +51,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
   // Step 3: Preview
   const [previewData, setPreviewData] = useState([]);
   const [validationErrors, setValidationErrors] = useState([]);
+  const [previewSummary, setPreviewSummary] = useState({ conductores: 0, pvc: 0, unsupported: 0, missingTag: 0 });
   const [previewPage, setPreviewPage] = useState(1);
   const previewRowsPerPage = 20;
 
@@ -116,7 +117,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
     let maxScore = 0;
 
     for (let i = 0; i < Math.min(5, json.length); i++) {
-      const rowHeaders = json[i].map(h => String(h || '').trim().toUpperCase());
+      const rowHeaders = json[i].map(normalizeImportText);
 
       const scheduleHits = CABLE_SCHEDULE_SIGNATURES.filter(sig => rowHeaders.some(h => h.includes(sig))).length;
       const despachoHits = CABLE_DESPACHO_SIGNATURES.filter(sig => rowHeaders.some(h => h.includes(sig))).length;
@@ -229,11 +230,14 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
   const buildPreview = useCallback(() => {
     const errors = [];
     const parsedRows = [];
-    let filteredByCable = 0;
+    const summary = { conductores: 0, pvc: 0, unsupported: 0, missingTag: 0 };
 
     rawRows.forEach((row, i) => {
       const obj = transformRow(row, mapping, columnDefs);
-      if (!obj.tag_unico) return;
+      if (!obj.tag_unico) {
+        summary.missingTag++;
+        return;
+      }
 
       if (importType === 'pat') {
         obj.tipo_cable = 'PAT';
@@ -243,13 +247,23 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
         obj.tipo_cable = 'CIRCUITO';
       }
 
-      // ── Internal filter: only rows whose DESCRIPCION DE CABLE starts with "CABLE"
-      if (importType === 'schedule' || importType === 'pat') {
-        const desc = String(obj.material || '').trim().toUpperCase();
-        if (!desc.startsWith('CABLE')) {
-          filteredByCable++;
-          return; // skip this row silently
+      const desc = normalizeImportText(obj.material);
+
+      if (importType === 'schedule' && !desc.startsWith('CABLE')) {
+        summary.unsupported++;
+        return;
+      }
+
+      if (importType === 'pat') {
+        if (desc.startsWith('CABLE')) {
+          summary.conductores++;
+        } else if (desc.startsWith('TUBERIA PVC SCH')) {
+          summary.pvc++;
+        } else {
+          summary.unsupported++;
+          return;
         }
+        obj.material = desc;
       }
 
       // Validate required fields
@@ -263,6 +277,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
     });
 
     setPreviewData(parsedRows);
+    setPreviewSummary(summary);
     setValidationErrors(errors.slice(0, 50)); // Cap at 50 errors
     setPreviewPage(1);
   }, [rawRows, mapping, columnDefs, importType]);
@@ -305,6 +320,15 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
         const batch = previewData.slice(i, i + BATCH_SIZE);
 
         if (importType === 'schedule' || importType === 'pat') {
+          const batchTags = batch.map(row => row.tag_unico).filter(Boolean);
+          const { data: existingRows, error: existingErr } = await supabase
+            .from('cable_schedule')
+            .select('tag_unico')
+            .in('tag_unico', batchTags);
+
+          if (existingErr) throw existingErr;
+          const existingTags = new Set((existingRows || []).map(row => row.tag_unico));
+
           // Extract despachado if present
           const scheduleBatch = batch.map(row => {
             const copy = { ...row };
@@ -349,7 +373,8 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
             if (despErr) throw despErr;
           }
 
-          inserted += batch.length;
+          inserted += batchTags.filter(tag => !existingTags.has(tag)).length;
+          updated += batchTags.filter(tag => existingTags.has(tag)).length;
         } else {
           // Simulated upsert: delete existing records for these tags first to prevent duplicate entries
           const tagsToDelete = batch.map(row => row.tag_unico).filter(Boolean);
@@ -372,14 +397,6 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
         setImportProgress(Math.round(((i + batch.length) / previewData.length) * 100));
       }
 
-      // Cleanup database from non-cable items after import (only if material was mapped to prevent accidental wipes)
-      if ((importType === 'schedule' || importType === 'pat') && mapping.material !== undefined) {
-        await supabase
-          .from('cable_schedule')
-          .delete()
-          .not('material', 'ilike', 'CABLE%');
-      }
-
       setImportResult({
         total: previewData.length,
         inserted,
@@ -392,7 +409,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
     } finally {
       setIsImporting(false);
     }
-  }, [previewData, importType]);
+  }, [previewData, importType, mapping, rawHeaders]);
 
   // ══════════════════════════════════════════════════════════════
   // STEP NAVIGATION
@@ -633,6 +650,34 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
                 )}
               </div>
 
+              {importType === 'pat' && (
+                <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
+                  <div className="cable-preview-stat" style={{ padding: '10px 12px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+                    <strong>{previewSummary.conductores}</strong>
+                    <div className="text-muted" style={{ fontSize: 12 }}>Conductores CABLE</div>
+                  </div>
+                  <div className="cable-preview-stat" style={{ padding: '10px 12px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+                    <strong>{previewSummary.pvc}</strong>
+                    <div className="text-muted" style={{ fontSize: 12 }}>Tuberías PVC SCH</div>
+                  </div>
+                  <div className="cable-preview-stat" style={{ padding: '10px 12px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+                    <strong>{previewSummary.unsupported + previewSummary.missingTag}</strong>
+                    <div className="text-muted" style={{ fontSize: 12 }}>Filas omitidas</div>
+                  </div>
+                </div>
+                {(previewSummary.unsupported > 0 || previewSummary.missingTag > 0) && (
+                  <div className="message warning" style={{ marginBottom: 16 }}>
+                    <AlertCircle size={16} />
+                    <span>
+                      Se omitieron {previewSummary.unsupported} filas porque el material no empieza con CABLE o TUBERIA PVC SCH
+                      {previewSummary.missingTag > 0 ? `, y ${previewSummary.missingTag} filas sin TAG UNICO` : ''}.
+                    </span>
+                  </div>
+                )}
+                </>
+              )}
+
               {validationErrors.length > 0 && (
                 <details className="cable-validation-details">
                   <summary>Ver advertencias ({validationErrors.length})</summary>
@@ -737,10 +782,14 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
                     </div>
                     <div className="cable-import-stat">
                       <span className="cable-import-stat-value">{importResult.inserted}</span>
-                      <span className="cable-import-stat-label">
-                        {importType === 'schedule' ? 'Insertados/Actualizados' : 'Insertados'}
-                      </span>
+                      <span className="cable-import-stat-label">Nuevos</span>
                     </div>
+                    {(importType === 'schedule' || importType === 'pat') && (
+                      <div className="cable-import-stat">
+                        <span className="cable-import-stat-value">{importResult.updated}</span>
+                        <span className="cable-import-stat-label">Actualizados</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

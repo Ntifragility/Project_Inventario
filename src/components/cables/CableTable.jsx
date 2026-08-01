@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
-export default function CableTable({ filterArea = '', filterTipoServicio = '', filterTipoCable = '', filterWbs = '', filterSistema = '', filterCleanTipo = '' }) {
+export default function CableTable({ filterArea = '', filterTipoServicio = '', filterTipoCable = '', filterWbs = '', filterSistema = '', filterCleanTipo = '', filterMaterialPrefix = 'CABLE' }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -20,11 +20,14 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   const [headerFilters, setHeaderFilters] = useState({});
   const [activeFilter, setActiveFilter] = useState(null);
 
+  const isPvc = filterMaterialPrefix.toUpperCase().startsWith('TUBERIA PVC');
+  const itemLabel = isPvc ? 'tramos' : 'circuitos';
+
   const COLUMNS = filterTipoCable === 'PAT' ? [
     { field: 'tag_unico', label: 'TAG UNICO', width: '144px' },
     { field: 'wbs', label: 'WBS', width: '60px' },
     { field: 'sistema', label: 'Sistema', width: '252px' },
-    { field: 'material', label: 'Descripción de Cable', width: '200px' },
+    { field: 'material', label: isPvc ? 'Descripción de Tubería' : 'Descripción de Cable', width: '200px' },
     { field: 'total_estimado_m', label: 'Metrado\nOT (m)', width: '110px', align: 'right' },
     { field: 'total_despachado_m', label: 'Metrado\nDespachado (m)', width: '130px', align: 'right' },
     { field: 'metrado_reportado_campo', label: 'Metrado\nCampo (m)', width: '110px', align: 'right' },
@@ -56,7 +59,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
           .from('cable_schedule')
           .select('*')
           .range(start, start + batchSize - 1)
-          .ilike('material', 'CABLE%');
+          .ilike('material', `${filterMaterialPrefix}%`);
 
         if (filterArea) query = query.eq('area', filterArea);
         if (filterTipoServicio) query = query.eq('tipo_servicio', filterTipoServicio);
@@ -123,7 +126,8 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
       if (filterCleanTipo) {
         finalRows = finalRows.filter(r => {
           const materialStr = r.material || '';
-          const cleanTipo = materialStr.replace(/^cable\s+/i, '').trim().toUpperCase();
+          const prefix = isPvc ? /^tuberia\s+pvc\s+/i : /^cable\s+/i;
+          const cleanTipo = materialStr.replace(prefix, '').trim().toUpperCase();
           return cleanTipo === filterCleanTipo;
         });
       }
@@ -134,7 +138,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     } finally {
       setLoading(false);
     }
-  }, [filterArea, filterTipoServicio, filterTipoCable, filterWbs, filterSistema, filterCleanTipo, search, sortField, sortDir]);
+  }, [filterArea, filterTipoServicio, filterTipoCable, filterWbs, filterSistema, filterCleanTipo, filterMaterialPrefix, isPvc, search, sortField, sortDir]);
 
   useEffect(() => {
     fetchData();
@@ -202,9 +206,18 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   const [tempFilters, setTempFilters] = useState([]);
   const [filterSearch, setFilterSearch] = useState('');
 
+  const getFilterValue = (row, field) => {
+    if (field === 'avance') return `${getAvance(row).toFixed(0)}%`;
+    return (row[field] || '—').toString();
+  };
+
   const getUniqueValues = (field) => {
-    const vals = data.map(r => (r[field] || '—').toString());
-    return [...new Set(vals)].sort();
+    const vals = data.map(r => getFilterValue(r, field));
+    const uniqueValues = [...new Set(vals)];
+    if (field === 'avance') {
+      return uniqueValues.sort((a, b) => parseFloat(a) - parseFloat(b));
+    }
+    return uniqueValues.sort();
   };
 
   const openFilter = (field) => {
@@ -231,7 +244,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   const filteredData = data.filter(row => {
     return Object.entries(headerFilters).every(([key, selectedValues]) => {
       if (!selectedValues) return true;
-      const cellValue = (row[key] || '—').toString();
+      const cellValue = getFilterValue(row, key);
       return selectedValues.includes(cellValue);
     });
   });
@@ -298,7 +311,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
             <span>Exportar Excel</span>
           </button>
           <div className="cable-count text-muted" style={{ whiteSpace: 'nowrap' }}>
-            {filteredData.length} circuitos encontrados
+            {filteredData.length} {itemLabel} encontrados
           </div>
         </div>
       </div>
@@ -307,7 +320,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
         {/* Mobile View: Card List */}
         <div className="cable-mobile-card-list" style={{ display: 'none' }}>
           {filteredData.length === 0 ? (
-            <div className="text-center text-muted" style={{ padding: '24px 0' }}>No se encontraron circuitos.</div>
+            <div className="text-center text-muted" style={{ padding: '24px 0' }}>No se encontraron {itemLabel}.</div>
           ) : (
             filteredData.map(row => {
               const isExpanded = expandedRow === row.tag_unico;
@@ -322,7 +335,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                   <div className="cable-mobile-card-header">
                     <span>{row.tag_unico}</span>
                     {filterTipoCable === 'PAT' ? (
-                      <span className="status-badge" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>PAT</span>
+                      <span className="status-badge" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>{isPvc ? 'PVC' : 'PAT'}</span>
                     ) : (
                       getEstadoBadge(row.estado)
                     )}
@@ -352,7 +365,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                             <strong>Sistema:</strong> <span>{row.sistema || '—'}</span>
                           </div>
                           <div className="cable-mobile-card-detail-item">
-                            <strong>Descripción:</strong> <span>{row.material || '—'}</span>
+                            <strong>{isPvc ? 'Tubería' : 'Descripción'}:</strong> <span>{row.material || '—'}</span>
                           </div>
                           <div className="cable-mobile-card-detail-item">
                             <strong>Metrado OT (m):</strong> <span>{parseFloat(row.total_estimado_m || 0).toFixed(1)} m</span>
@@ -450,8 +463,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                           <ArrowUpDown size={12} className={sortDir === 'desc' ? 'flipped' : ''} />
                         )}
                       </div>
-                      {!col.computed && (
-                        <div style={{ position: 'relative', marginLeft: 'auto', paddingLeft: 8 }}>
+                      <div style={{ position: 'relative', marginLeft: 'auto', paddingLeft: 8 }}>
                           <button
                             style={{
                               background: headerFilters[col.field] ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.05)',
@@ -537,8 +549,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                               </div>
                             </div>
                           )}
-                        </div>
-                      )}
+                      </div>
                     </div>
                 </th>
                 );
@@ -555,7 +566,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
             ) : filteredData.length === 0 ? (
               <tr>
                 <td colSpan={COLUMNS.length + 1} className="cable-table-empty">
-                  No se encontraron circuitos.
+                  No se encontraron {itemLabel}.
                 </td>
               </tr>
             ) : (

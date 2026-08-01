@@ -15,6 +15,9 @@ import CustomDropdown from './CustomDropdown';
  */
 export default function PatDashboard() {
   // ── State ──
+  const [activePatSection, setActivePatSection] = useState('conductores');
+  const [showMobileDispatch, setShowMobileDispatch] = useState(false);
+  const [showMobileTypeBreakdown, setShowMobileTypeBreakdown] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showImportWizard, setShowImportWizard] = useState(false);
@@ -25,6 +28,15 @@ export default function PatDashboard() {
   const [selectedWbs, setSelectedWbs] = useState('');
   const [selectedSistema, setSelectedSistema] = useState('');
   const [selectedTipoCable, setSelectedTipoCable] = useState('');
+
+  const isPvc = activePatSection === 'pvc';
+  const materialPattern = isPvc ? 'TUBERIA PVC SCH%' : 'CABLE%';
+  const itemLabel = isPvc ? 'Tramos' : 'Circuitos';
+
+  const getCleanMaterialType = useCallback((material = '') => {
+    const prefix = isPvc ? /^tuberia\s+pvc\s+/i : /^cable\s+/i;
+    return material.replace(prefix, '').trim().toUpperCase();
+  }, [isPvc]);
 
   // Mobile layout state
   const [activeMobileTab, setActiveMobileTab] = useState('tipo');
@@ -50,10 +62,9 @@ export default function PatDashboard() {
     if (selectedWbs) temp = temp.filter(r => r.wbs === selectedWbs);
     if (selectedSistema) temp = temp.filter(r => r.sistema === selectedSistema);
     return [...new Set(temp.map(r => {
-      const materialStr = r.material || '';
-      return materialStr.replace(/^cable\s+/i, '').trim().toUpperCase();
+      return getCleanMaterialType(r.material || '');
     }).filter(Boolean))].sort();
-  }, [rawFiltersData, selectedWbs, selectedSistema]);
+  }, [rawFiltersData, selectedWbs, selectedSistema, getCleanMaterialType]);
 
   // Reset dependent filters if they are no longer in the dynamic lists
   useEffect(() => {
@@ -73,6 +84,7 @@ export default function PatDashboard() {
     longitudTotal: 0,
     circuitosTotales: 0,
     longitudTendida: 0,
+    circuitosEjecutados: 0,
     longitudPendiente: 0,
     circuitosPendientes: 0,
     tendidoPct: 0,
@@ -93,6 +105,27 @@ export default function PatDashboard() {
 
   // Detail table
   const [showTable, setShowTable] = useState(false);
+
+  useEffect(() => {
+    setSelectedTipoCable('');
+    setSelectedWbs('');
+    setSelectedSistema('');
+    setShowTable(false);
+    setShowMobileDispatch(false);
+    setShowMobileTypeBreakdown(false);
+  }, [activePatSection]);
+
+  const toggleMobileGauge = () => {
+    if (window.matchMedia('(hover: none)').matches) {
+      setShowMobileDispatch(current => !current);
+    }
+  };
+
+  const toggleMobileTypeBreakdown = () => {
+    if (window.matchMedia('(hover: none)').matches) {
+      setShowMobileTypeBreakdown(current => !current);
+    }
+  };
 
   const handleClearFilters = () => {
     setSelectedTipoCable('');
@@ -121,7 +154,7 @@ export default function PatDashboard() {
           .select('*')
           .range(start, start + batchSize - 1)
           .eq('tipo_cable', 'PAT')
-          .ilike('material', 'CABLE%');
+          .ilike('material', materialPattern);
 
         const { data: batchData, error: fetchErr } = await query;
         if (fetchErr) throw fetchErr;
@@ -170,8 +203,7 @@ export default function PatDashboard() {
       const processedRows = rawRows.map(r => {
         const total = parseFloat(r.total_estimado_m) || 0;
         const metrado = parseFloat(r.metrado_reportado_campo) || 0;
-        const materialStr = r.material || '';
-        const cleanTipo = materialStr.replace(/^cable\s+/i, '').trim().toUpperCase();
+        const cleanTipo = getCleanMaterialType(r.material || '');
         const despachado = despMap.get(r.tag_unico) || 0;
         return {
           ...r,
@@ -201,6 +233,7 @@ export default function PatDashboard() {
       const longitudDespachada = rows.reduce((sum, r) => sum + (parseFloat(r.longitud_despachada_m) || 0), 0);
       const circuitosTotales = rows.length;
       const circuitosPendientes = rows.filter(r => !r.is_tendido).length;
+      const circuitosEjecutados = rows.filter(r => r.is_tendido).length;
       const tendidoPct = longitudTotal > 0 ? (longitudTendida / longitudTotal) * 100 : 0;
       const despachadoPct = longitudTotal > 0 ? (longitudDespachada / longitudTotal) * 100 : 0;
       const desviacionAlmacen = longitudDespachada - longitudTendida;
@@ -226,6 +259,7 @@ export default function PatDashboard() {
         longitudTotal,
         circuitosTotales,
         longitudTendida,
+        circuitosEjecutados,
         longitudPendiente,
         circuitosPendientes,
         tendidoPct,
@@ -300,7 +334,7 @@ export default function PatDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [selectedWbs, selectedSistema, selectedTipoCable]);
+  }, [selectedWbs, selectedSistema, selectedTipoCable, materialPattern, getCleanMaterialType]);
 
   // Fetch filter options
   const fetchFilters = useCallback(async () => {
@@ -309,13 +343,13 @@ export default function PatDashboard() {
         .from('cable_schedule')
         .select('wbs, sistema, material')
         .eq('tipo_cable', 'PAT')
-        .ilike('material', 'CABLE%');
+        .ilike('material', materialPattern);
 
       setRawFiltersData(data || []);
     } catch (err) {
       console.error('Error fetching filters:', err);
     }
-  }, []);
+  }, [materialPattern]);
 
   useEffect(() => {
     fetchFilters();
@@ -349,6 +383,21 @@ export default function PatDashboard() {
 
   return (
     <div id="cable-dashboard" className="tab-content active">
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, padding: 4, width: 'fit-content', borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+        <button
+          className={`btn btn-sm ${!isPvc ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActivePatSection('conductores')}
+        >
+          Conductores PAT
+        </button>
+        <button
+          className={`btn btn-sm ${isPvc ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActivePatSection('pvc')}
+        >
+          Tubería PVC
+        </button>
+      </div>
+
       {/* ── Top Bar: Filters + Actions ── */}
       <div className="cable-topbar">
         <button
@@ -362,7 +411,7 @@ export default function PatDashboard() {
 
         <div className={`cable-filters ${showMobileFilters ? 'expanded' : ''}`}>
           <CustomDropdown
-            label="Tipo de Cable"
+            label={isPvc ? 'Tipo de Tubería' : 'Tipo de Cable'}
             value={selectedTipoCable}
             options={filteredTipos}
             onChange={setSelectedTipoCable}
@@ -401,67 +450,101 @@ export default function PatDashboard() {
 
       {/* ── KPI Cards ── */}
       <div className="cable-kpi-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px' }}>
-        <div className="cable-kpi-card">
-          <span className="cable-kpi-value accent">{formatNumber(kpis.longitudTotal)}</span>
-          <span className="cable-kpi-label">Longitud Total (m)</span>
-        </div>
-        <div className="cable-kpi-card">
+        <div
+          className={`cable-kpi-card type-breakdown-card ${showMobileTypeBreakdown ? 'mobile-show-breakdown' : ''}`}
+          onClick={toggleMobileTypeBreakdown}
+          role="button"
+          tabIndex={0}
+          aria-label={`Mostrar ${itemLabel.toLowerCase()} por tipo`}
+        >
           <div className="kpi-card-front">
-            <span className="cable-kpi-value accent">{kpis.circuitosTotales.toLocaleString()}</span>
-            <span className="cable-kpi-label">Circuitos Totales</span>
-          </div>
-          {kpis.circuitosPorTipo && kpis.circuitosPorTipo.length > 0 && (
-            <div className="kpi-card-back">
-              <div style={{ fontWeight: 600, borderBottom: '1px solid var(--border-color)', paddingBottom: '6px', marginBottom: '6px', textAlign: 'left', fontSize: '0.8rem', color: 'var(--text-primary)' }}>
-                Circuitos por Tipo:
-              </div>
-              <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }}>
-                {kpis.circuitosPorTipo.map(item => (
-                  <div key={item.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', margin: '4px 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                    <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', flex: 1, textAlign: 'left' }}>{item.name}</span>
-                    <span style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{item.count}</span>
-                  </div>
-                ))}
-              </div>
+            <span className="cable-kpi-value accent">{formatNumber(kpis.longitudTotal)}</span>
+            <span className="cable-kpi-label">Longitud Total (m)</span>
+            <div className="cable-kpi-sub" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px' }}>
+              <span className="cable-kpi-sub-value">{kpis.circuitosTotales.toLocaleString()}</span>
+              <span className="cable-kpi-sub-label">{itemLabel} Totales (und)</span>
             </div>
-          )}
+          </div>
+          <div className="kpi-card-back">
+            <div style={{ fontWeight: 600, borderBottom: '1px solid var(--border-color)', paddingBottom: 6, marginBottom: 6, textAlign: 'left', fontSize: '0.8rem', color: 'var(--text-primary)' }}>
+              {itemLabel} por Tipo (und):
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', paddingRight: 4 }}>
+              {(kpis.circuitosPorTipo || []).map(item => (
+                <div key={item.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, margin: '4px 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', flex: 1, textAlign: 'left' }}>{item.name}</span>
+                  <span style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{item.count}</span>
+                </div>
+              ))}
+              {(!kpis.circuitosPorTipo || kpis.circuitosPorTipo.length === 0) && (
+                <div className="text-muted" style={{ fontSize: '0.75rem' }}>Sin datos</div>
+              )}
+            </div>
+          </div>
         </div>
-        <div className="cable-kpi-card highlight">
-          <CableGauge
-            value={kpis.tendidoPct}
-            label="TENDIDO"
-            size={110}
-            strokeWidth={8}
-            color="#f59e0b"
-            bgColor="rgba(255,255,255,0.08)"
-            type="donut"
-          />
+
+        <div className="cable-kpi-card">
+          <span className="cable-kpi-value" style={{ color: '#10b981' }}>{formatNumber(kpis.longitudTendida)}</span>
+          <span className="cable-kpi-label">Longitud Ejecutada (m)</span>
+          <div className="cable-kpi-sub" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px' }}>
+            <span className="cable-kpi-sub-value" style={{ color: '#10b981' }}>{kpis.circuitosEjecutados.toLocaleString()}</span>
+            <span className="cable-kpi-sub-label">{itemLabel} Ejecutados (und)</span>
+          </div>
         </div>
-        <div className="cable-kpi-card highlight">
-          <CableGauge
-            value={kpis.despachadoPct}
-            label="DESPACHADO"
-            size={110}
-            strokeWidth={8}
-            color="#3b82f6"
-            bgColor="rgba(255,255,255,0.08)"
-            type="donut"
-          />
+
+        <div
+          className={`cable-kpi-card highlight progress-gauge-card ${showMobileDispatch ? 'mobile-show-dispatched' : ''}`}
+          onClick={toggleMobileGauge}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              setShowMobileDispatch(current => !current);
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label={showMobileDispatch ? 'Mostrar avance tendido' : 'Mostrar avance despachado'}
+        >
+          <div style={{ position: 'relative', width: 110, height: 110, flexShrink: 0 }}>
+            <div className="kpi-card-front" style={{ position: 'absolute', inset: 0 }}>
+              <CableGauge
+                value={kpis.tendidoPct}
+                label={isPvc ? 'INSTALADO' : 'TENDIDO'}
+                size={110}
+                strokeWidth={8}
+                color="#f59e0b"
+                bgColor="rgba(255,255,255,0.08)"
+                type="donut"
+              />
+            </div>
+            <div className="kpi-card-back" style={{ inset: 0, padding: 0, alignItems: 'center', justifyContent: 'center', background: 'transparent' }}>
+              <CableGauge
+                value={kpis.despachadoPct}
+                label="DESPACHADO"
+                size={110}
+                strokeWidth={8}
+                color="#3b82f6"
+                bgColor="rgba(255,255,255,0.08)"
+                type="donut"
+              />
+            </div>
+          </div>
         </div>
+
         <div className="cable-kpi-card">
           <span className="cable-kpi-value warning">{formatNumber(kpis.longitudPendiente)}</span>
-          <span className="cable-kpi-label">Longitud Pendiente</span>
+          <span className="cable-kpi-label">Longitud Pendiente (m)</span>
           <div className="cable-kpi-sub" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px' }}>
             <span className="cable-kpi-sub-value">{kpis.circuitosPendientes.toLocaleString()}</span>
-            <span className="cable-kpi-sub-label">Circuitos Pendientes</span>
+            <span className="cable-kpi-sub-label">{itemLabel} Pendientes (und)</span>
           </div>
         </div>
         <div className="cable-kpi-card">
           <span className="cable-kpi-value warning" style={{ color: '#ef4444' }}>{formatNumber(kpis.desviacionAlmacen)}</span>
-          <span className="cable-kpi-label">Desviación de Almacén</span>
+          <span className="cable-kpi-label">Desviación de Almacén (m)</span>
           <div className="cable-kpi-sub" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px' }}>
             <span className="cable-kpi-sub-value">{kpis.circuitosDesviados.toLocaleString()}</span>
-            <span className="cable-kpi-sub-label">Circuitos Desviados</span>
+            <span className="cable-kpi-sub-label">{itemLabel} Desviados (und)</span>
           </div>
         </div>
       </div>
@@ -493,19 +576,19 @@ export default function PatDashboard() {
         <div className={`cable-chart-col ${activeMobileTab === 'tipo' ? 'mobile-active' : ''}`}>
           <CableBarChart
             data={tipoBars}
-            title="Longitud de Cable (m) según Tipo"
+            title={`Longitud de ${isPvc ? 'Tubería PVC' : 'Cable'} (m) según Tipo`}
           />
         </div>
         <div className={`cable-chart-col ${activeMobileTab === 'wbs' ? 'mobile-active' : ''}`}>
           <CableBarChart
             data={wbsBars}
-            title="Longitud de Cable (m) según WBS"
+            title={`Longitud de ${isPvc ? 'Tubería PVC' : 'Cable'} (m) según WBS`}
           />
         </div>
         <div className={`cable-chart-col ${activeMobileTab === 'sistema' ? 'mobile-active' : ''}`}>
           <CableBarChart
             data={sistemaBars}
-            title="Longitud de Cable (m) según Sistema"
+            title={`Longitud de ${isPvc ? 'Tubería PVC' : 'Cable'} (m) según Sistema`}
           />
         </div>
       </div>
@@ -518,7 +601,7 @@ export default function PatDashboard() {
           style={{ marginBottom: 16 }}
         >
           <Search size={14} />
-          {showTable ? 'Ocultar Detalle' : 'Ver Detalle de Circuitos'}
+          {showTable ? 'Ocultar Detalle' : `Ver Detalle de ${itemLabel}`}
         </button>
 
         {showTable && (
@@ -527,6 +610,7 @@ export default function PatDashboard() {
             filterSistema={selectedSistema}
             filterCleanTipo={selectedTipoCable}
             filterTipoCable="PAT"
+            filterMaterialPrefix={isPvc ? 'TUBERIA PVC SCH' : 'CABLE'}
           />
         )}
       </div>

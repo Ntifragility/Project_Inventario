@@ -57,7 +57,7 @@ export const CABLE_PAT_COLUMNS = {
   wbs:                     { label: 'WBS',                     required: false, type: 'text' },
   sistema:                 { label: 'SISTEMA',                 required: false, type: 'text' },
   tag_unico:               { label: 'TAG UNICO',               required: true,  type: 'text' },
-  material:                { label: 'DESCRIPCION DE CABLE',    required: false, type: 'text' },
+  material:                { label: 'DESCRIPCION DE MATERIAL', required: false, type: 'text' },
   total_estimado_m:        { label: 'METRADO OT',              required: false, type: 'number' },
   total_despachado_m:      { label: 'METRADO DESPACHADO (M)',  required: false, type: 'number' },
   metrado_reportado_campo: { label: 'METRADO CAMPO',           required: false, type: 'number' },
@@ -69,17 +69,28 @@ export const CABLE_PAT_SIGNATURES = [
   'METRADO DESPACHADO',
   'METRADO OT',
   'METRADO CAMPO',
-  'DESCRIPCION DE CABLE'
+  'DESCRIPCION DE CABLE',
+  'DESCRIPCION DE MATERIAL'
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+export function normalizeImportText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
 
 /**
  * Auto-detect which import type a set of headers corresponds to.
  * Returns 'schedule' | 'despacho' | 'pat' | null
  */
 export function detectImportType(headers) {
-  const upper = headers.map(h => (h || '').toString().toUpperCase().trim());
+  const upper = headers.map(normalizeImportText);
 
   const scheduleHits = CABLE_SCHEDULE_SIGNATURES.filter(sig =>
     upper.some(h => h.includes(sig))
@@ -109,14 +120,14 @@ export function detectImportType(headers) {
  */
 export function autoMapColumns(headers, columnDefs) {
   const mapping = {};
-  const upperHeaders = headers.map(h => (h || '').toString().toUpperCase().trim());
+  const upperHeaders = headers.map(normalizeImportText);
 
   const ALIASES = {
     tag_unico: ['TAG UNICO', 'TAG_UNICO', 'TAG'],
     numero: ['N°', 'N', 'NUMERO'],
     area: ['AREA', 'WBS', 'ZONA'],
     sistema: ['SISTEMA', 'SUBSISTEMA', 'SUB-SISTEMA'],
-    material: ['DESCRIPCION DE CABLE', 'DESCRIPCION DE MATERIAL', 'DESCRIPCION CABLE', 'DESCRIPCION', 'MATERIAL'],
+    material: ['DESCRIPCION DE CABLE', 'DESCRIPCION DE TUBERIA', 'DESCRIPCION DE MATERIAL', 'DESCRIPCION CABLE', 'DESCRIPCION', 'MATERIAL'],
     total_estimado_m: ['TOTAL ESTIMADO', 'TOTAL ESTIM', 'TOTAL ESTIM. (M)', 'METRADO OT', 'METRADO OT (M)'],
     conexion_origen: ['CONEXION DE ORIGEN', 'CONEXION ORIGEN', 'ORIGEN'],
     conexion_destino: ['CONEXION DE DESTINO', 'CONEXION DESTINO', 'DESTINO'],
@@ -131,7 +142,7 @@ export function autoMapColumns(headers, columnDefs) {
     // Find the first header that matches any alias
     let idx = -1;
     for (const alias of list) {
-      const aliasUpper = alias.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const aliasUpper = normalizeImportText(alias).replace(/[^A-Z0-9]/g, '');
       idx = upperHeaders.findIndex(h => h.replace(/[^A-Z0-9]/g, '') === aliasUpper);
       if (idx !== -1) break;
     }
@@ -139,7 +150,7 @@ export function autoMapColumns(headers, columnDefs) {
     // Fallback: search if alias is contained in header or vice versa
     if (idx === -1) {
       for (const alias of list) {
-        const aliasUpper = alias.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const aliasUpper = normalizeImportText(alias).replace(/[^A-Z0-9]/g, '');
         if (!aliasUpper) continue;
         idx = upperHeaders.findIndex(h => {
           const cleanH = h.replace(/[^A-Z0-9]/g, '');

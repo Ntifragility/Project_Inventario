@@ -2709,6 +2709,71 @@ tr:hover .row-actions-hover {
   border-color: rgba(245, 158, 11, 0.2);
 }
 
+.progress-gauge-card .kpi-card-front,
+.progress-gauge-card .kpi-card-back {
+  transform: none;
+  transition: opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress-gauge-card:hover .kpi-card-front,
+.progress-gauge-card:hover .kpi-card-back {
+  transform: none;
+}
+
+@media (hover: none) {
+  .progress-gauge-card {
+    cursor: pointer;
+  }
+
+  .type-breakdown-card {
+    cursor: pointer;
+  }
+
+  .progress-gauge-card:hover .kpi-card-front {
+    opacity: 1;
+  }
+
+  .progress-gauge-card:hover .kpi-card-back {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .progress-gauge-card.mobile-show-dispatched .kpi-card-front,
+  .progress-gauge-card.mobile-show-dispatched:hover .kpi-card-front {
+    opacity: 0;
+  }
+
+  .progress-gauge-card.mobile-show-dispatched .kpi-card-back,
+  .progress-gauge-card.mobile-show-dispatched:hover .kpi-card-back {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .type-breakdown-card:hover .kpi-card-front {
+    opacity: 1;
+    transform: none;
+  }
+
+  .type-breakdown-card:hover .kpi-card-back {
+    opacity: 0;
+    transform: none;
+    pointer-events: none;
+  }
+
+  .type-breakdown-card.mobile-show-breakdown .kpi-card-front,
+  .type-breakdown-card.mobile-show-breakdown:hover .kpi-card-front {
+    opacity: 0;
+    transform: translateY(-15px);
+  }
+
+  .type-breakdown-card.mobile-show-breakdown .kpi-card-back,
+  .type-breakdown-card.mobile-show-breakdown:hover .kpi-card-back {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+}
+
 .cable-kpi-value {
   font-size: 2rem;
   font-weight: 700;
