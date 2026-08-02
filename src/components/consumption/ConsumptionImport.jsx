@@ -4,9 +4,11 @@ import * as XLSX from 'xlsx';
 import { Upload, Search, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, X, Zap, HelpCircle, FileSpreadsheet, Download } from 'lucide-react';
 import { fuzzySearch, exactMatchSynonym, normalize } from '../smartimport/fuzzyMatch';
 import { findMatchingProfileByHeaders, fetchMappingProfiles, saveOrUpdateProfile } from '../smartimport/mappingPersistence';
+import { useProjectArea } from '../../contexts/ProjectAreaContext';
 
 
 export default function ConsumptionImport({ user, onClose, onImportComplete }) {
+  const { activeAreaId } = useProjectArea();
   const [currentStep, setCurrentStep] = useState(0);
 
   // Step 1: Upload
@@ -298,7 +300,8 @@ export default function ConsumptionImport({ user, onClose, onImportComplete }) {
               metrado_reportado: row.totalQty * parseFloat(comp.multiplicador),
               metrado_ot: (row.totalQtyOt || 0) * parseFloat(comp.multiplicador),
               fecha_metrado: row.fecha || new Date().toISOString().split('T')[0],
-              upload_batch_id: batchId
+              upload_batch_id: batchId,
+              project_area_id: activeAreaId
             });
           }
         } else {
@@ -309,7 +312,8 @@ export default function ConsumptionImport({ user, onClose, onImportComplete }) {
             metrado_reportado: row.totalQty,
             metrado_ot: row.totalQtyOt || 0,
             fecha_metrado: row.fecha || new Date().toISOString().split('T')[0],
-            upload_batch_id: batchId
+            upload_batch_id: batchId,
+            project_area_id: activeAreaId
           });
         }
       }

@@ -11,6 +11,7 @@ import {
   detectImportType, autoMapColumns, transformRow, normalizeImportText
 } from './cableParserConfig';
 import { findMatchingProfileByHeaders, fetchMappingProfiles, saveOrUpdateProfile } from '../smartimport/mappingPersistence';
+import { useProjectArea } from '../../contexts/ProjectAreaContext';
 
 
 /**
@@ -23,6 +24,7 @@ import { findMatchingProfileByHeaders, fetchMappingProfiles, saveOrUpdateProfile
  * - forceType: 'schedule' | 'despacho' | null (pre-select import type)
  */
 export default function CableImportWizard({ onClose, onImportComplete, forceType = null }) {
+  const { activeArea, activeAreaId } = useProjectArea();
   // ── Wizard State ──
   const [currentStep, setCurrentStep] = useState(0);
   const [importType, setImportType] = useState(forceType); // 'schedule' | 'despacho'
@@ -323,11 +325,20 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
           const batchTags = batch.map(row => row.tag_unico).filter(Boolean);
           const { data: existingRows, error: existingErr } = await supabase
             .from('cable_schedule')
-            .select('tag_unico')
+            .select('tag_unico, project_area_id')
             .in('tag_unico', batchTags);
 
           if (existingErr) throw existingErr;
-          const existingTags = new Set((existingRows || []).map(row => row.tag_unico));
+          const conflictingTags = (existingRows || [])
+            .filter(row => row.project_area_id !== activeAreaId)
+            .map(row => row.tag_unico);
+          if (conflictingTags.length > 0) {
+            const examples = conflictingTags.slice(0, 5).join(', ');
+            throw new Error(`No se puede importar en ${activeArea?.name || 'esta area'}: los TAG ${examples}${conflictingTags.length > 5 ? '...' : ''} ya pertenecen a otra area.`);
+          }
+          const existingTags = new Set((existingRows || [])
+            .filter(row => row.project_area_id === activeAreaId)
+            .map(row => row.tag_unico));
 
           // Extract despachado if present
           const scheduleBatch = batch.map(row => {
@@ -335,6 +346,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
             delete copy.total_despachado_m;
             return {
               ...copy,
+              project_area_id: activeAreaId,
               updated_at: new Date().toISOString(),
             };
           });
@@ -376,8 +388,23 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
           inserted += batchTags.filter(tag => !existingTags.has(tag)).length;
           updated += batchTags.filter(tag => existingTags.has(tag)).length;
         } else {
+          const batchTags = batch.map(row => row.tag_unico).filter(Boolean);
+          const { data: parentRows, error: parentError } = await supabase
+            .from('cable_schedule')
+            .select('tag_unico')
+            .eq('project_area_id', activeAreaId)
+            .in('tag_unico', batchTags);
+
+          if (parentError) throw parentError;
+          const parentTags = new Set((parentRows || []).map(row => row.tag_unico));
+          const missingTags = batchTags.filter(tag => !parentTags.has(tag));
+          if (missingTags.length > 0) {
+            const examples = missingTags.slice(0, 5).join(', ');
+            throw new Error(`No se puede importar despachos en ${activeArea?.name || 'esta area'}: los TAG ${examples}${missingTags.length > 5 ? '...' : ''} no existen en el Cable Schedule de esta area.`);
+          }
+
           // Simulated upsert: delete existing records for these tags first to prevent duplicate entries
-          const tagsToDelete = batch.map(row => row.tag_unico).filter(Boolean);
+          const tagsToDelete = batchTags;
           if (tagsToDelete.length > 0) {
             const { error: delErr } = await supabase
               .from('cable_despachos')
@@ -409,7 +436,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
     } finally {
       setIsImporting(false);
     }
-  }, [previewData, importType, mapping, rawHeaders]);
+  }, [activeArea, activeAreaId, previewData, importType, mapping, rawHeaders]);
 
   // ══════════════════════════════════════════════════════════════
   // STEP NAVIGATION

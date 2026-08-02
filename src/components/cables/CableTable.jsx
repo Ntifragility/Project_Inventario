@@ -6,8 +6,10 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { cleanPatMaterialType, deriveCableMetrics, matchesDashboardFilter } from './cableMetrics';
+import { useProjectArea } from '../../contexts/ProjectAreaContext';
 
 export default function CableTable({ filterArea = '', filterTipoServicio = '', filterTipoCable = '', filterWbs = '', filterSistema = '', filterCleanTipo = '', filterMaterialPrefix = 'CABLE', sourceData = null, dashboardFilter = null }) {
+  const { activeAreaId } = useProjectArea();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -92,6 +94,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
         let query = supabase
           .from('cable_schedule')
           .select('*')
+          .eq('project_area_id', activeAreaId)
           .range(start, start + batchSize - 1)
           .ilike('material', `${filterMaterialPrefix}%`);
 
@@ -130,7 +133,8 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
       while (despHasMore) {
         const { data: despBatch, error: despErr } = await supabase
           .from('cable_despachos')
-          .select('tag_unico, longitud_despachada_m')
+          .select('tag_unico, longitud_despachada_m, cable_schedule!inner(project_area_id)')
+          .eq('cable_schedule.project_area_id', activeAreaId)
           .range(despStart, despStart + batchSize - 1);
 
         if (despErr) throw despErr;
@@ -169,7 +173,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     } finally {
       setLoading(false);
     }
-  }, [filterArea, filterTipoServicio, filterTipoCable, filterWbs, filterSistema, filterCleanTipo, filterMaterialPrefix, isPvc, search, sortField, sortDir, sourceData]);
+  }, [activeAreaId, filterArea, filterTipoServicio, filterTipoCable, filterWbs, filterSistema, filterCleanTipo, filterMaterialPrefix, isPvc, search, sortField, sortDir, sourceData]);
 
   useEffect(() => {
     fetchData();
@@ -180,8 +184,9 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     try {
       const { data: desp, error } = await supabase
         .from('cable_despachos')
-        .select('*')
+        .select('*, cable_schedule!inner(project_area_id)')
         .eq('tag_unico', tagUnico)
+        .eq('cable_schedule.project_area_id', activeAreaId)
         .order('fecha_entrega', { ascending: false });
 
       if (error) throw error;
@@ -192,7 +197,14 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     } finally {
       setLoadingDespachos(false);
     }
-  }, []);
+  }, [activeAreaId]);
+
+  useEffect(() => {
+    setExpandedRow(null);
+    setDespachos([]);
+    setHeaderFilters({});
+    setActiveFilter(null);
+  }, [activeAreaId]);
 
   const toggleExpand = (tagUnico) => {
     if (filterTipoCable === 'PAT') return;

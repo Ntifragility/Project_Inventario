@@ -2,8 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { supabase } from '../../supabase';
 import * as XLSX from 'xlsx';
 import { Upload, FileSpreadsheet, AlertCircle, ArrowRight, ArrowLeft, X, Zap, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
+import { useProjectArea } from '../../contexts/ProjectAreaContext';
 
 export default function MovementImportWizard({ type, onClose, onImportComplete }) {
+  const { activeAreaId } = useProjectArea();
   const [currentStep, setCurrentStep] = useState(0);
 
   // File state
@@ -175,8 +177,8 @@ export default function MovementImportWizard({ type, onClose, onImportComplete }
 
       // 2. Validate against DB
       const [resProductos, resMovimientos] = await Promise.all([
-        supabase.from('v_productos_stock').select('codigo, unidad').in('codigo', Array.from(fileCodes)),
-        supabase.from('movimientos').select('key').in('key', Array.from(fileKeys))
+        supabase.from('v_productos_stock').select('codigo, unidad').eq('project_area_id', activeAreaId).in('codigo', Array.from(fileCodes)),
+        supabase.from('movimientos').select('key').eq('project_area_id', activeAreaId).in('key', Array.from(fileKeys))
       ]);
 
       if (resProductos.error) throw resProductos.error;
@@ -254,10 +256,11 @@ export default function MovementImportWizard({ type, onClose, onImportComplete }
         tipo: isIngreso ? 'INGRESO' : 'SALIDA',
         upload_batch_id: batchId,
         almacenero: row.almacenero || null,
-        unidad: row.um || null
+        unidad: row.um || null,
+        project_area_id: activeAreaId
       }));
 
-      const { error } = await supabase.from('movimientos').upsert(movementsToUpsert, { onConflict: 'key' });
+      const { error } = await supabase.from('movimientos').upsert(movementsToUpsert, { onConflict: 'project_area_id,key' });
       if (error) throw error;
 
       setImportResult({ count: movementsToUpsert.length, batchId });

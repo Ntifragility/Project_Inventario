@@ -5,6 +5,7 @@ import { Upload, FileSpreadsheet, Filter, Search, CheckCircle2, AlertCircle, Arr
 import { INGRESOS_CONFIG, SALIDAS_CONFIG, detectPipeline, findColumnIndex } from './pipelineConfig';
 import { fuzzySearch, exactMatchSynonym, normalize } from './fuzzyMatch';
 import { findMatchingProfileByHeaders, saveOrUpdateProfile } from './mappingPersistence';
+import { useProjectArea } from '../../contexts/ProjectAreaContext';
 
 
 /**
@@ -12,6 +13,7 @@ import { findMatchingProfileByHeaders, saveOrUpdateProfile } from './mappingPers
  * Replaces the external Power Query preprocessing pipeline.
  */
 export default function SmartImportWizard({ user, onClose, onImportComplete }) {
+  const { activeAreaId } = useProjectArea();
   // ── Wizard State ──
   const [currentStep, setCurrentStep] = useState(0);
   const [pipelineType, setPipelineType] = useState(null); // 'ingresos' | 'salidas'
@@ -102,8 +104,8 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       setLoadingFilters(true);
       try {
         const promises = [
-          supabase.from('almaceneros').select('codigo'),
-          supabase.from('disciplinas').select('nombre'),
+          supabase.from('almaceneros').select('codigo').eq('project_area_id', activeAreaId),
+          supabase.from('disciplinas').select('nombre').eq('project_area_id', activeAreaId),
           supabase.from('import_profiles').select('*')
         ];
         
@@ -142,7 +144,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       }
     };
     fetchFilters();
-  }, [user]);
+  }, [activeAreaId, user]);
 
   // ══════════════════════════════════════════════════════════════
   // STEP 1: FILE UPLOAD
@@ -383,7 +385,8 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       // Fetch products list for fuzzy matching later
       const { data: products, error: prodError } = await supabase
         .from('v_productos_stock')
-        .select('codigo, nombre, unidad');
+        .select('codigo, nombre, unidad')
+        .eq('project_area_id', activeAreaId);
 
       if (prodError) throw prodError;
       setProductsList(products || []);
@@ -460,7 +463,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
     } finally {
       setIsMatching(false);
     }
-  }, [filteredRows]);
+  }, [activeAreaId, filteredRows]);
 
   useEffect(() => {
     if (currentStep === 3) {
@@ -890,7 +893,8 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
           cant_oc: row.cant_oc,
           usuario: activeUserEmail,
           observaciones,
-          key: row.transactionKey
+          key: row.transactionKey,
+          project_area_id: activeAreaId
         };
       });
 
@@ -899,6 +903,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
       const { data: existingRows, error: keyError } = await supabase
         .from('movimientos')
         .select('id, key, cantidad, fecha')
+        .eq('project_area_id', activeAreaId)
         .in('key', keys);
 
       if (keyError) throw keyError;
@@ -991,7 +996,8 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
             const { error: updateErr } = await supabase
               .from('movimientos')
               .update(updatePayload)
-              .eq('id', id);
+              .eq('id', id)
+              .eq('project_area_id', activeAreaId);
             if (updateErr) console.warn('Update error for movement id', id, updateErr);
           }
         }
@@ -1038,6 +1044,7 @@ export default function SmartImportWizard({ user, onClose, onImportComplete }) {
           const { data: stockData, error: stockError } = await supabase
             .from('v_productos_stock')
             .select('codigo, cantidad')
+            .eq('project_area_id', activeAreaId)
             .in('codigo', codigos);
 
           if (stockError) throw stockError;

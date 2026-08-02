@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Box, Cable, MonitorDot, User, LogOut, Sun, Moon, Zap, ChevronLeft } from 'lucide-react';
+import ProjectAreaSelector from './ProjectAreaSelector';
 
 export default function MainMenu({ onSelectModule, user, onLogout, isDark, toggleTheme }) {
   const [hoveredModule, setHoveredModule] = useState(null);
@@ -48,6 +49,8 @@ export default function MainMenu({ onSelectModule, user, onLogout, isDark, toggl
         </div>
         
         <div className="main-menu-user-actions">
+          <ProjectAreaSelector onAreaChange={() => setShowCableSubmenu(false)} />
+
           <button onClick={toggleTheme} className="theme-toggle-btn" title={isDark ? "Modo Claro" : "Modo Oscuro"}>
             {isDark ? <Sun size={18} /> : <Moon size={18} />}
           </button>

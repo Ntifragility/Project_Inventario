@@ -3,8 +3,10 @@ import { supabase } from '../supabase';
 import { Plus, Upload, Download, List, AlertCircle, CheckCircle2, Info, Pencil, Trash2, X, Save, Search, Scan, ChevronDown, ChevronUp } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import BarcodeScanner from './BarcodeScanner';
+import { useProjectArea } from '../contexts/ProjectAreaContext';
 
 export default function Products() {
+  const { activeAreaId } = useProjectArea();
   // Form states
   const [codigo, setCodigo] = useState('');
   const [nombre, setNombre] = useState('');
@@ -79,6 +81,7 @@ export default function Products() {
       const { data, error } = await supabase
         .from('v_productos_stock')
         .select('codigo, nombre, unidad, grupo, stockMin:stock_min, cantidad')
+        .eq('project_area_id', activeAreaId)
         .order('nombre');
 
       if (error) throw error;
@@ -89,7 +92,7 @@ export default function Products() {
     } finally {
       setLoadingList(false);
     }
-  }, []);
+  }, [activeAreaId]);
 
   useEffect(() => {
     fetchListas();
@@ -229,7 +232,8 @@ export default function Products() {
       const { count, error: countErr } = await supabase
         .from('movimientos')
         .select('id', { count: 'exact', head: true })
-        .eq('producto_codigo', deleteTarget.codigo);
+        .eq('producto_codigo', deleteTarget.codigo)
+        .eq('project_area_id', activeAreaId);
 
       if (countErr) throw countErr;
 

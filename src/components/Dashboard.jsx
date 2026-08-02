@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabase';
+import { useProjectArea } from '../contexts/ProjectAreaContext';
 import { 
   Package, 
   RefreshCw, 
@@ -22,6 +23,7 @@ import {
 } from 'recharts';
 
 export default function Dashboard() {
+  const { activeAreaId } = useProjectArea();
   const [stats, setStats] = useState({
     totalProductos: 0,
     totalMovimientos: 0,
@@ -43,8 +45,8 @@ export default function Dashboard() {
     try {
       const [resProductos, resMovimientos, resStock] = await Promise.all([
         supabase.from('productos').select('*', { count: 'exact', head: true }),
-        supabase.from('movimientos').select('*', { count: 'exact', head: true }),
-        supabase.from('v_productos_stock').select('codigo, nombre, stockMin:stock_min, cantidad')
+        supabase.from('movimientos').select('*', { count: 'exact', head: true }).eq('project_area_id', activeAreaId),
+        supabase.from('v_productos_stock').select('codigo, nombre, stockMin:stock_min, cantidad').eq('project_area_id', activeAreaId)
       ]);
 
       if (resProductos.error) throw resProductos.error;
@@ -85,7 +87,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeAreaId]);
 
   const fetchChartData = async () => {
     try {
@@ -96,7 +98,8 @@ export default function Dashboard() {
 
       const { data: recentMoves, error: movErr } = await supabase
         .from('movimientos')
-        .select('fecha, tipo, cantidad')
+        .select('producto_codigo, fecha, tipo, cantidad')
+        .eq('project_area_id', activeAreaId)
         .gte('fecha', fromDate)
         .order('fecha');
 

@@ -4,6 +4,7 @@ import { Save, Upload, AlertCircle, CheckCircle2, Info, X, Eye, Clock, Scan, Pen
 import * as XLSX from 'xlsx';
 import BarcodeScanner from './BarcodeScanner';
 import SmartImportWizard from './smartimport/SmartImportWizard';
+import { useProjectArea } from '../contexts/ProjectAreaContext';
 
 const getAlmaceneroFromObs = (obs) => {
   if (!obs) return '';
@@ -12,6 +13,7 @@ const getAlmaceneroFromObs = (obs) => {
 };
 
 export default function Movements({ user }) {
+  const { activeAreaId } = useProjectArea();
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [tipo, setTipo] = useState('INGRESO');
   const [cantidad, setCantidad] = useState('');
@@ -97,6 +99,7 @@ export default function Movements({ user }) {
           created_at,
           producto:productos(nombre, unidades(nombre))
         `)
+        .eq('project_area_id', activeAreaId)
         .order('fecha', { ascending: false })
         .order('created_at', { ascending: false });
 
@@ -219,7 +222,7 @@ export default function Movements({ user }) {
     if (ledgerDateFrom && ledgerDateTo) {
       fetchLedgerMovements();
     }
-  }, [ledgerDateFrom, ledgerDateTo, ledgerType]);
+  }, [activeAreaId, ledgerDateFrom, ledgerDateTo, ledgerType]);
 
   // Handle Delete Click
   const handleDeleteClick = (mov) => {
@@ -372,6 +375,7 @@ export default function Movements({ user }) {
       const { data, error } = await supabase
         .from('movimientos')
         .select('id')
+        .eq('project_area_id', activeAreaId)
         .eq('key', key);
       if (error) throw error;
       if (!data || data.length === 0) {
@@ -401,6 +405,7 @@ export default function Movements({ user }) {
         const { data, error } = await supabase
           .from('v_productos_stock')
           .select('codigo, nombre, unidad, grupo')
+          .eq('project_area_id', activeAreaId)
           .ilike('codigo', `${cleanVal}%`)
           .limit(8);
 
@@ -433,6 +438,7 @@ export default function Movements({ user }) {
         const { data, error } = await supabase
           .from('v_productos_stock')
           .select('codigo, nombre, unidad, grupo')
+          .eq('project_area_id', activeAreaId)
           .ilike('nombre', `%${cleanVal}%`)
           .limit(8);
 
@@ -509,7 +515,8 @@ export default function Movements({ user }) {
         p_cantidad: qtyClean,
         p_usuario: activeUserEmail,
         p_observaciones: finalObs,
-        p_key: keyToSend
+        p_key: keyToSend,
+        p_project_area_id: activeAreaId
       });
 
       if (error) throw error;
@@ -602,7 +609,11 @@ export default function Movements({ user }) {
     setExcelMsg({ text: '', type: '' });
     
     try {
-      const { error } = await supabase.from('movimientos').delete().in('key', lastImport.keys);
+      const { error } = await supabase
+        .from('movimientos')
+        .delete()
+        .eq('project_area_id', activeAreaId)
+        .in('key', lastImport.keys);
       if (error) throw error;
       
       const successMsg = { text: 'Importación deshecha correctamente.', type: 'success' };

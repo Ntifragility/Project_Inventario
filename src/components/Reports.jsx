@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { FileText, Play, Download, AlertCircle, CheckCircle2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { useProjectArea } from '../contexts/ProjectAreaContext';
 
 // CSV injection sanitization helper (SEC-4)
 const sanitizeCsvCell = (val) => {
@@ -13,6 +14,7 @@ const sanitizeCsvCell = (val) => {
 };
 
 export default function Reports() {
+  const { activeAreaId } = useProjectArea();
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [tipo, setTipo] = useState('');
@@ -61,6 +63,7 @@ export default function Reports() {
           created_at,
           producto:productos(nombre, unidades(nombre))
         `)
+        .eq('project_area_id', activeAreaId)
         .gte('fecha', fechaDesde)
         .lte('fecha', fechaHasta)
         .order('fecha', { ascending: false })

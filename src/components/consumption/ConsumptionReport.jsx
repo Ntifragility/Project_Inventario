@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase';
 import { Layers, Search, RefreshCw, Upload, AlertCircle, Download, Activity } from 'lucide-react';
 import ConsumptionImport from './ConsumptionImport';
+import { useProjectArea } from '../../contexts/ProjectAreaContext';
 
 export default function ConsumptionReport() {
+  const { activeAreaId } = useProjectArea();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -17,6 +19,7 @@ export default function ConsumptionReport() {
       const { data, error } = await supabase
         .from('v_balance_consumos')
         .select('*')
+        .eq('project_area_id', activeAreaId)
         .order('nombre');
 
       if (error) throw error;
@@ -31,7 +34,7 @@ export default function ConsumptionReport() {
 
   useEffect(() => {
     fetchReport();
-  }, []);
+  }, [activeAreaId]);
 
   const filteredData = data.filter(r => {
     const cleanFilter = filterText.toLowerCase().trim();

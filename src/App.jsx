@@ -13,6 +13,8 @@ import RecipeManager from './components/recipes/RecipeManager';
 import { Clock, Menu } from 'lucide-react';
 
 import MainMenu from './components/MainMenu';
+import { ProjectAreaProvider } from './contexts/ProjectAreaContext';
+import ProjectAreaSelector from './components/ProjectAreaSelector';
 
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 const WARNING_BEFORE_MS = 60 * 1000; // Show warning 1 minute before logout
@@ -118,6 +120,12 @@ export default function App() {
     }
   };
 
+  const handleAreaChange = () => {
+    setActiveModule(null);
+    setActiveTab(null);
+    setIsMobileSidebarOpen(false);
+  };
+
   if (initializing) {
     return (
       <div className="loading-container" style={{ width: '100vw', height: '100vh', background: 'var(--bg-app)' }}>
@@ -188,6 +196,7 @@ export default function App() {
   };
 
   return (
+    <ProjectAreaProvider user={session.user}>
     <div className={`app-container ${!activeModule ? 'no-sidebar' : ''}`}>
       {activeModule && (
         <>
@@ -224,6 +233,7 @@ export default function App() {
               </button>
               <h2>{getTabTitle()}</h2>
             </div>
+            <ProjectAreaSelector compact onAreaChange={handleAreaChange} />
           </header>
         )}
 
@@ -242,5 +252,6 @@ export default function App() {
         </main>
       </div>
     </div>
+    </ProjectAreaProvider>
   );
 }

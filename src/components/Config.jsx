@@ -3,8 +3,10 @@ import { supabase } from '../supabase';
 import { createClient } from '@supabase/supabase-js';
 import { Settings, ShieldAlert, CheckCircle2, AlertCircle, X, HelpCircle, UserPlus, Shield, Mail, KeyRound, Trash2, ShieldCheck, User, UserMinus, Download, Database, Pencil, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { useProjectArea } from '../contexts/ProjectAreaContext';
 
 export default function Config({ user, mode = 'system' }) {
+  const { activeAreaId } = useProjectArea();
   const [resultMsg, setResultMsg] = useState({ text: '', type: '' });
   const [loadingAction, setLoadingAction] = useState(false);
 
@@ -20,6 +22,8 @@ export default function Config({ user, mode = 'system' }) {
   const [userAdminDni, setUserAdminDni] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserAreaCode, setNewUserAreaCode] = useState('');
+  const [projectAreas, setProjectAreas] = useState([]);
   const [makeAdmin, setMakeAdmin] = useState(false);
   const [newAdminDni, setNewAdminDni] = useState('');
   const [newAdminNombre, setNewAdminNombre] = useState('');
@@ -35,6 +39,10 @@ export default function Config({ user, mode = 'system' }) {
   const [promoNombre, setPromoNombre] = useState('');
   const [promoError, setPromoError] = useState('');
   const [promotingAction, setPromotingAction] = useState(false);
+  const [demotingUser, setDemotingUser] = useState(null);
+  const [demoteAreaCode, setDemoteAreaCode] = useState('');
+  const [demoteError, setDemoteError] = useState('');
+  const [demotingAction, setDemotingAction] = useState(false);
 
   // Audit log states
   const [auditLogs, setAuditLogs] = useState([]);
@@ -335,6 +343,7 @@ export default function Config({ user, mode = 'system' }) {
       const { data, error } = await supabase
         .from('v_productos_stock')
         .select('codigo, nombre')
+        .eq('project_area_id', activeAreaId)
         .or(`codigo.ilike.%${cleanVal}%,nombre.ilike.%${cleanVal}%`)
         .limit(8);
 
@@ -455,36 +464,11 @@ export default function Config({ user, mode = 'system' }) {
   };
 
   React.useEffect(() => {
-    const checkAdminRole = async () => {
-      setCheckingAdmin(true);
-      if (!user) {
-        setIsAdminUser(false);
-        setCheckingAdmin(false);
-        return;
-      }
-      try {
-        const userEmail = user.email ? user.email.toLowerCase() : '';
-        const { data } = await supabase
-          .from('administradores')
-          .select('dni')
-          .ilike('email', userEmail)
-          .maybeSingle();
-
-        setIsAdminUser(Boolean(data) || true); // Grant access to configured user
-      } catch (err) {
-        setIsAdminUser(true);
-      } finally {
-        setCheckingAdmin(false);
-      }
-    };
-
-    checkAdminRole();
-
     if (user) {
       fetchSynonyms();
       fetchDynamicFilters();
     }
-  }, [synPage, synTypeFilter, user]);
+  }, [activeAreaId, synPage, synTypeFilter, user]);
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
@@ -613,8 +597,8 @@ export default function Config({ user, mode = 'system' }) {
     setLoadingFilters(true);
     try {
       const [resAlm, resDisc] = await Promise.all([
-        supabase.from('almaceneros').select('*').order('codigo'),
-        supabase.from('disciplinas').select('*').order('nombre')
+        supabase.from('almaceneros').select('*').eq('project_area_id', activeAreaId).order('codigo'),
+        supabase.from('disciplinas').select('*').eq('project_area_id', activeAreaId).order('nombre')
       ]);
       if (resAlm.error) throw resAlm.error;
       if (resDisc.error) throw resDisc.error;
@@ -633,7 +617,8 @@ export default function Config({ user, mode = 'system' }) {
     try {
       const { error } = await supabase.from('almaceneros').insert({
         codigo: newAlmaceneroCodigo.trim(),
-        nombre: newAlmaceneroNombre.trim()
+        nombre: newAlmaceneroNombre.trim(),
+        project_area_id: activeAreaId
       });
       if (error) throw error;
       setNewAlmaceneroCodigo('');
@@ -663,7 +648,8 @@ export default function Config({ user, mode = 'system' }) {
           codigo: editAlmaceneroCodigo.trim(),
           nombre: editAlmaceneroNombre.trim()
         })
-        .eq('codigo', editingAlmacenero.codigo);
+        .eq('codigo', editingAlmacenero.codigo)
+        .eq('project_area_id', activeAreaId);
       if (error) throw error;
       setEditingAlmacenero(null);
       fetchDynamicFilters();
@@ -690,7 +676,8 @@ export default function Config({ user, mode = 'system' }) {
       const { error } = await supabase
         .from('disciplinas')
         .update({ nombre: editDisciplinaNombre.trim() })
-        .eq('nombre', editingDisciplina.nombre);
+        .eq('nombre', editingDisciplina.nombre)
+        .eq('project_area_id', activeAreaId);
       if (error) throw error;
       setEditingDisciplina(null);
       fetchDynamicFilters();
@@ -715,7 +702,8 @@ export default function Config({ user, mode = 'system' }) {
       const { error } = await supabase
         .from('almaceneros')
         .delete()
-        .eq('codigo', deletingAlmacenero.codigo);
+        .eq('codigo', deletingAlmacenero.codigo)
+        .eq('project_area_id', activeAreaId);
       if (error) throw error;
       setDeletingAlmacenero(null);
       fetchDynamicFilters();
@@ -740,7 +728,8 @@ export default function Config({ user, mode = 'system' }) {
       const { error } = await supabase
         .from('disciplinas')
         .delete()
-        .eq('nombre', deletingDisciplina.nombre);
+        .eq('nombre', deletingDisciplina.nombre)
+        .eq('project_area_id', activeAreaId);
       if (error) throw error;
       setDeletingDisciplina(null);
       fetchDynamicFilters();
@@ -757,7 +746,8 @@ export default function Config({ user, mode = 'system' }) {
     if (!newDisciplinaNombre.trim()) return;
     try {
       const { error } = await supabase.from('disciplinas').insert({
-        nombre: newDisciplinaNombre.trim()
+        nombre: newDisciplinaNombre.trim(),
+        project_area_id: activeAreaId
       });
       if (error) throw error;
       setNewDisciplinaNombre('');
@@ -964,6 +954,17 @@ export default function Config({ user, mode = 'system' }) {
     }
   };
 
+  const fetchProjectAreas = async () => {
+    try {
+      const { data, error } = await supabase.rpc('listar_areas_asignables');
+      if (error) throw error;
+      setProjectAreas(data || []);
+    } catch (err) {
+      console.error('Error fetching project areas:', err);
+      setProjectAreas([]);
+    }
+  };
+
   const handlePromoteSubmit = async (e) => {
     e.preventDefault();
     setPromoError('');
@@ -1011,24 +1012,39 @@ export default function Config({ user, mode = 'system' }) {
       return;
     }
 
-    setConfirmDialog({
-      title: 'Quitar Administrador',
-      message: `¿Está seguro de que desea quitar los privilegios de administrador a ${adminEmail}?`,
-      danger: false,
-      onConfirm: async () => {
-        try {
-          const { error } = await supabase.rpc('revocar_administrador', {
-            p_dni: adminDni
-          });
+    setDemoteAreaCode('');
+    setDemoteError('');
+    setDemotingUser({ dni: adminDni, email: adminEmail });
+  };
 
-          if (error) throw error;
-          fetchUsers();
-        } catch (err) {
-          console.error('Error demoting user:', err);
-          alert('Error al quitar privilegios: ' + err.message);
-        }
-      }
-    });
+  const handleDemoteSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!demoteAreaCode) {
+      setDemoteError('Debe seleccionar el área que tendrá el usuario.');
+      return;
+    }
+
+    setDemoteError('');
+    setDemotingAction(true);
+
+    try {
+      const { error } = await supabase.rpc('revocar_administrador', {
+        p_dni: demotingUser.dni,
+        p_area_code: demoteAreaCode
+      });
+
+      if (error) throw error;
+
+      setDemotingUser(null);
+      setDemoteAreaCode('');
+      fetchUsers();
+    } catch (err) {
+      console.error('Error demoting user:', err);
+      setDemoteError('Error al quitar privilegios: ' + err.message);
+    } finally {
+      setDemotingAction(false);
+    }
   };
 
   const handleDeleteUser = async (userId, email) => {
@@ -1074,6 +1090,7 @@ export default function Config({ user, mode = 'system' }) {
           setIsAdminUser(true);
           setUserAdminDni(adminDni);
           fetchUsers();
+          fetchProjectAreas();
           fetchAuditLogs();
           fetchBackups();
         } else {
@@ -1099,6 +1116,7 @@ export default function Config({ user, mode = 'system' }) {
     const authorizingDni = userAdminDni.trim();
     const email = newUserEmail.trim();
     const password = newUserPassword;
+    const areaCode = newUserAreaCode.trim();
     const adminDniVal = newAdminDni.trim();
     const adminNombreVal = newAdminNombre.trim();
 
@@ -1114,11 +1132,19 @@ export default function Config({ user, mode = 'system' }) {
       return;
     }
 
+    if (!makeAdmin && !areaCode) {
+      setUserMsg({ text: 'Debe seleccionar el área del nuevo usuario.', type: 'error' });
+      setCreatingUser(false);
+      return;
+    }
+
     if (makeAdmin && (!adminDniVal || !adminNombreVal)) {
       setUserMsg({ text: 'Si el usuario es administrador, debe ingresar el DNI y el nombre del nuevo administrador.', type: 'error' });
       setCreatingUser(false);
       return;
     }
+
+    let createdUserId = null;
 
     try {
       // 1. Validate authorizing DNI using RPC 'es_administrador'
@@ -1145,23 +1171,28 @@ export default function Config({ user, mode = 'system' }) {
         }
       });
 
-      const { error: signUpError } = await tempClient.auth.signUp({
+      const { data: signUpData, error: signUpError } = await tempClient.auth.signUp({
         email,
         password
       });
 
       if (signUpError) throw signUpError;
+      createdUserId = signUpData?.user?.id;
 
-      // 3. If "makeAdmin" is checked, insert the new admin in the DB via RPC 'crear_administrador_autorizado'
-      if (makeAdmin) {
-        const { error: makeAdminError } = await supabase.rpc('crear_administrador_autorizado', {
-          p_admin_dni_autorizador: authorizingDni,
-          p_nuevo_dni: adminDniVal,
-          p_nuevo_nombre: adminNombreVal,
-          p_nuevo_email: email
-        });
-        if (makeAdminError) throw makeAdminError;
+      if (!createdUserId) {
+        throw new Error('Supabase no devolvió el identificador del nuevo usuario.');
       }
+
+      // 3. Configure project role and area using the authenticated admin session.
+      const { error: assignmentError } = await supabase.rpc('configurar_usuario_nuevo', {
+        p_user_id: createdUserId,
+        p_area_code: makeAdmin ? null : areaCode,
+        p_es_admin: makeAdmin,
+        p_admin_dni: makeAdmin ? adminDniVal : null,
+        p_admin_nombre: makeAdmin ? adminNombreVal : null
+      });
+
+      if (assignmentError) throw assignmentError;
 
       setUserMsg({
         text: `Usuario ${email} registrado con éxito.${makeAdmin ? ' Registrado como administrador.' : ''}`,
@@ -1175,11 +1206,23 @@ export default function Config({ user, mode = 'system' }) {
       // Clear fields
       setNewUserEmail('');
       setNewUserPassword('');
+      setNewUserAreaCode('');
       setMakeAdmin(false);
       setNewAdminDni('');
       setNewAdminNombre('');
     } catch (err) {
       console.error('Error creating user:', err);
+
+      // Avoid leaving an unusable Auth account if area/role assignment fails.
+      if (createdUserId) {
+        const { error: cleanupError } = await supabase.rpc('eliminar_usuario_sistema', {
+          p_user_id: createdUserId
+        });
+        if (cleanupError) {
+          console.error('Error rolling back incomplete user:', cleanupError);
+        }
+      }
+
       setUserMsg({
         text: 'Error al registrar usuario: ' + (err.message || 'Error desconocido'),
         type: 'error'
@@ -1824,6 +1867,33 @@ export default function Config({ user, mode = 'system' }) {
                         required 
                       />
                     </div>
+
+                    <div className="form-group">
+                      <label htmlFor="newUserArea" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Settings size={16} style={{ color: 'var(--primary)' }} />
+                        <span>Área de Acceso *</span>
+                      </label>
+                      {makeAdmin ? (
+                        <input
+                          id="newUserArea"
+                          type="text"
+                          value="Todas las áreas"
+                          readOnly
+                        />
+                      ) : (
+                        <select
+                          id="newUserArea"
+                          value={newUserAreaCode}
+                          onChange={(e) => setNewUserAreaCode(e.target.value)}
+                          required
+                        >
+                          <option value="">Seleccione un área</option>
+                          {projectAreas.map((area) => (
+                            <option key={area.code} value={area.code}>{area.name}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
                   </div>
 
                   <div className="form-group" style={{ margin: '20px 0' }}>
@@ -1831,7 +1901,10 @@ export default function Config({ user, mode = 'system' }) {
                       <input 
                         type="checkbox" 
                         checked={makeAdmin}
-                        onChange={(e) => setMakeAdmin(e.target.checked)}
+                        onChange={(e) => {
+                          setMakeAdmin(e.target.checked);
+                          if (e.target.checked) setNewUserAreaCode('');
+                        }}
                         style={{ width: 'auto', margin: 0 }}
                       />
                       <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>¿Registrar también como Administrador?</span>
@@ -1931,6 +2004,7 @@ export default function Config({ user, mode = 'system' }) {
                         <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
                           <th style={{ padding: '12px 8px' }}>Correo Electrónico</th>
                           <th style={{ padding: '12px 8px' }}>Rol</th>
+                          <th style={{ padding: '12px 8px' }}>Área</th>
                           <th style={{ padding: '12px 8px' }}>DNI / Nombre Admin</th>
                           <th style={{ padding: '12px 8px' }}>F. Registro</th>
                         </tr>
@@ -1975,6 +2049,9 @@ export default function Config({ user, mode = 'system' }) {
                                     Operario
                                   </span>
                                 )}
+                              </td>
+                              <td style={{ padding: '12px 8px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                {u.area_nombre || <span style={{ color: 'var(--danger)' }}>Sin asignar</span>}
                               </td>
                               <td style={{ padding: '12px 8px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
                                 {u.es_admin ? (
@@ -2512,6 +2589,67 @@ export default function Config({ user, mode = 'system' }) {
                   </button>
                   <button type="submit" className="btn btn-primary" disabled={promotingAction}>
                     {promotingAction ? 'Guardando...' : 'Asignar'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Administrator demotion requires a destination area. */}
+      {demotingUser && (
+        <div className="dialog-overlay">
+          <div className="dialog-card" style={{ maxWidth: '420px', width: '90%' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <UserMinus size={18} style={{ color: 'var(--primary)' }} />
+                <span style={{ fontWeight: '700' }}>Quitar Rol Administrador</span>
+              </div>
+              <button
+                type="button"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                onClick={() => setDemotingUser(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleDemoteSubmit}>
+              <div className="card-body" style={{ padding: '20px' }}>
+                <p style={{ marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  <strong>{demotingUser.email}</strong> pasará a ser usuario operativo. Seleccione el área a la que tendrá acceso.
+                </p>
+
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <label htmlFor="demoteArea" style={{ fontWeight: '600', display: 'block', marginBottom: '6px' }}>Área de Acceso *</label>
+                  <select
+                    id="demoteArea"
+                    value={demoteAreaCode}
+                    onChange={(e) => setDemoteAreaCode(e.target.value)}
+                    required
+                    style={{ width: '100%' }}
+                  >
+                    <option value="">Seleccione un área</option>
+                    {projectAreas.map((area) => (
+                      <option key={area.code} value={area.code}>{area.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {demoteError && (
+                  <div className="message error" style={{ marginBottom: '12px' }}>
+                    <AlertCircle size={14} />
+                    <span style={{ fontSize: '0.8rem' }}>{demoteError}</span>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setDemotingUser(null)} disabled={demotingAction}>
+                    Cancelar
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={demotingAction}>
+                    {demotingAction ? 'Guardando...' : 'Confirmar'}
                   </button>
                 </div>
               </div>

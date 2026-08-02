@@ -10,11 +10,13 @@ import CableImportWizard from './CableImportWizard';
 import CableTable from './CableTable';
 import CustomDropdown from './CustomDropdown';
 import { cleanPatMaterialType, deriveCableMetrics } from './cableMetrics';
+import { useProjectArea } from '../../contexts/ProjectAreaContext';
 
 /**
  * PatDashboard — Dashboard specifically for PAT (Puesta a Tierra) cables.
  */
 export default function PatDashboard() {
+  const { activeAreaId } = useProjectArea();
   // ── State ──
   const [activePatSection, setActivePatSection] = useState('conductores');
   const [showMobileDispatch, setShowMobileDispatch] = useState(false);
@@ -180,6 +182,7 @@ export default function PatDashboard() {
           .from('cable_schedule')
           .select('*')
           .range(start, start + batchSize - 1)
+          .eq('project_area_id', activeAreaId)
           .eq('tipo_cable', 'PAT')
           .ilike('material', materialPattern);
 
@@ -206,7 +209,8 @@ export default function PatDashboard() {
       while (despHasMore) {
         const { data: despBatch, error: despErr } = await supabase
           .from('cable_despachos')
-          .select('tag_unico, longitud_despachada_m')
+          .select('tag_unico, longitud_despachada_m, cable_schedule!inner(project_area_id)')
+          .eq('cable_schedule.project_area_id', activeAreaId)
           .range(despStart, despStart + batchSize - 1);
 
         if (despErr) throw despErr;
@@ -364,7 +368,7 @@ export default function PatDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [selectedWbs, selectedSistema, selectedTipoCable, materialPattern, getCleanMaterialType]);
+  }, [selectedWbs, selectedSistema, selectedTipoCable, materialPattern, getCleanMaterialType, activeAreaId]);
 
   // Fetch filter options
   const fetchFilters = useCallback(async () => {
@@ -372,6 +376,7 @@ export default function PatDashboard() {
       const { data } = await supabase
         .from('cable_schedule')
         .select('wbs, sistema, material')
+        .eq('project_area_id', activeAreaId)
         .eq('tipo_cable', 'PAT')
         .ilike('material', materialPattern);
 
@@ -379,7 +384,13 @@ export default function PatDashboard() {
     } catch (err) {
       console.error('Error fetching filters:', err);
     }
-  }, [materialPattern]);
+  }, [materialPattern, activeAreaId]);
+
+  useEffect(() => {
+    handleClearFilters();
+    setShowTable(false);
+    setProcessedSourceRows([]);
+  }, [activeAreaId]);
 
   useEffect(() => {
     fetchFilters();

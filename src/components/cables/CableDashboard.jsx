@@ -9,12 +9,14 @@ import CableBarChart from './CableBarChart';
 import CableImportWizard from './CableImportWizard';
 import CableTable from './CableTable';
 import CustomDropdown from './CustomDropdown';
+import { useProjectArea } from '../../contexts/ProjectAreaContext';
 
 /**
  * CableDashboard — Main view for the Cable Schedule Manager.
  * Displays KPIs, charts, gauges, and a detail table matching the reference dashboard.
  */
 export default function CableDashboard() {
+  const { activeAreaId } = useProjectArea();
   // ── State ──
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -110,12 +112,6 @@ export default function CableDashboard() {
     setError('');
 
     try {
-      // One-time database cleanup to remove existing non-cable items (e.g., SOLDADURA)
-      await supabase
-        .from('cable_schedule')
-        .delete()
-        .not('material', 'ilike', 'CABLE%');
-
       // Fetch all data recursively in batches of 1000 to bypass PostgREST max_rows limit
       let rawRows = [];
       let start = 0;
@@ -127,6 +123,7 @@ export default function CableDashboard() {
           .from('cable_schedule')
           .select('*')
           .range(start, start + batchSize - 1)
+          .eq('project_area_id', activeAreaId)
           .eq('tipo_cable', 'CIRCUITO')
           .ilike('material', 'CABLE%');
 
@@ -153,7 +150,8 @@ export default function CableDashboard() {
       while (despHasMore) {
         const { data: despBatch, error: despErr } = await supabase
           .from('cable_despachos')
-          .select('tag_unico, longitud_despachada_m')
+          .select('tag_unico, longitud_despachada_m, cable_schedule!inner(project_area_id)')
+          .eq('cable_schedule.project_area_id', activeAreaId)
           .range(despStart, despStart + batchSize - 1);
 
         if (despErr) throw despErr;
@@ -309,7 +307,7 @@ export default function CableDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [selectedWbs, selectedSistema, selectedTipoCable]);
+  }, [selectedWbs, selectedSistema, selectedTipoCable, activeAreaId]);
 
   // Fetch filter options once on mount
   const fetchFilters = useCallback(async () => {
@@ -317,6 +315,7 @@ export default function CableDashboard() {
       const { data } = await supabase
         .from('cable_schedule')
         .select('wbs, sistema, material')
+        .eq('project_area_id', activeAreaId)
         .eq('tipo_cable', 'CIRCUITO')
         .ilike('material', 'CABLE%');
 
@@ -324,7 +323,12 @@ export default function CableDashboard() {
     } catch (err) {
       console.error('Error fetching filters:', err);
     }
-  }, []);
+  }, [activeAreaId]);
+
+  useEffect(() => {
+    handleClearFilters();
+    setShowTable(false);
+  }, [activeAreaId]);
 
   useEffect(() => {
     fetchFilters();
