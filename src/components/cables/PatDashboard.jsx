@@ -9,7 +9,7 @@ import CableBarChart from './CableBarChart';
 import CableImportWizard from './CableImportWizard';
 import CableTable from './CableTable';
 import CustomDropdown from './CustomDropdown';
-import { cleanPatMaterialType, deriveCableMetrics } from './cableMetrics';
+import { cleanPatMaterialType, deriveCableMetrics, matchesDashboardFilter } from './cableMetrics';
 import { useProjectArea } from '../../contexts/ProjectAreaContext';
 
 /**
@@ -255,6 +255,9 @@ export default function PatDashboard() {
       if (selectedSistema) {
         rows = rows.filter(r => r.sistema === selectedSistema);
       }
+      if (detailFilter) {
+        rows = rows.filter(r => matchesDashboardFilter(r, detailFilter));
+      }
 
       // ── Compute KPIs ──
       const longitudTotal = rows.reduce((sum, r) => sum + (parseFloat(r.total_estimado_m) || 0), 0);
@@ -371,7 +374,7 @@ export default function PatDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [selectedWbs, selectedSistema, selectedTipoCable, materialPattern, getCleanMaterialType, activeAreaId]);
+  }, [selectedWbs, selectedSistema, selectedTipoCable, detailFilter, materialPattern, getCleanMaterialType, activeAreaId]);
 
   // Fetch filter options
   const fetchFilters = useCallback(async () => {
@@ -473,7 +476,7 @@ export default function PatDashboard() {
             options={filteredSistemas}
             onChange={(value) => { setSelectedSistema(value); setDetailFilter(null); }}
           />
-          {(selectedTipoCable || selectedWbs || selectedSistema) && (
+          {(selectedTipoCable || selectedWbs || selectedSistema || detailFilter) && (
             <button className="btn btn-secondary btn-sm" onClick={handleClearFilters} title="Limpiar todos los filtros" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <FilterX size={14} />
               <span>Limpiar Filtros</span>
@@ -701,9 +704,6 @@ export default function PatDashboard() {
                 {detailFilter.dimension ? `${detailFilter.dimension.toUpperCase()}: ${detailFilter.label} · ` : ''}
                 {detailFilter.segmentLabel || detailFilter.label}
               </div>
-              <button className="btn btn-secondary btn-sm" onClick={() => setDetailFilter(null)}>
-                <FilterX size={14} /> Limpiar selección
-              </button>
             </div>
           )}
           <CableTable
