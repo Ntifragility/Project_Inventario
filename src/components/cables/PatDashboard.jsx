@@ -529,6 +529,21 @@ export default function PatDashboard() {
         </div>
 
         <div
+          className={`cable-kpi-card dashboard-drilldown-target ${detailFilter?.dimension === null && detailFilter?.condition === 'dispatched' ? 'active' : ''}`}
+          onClick={() => activateDetailFilter({ source: 'kpi', dimension: null, value: null, label: 'Despachados', condition: 'dispatched' })}
+          onKeyDown={(event) => activateDetailFilterFromKeyboard(event, { source: 'kpi', dimension: null, value: null, label: 'Despachados', condition: 'dispatched' })}
+          role="button"
+          tabIndex={0}
+        >
+          <span className="cable-kpi-value" style={{ color: '#3b82f6' }}>{formatNumber(kpis.longitudDespachada)}</span>
+          <span className="cable-kpi-label">Longitud Despachada (m)</span>
+          <div className="cable-kpi-sub" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px' }}>
+            <span className="cable-kpi-sub-value" style={{ color: '#3b82f6' }}>{kpis.circuitosDespachados.toLocaleString()}</span>
+            <span className="cable-kpi-sub-label">{itemLabel} Despachados (und)</span>
+          </div>
+        </div>
+
+        <div
           className={`cable-kpi-card dashboard-drilldown-target ${detailFilter?.dimension === null && detailFilter?.condition === 'advance' ? 'active' : ''}`}
           onClick={() => activateDetailFilter({ source: 'kpi', dimension: null, value: null, label: 'Con avance', condition: 'advance' })}
           onKeyDown={(event) => activateDetailFilterFromKeyboard(event, { source: 'kpi', dimension: null, value: null, label: 'Con avance', condition: 'advance' })}
@@ -544,17 +559,17 @@ export default function PatDashboard() {
         </div>
 
         <div
-          className={`cable-kpi-card dashboard-drilldown-target ${detailFilter?.dimension === null && detailFilter?.condition === 'dispatched' ? 'active' : ''}`}
-          onClick={() => activateDetailFilter({ source: 'kpi', dimension: null, value: null, label: 'Despachados', condition: 'dispatched' })}
-          onKeyDown={(event) => activateDetailFilterFromKeyboard(event, { source: 'kpi', dimension: null, value: null, label: 'Despachados', condition: 'dispatched' })}
+          className={`cable-kpi-card dashboard-drilldown-target ${detailFilter?.dimension === null && detailFilter?.condition === 'pending' ? 'active' : ''}`}
+          onClick={() => activateDetailFilter({ source: 'kpi', dimension: null, value: null, label: 'Pendientes', condition: 'pending' })}
+          onKeyDown={(event) => activateDetailFilterFromKeyboard(event, { source: 'kpi', dimension: null, value: null, label: 'Pendientes', condition: 'pending' })}
           role="button"
           tabIndex={0}
         >
-          <span className="cable-kpi-value" style={{ color: '#3b82f6' }}>{formatNumber(kpis.longitudDespachada)}</span>
-          <span className="cable-kpi-label">Longitud Despachada (m)</span>
+          <span className="cable-kpi-value warning">{formatNumber(kpis.longitudPendiente)}</span>
+          <span className="cable-kpi-label">Longitud Pendiente (m)</span>
           <div className="cable-kpi-sub" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px' }}>
-            <span className="cable-kpi-sub-value" style={{ color: '#3b82f6' }}>{kpis.circuitosDespachados.toLocaleString()}</span>
-            <span className="cable-kpi-sub-label">{itemLabel} Despachados (und)</span>
+            <span className="cable-kpi-sub-value">{kpis.circuitosPendientes.toLocaleString()}</span>
+            <span className="cable-kpi-sub-label">{itemLabel} Pendientes (und)</span>
           </div>
         </div>
 
@@ -597,20 +612,6 @@ export default function PatDashboard() {
           </div>
         </div>
 
-        <div
-          className={`cable-kpi-card dashboard-drilldown-target ${detailFilter?.dimension === null && detailFilter?.condition === 'pending' ? 'active' : ''}`}
-          onClick={() => activateDetailFilter({ source: 'kpi', dimension: null, value: null, label: 'Pendientes', condition: 'pending' })}
-          onKeyDown={(event) => activateDetailFilterFromKeyboard(event, { source: 'kpi', dimension: null, value: null, label: 'Pendientes', condition: 'pending' })}
-          role="button"
-          tabIndex={0}
-        >
-          <span className="cable-kpi-value warning">{formatNumber(kpis.longitudPendiente)}</span>
-          <span className="cable-kpi-label">Longitud Pendiente (m)</span>
-          <div className="cable-kpi-sub" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px' }}>
-            <span className="cable-kpi-sub-value">{kpis.circuitosPendientes.toLocaleString()}</span>
-            <span className="cable-kpi-sub-label">{itemLabel} Pendientes (und)</span>
-          </div>
-        </div>
         <div
           className={`cable-kpi-card dashboard-drilldown-target ${detailFilter?.dimension === null && detailFilter?.condition === 'deviation' ? 'active' : ''}`}
           onClick={() => activateDetailFilter({ source: 'kpi', dimension: null, value: null, label: 'Desviación de almacén', condition: 'deviation' })}
