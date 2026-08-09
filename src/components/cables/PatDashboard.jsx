@@ -4,6 +4,7 @@ import {
   RefreshCw, Upload, Package, Activity, Cable, Filter, FilterX,
   ChevronDown, Search, Download
 } from 'lucide-react';
+import CableGauge from './CableGauge';
 import CableBarChart from './CableBarChart';
 import CableImportWizard from './CableImportWizard';
 import CableTable from './CableTable';
@@ -18,6 +19,7 @@ export default function PatDashboard() {
   const { activeAreaId } = useProjectArea();
   // ── State ──
   const [activePatSection, setActivePatSection] = useState('conductores');
+  const [showMobileDispatch, setShowMobileDispatch] = useState(false);
   const [showMobileTypeBreakdown, setShowMobileTypeBreakdown] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -115,10 +117,17 @@ export default function PatDashboard() {
     setSelectedWbs('');
     setSelectedSistema('');
     setShowTable(false);
+    setShowMobileDispatch(false);
     setShowMobileTypeBreakdown(false);
     setDetailFilter(null);
     setProcessedSourceRows([]);
   }, [activePatSection]);
+
+  const toggleMobileGauge = () => {
+    if (window.matchMedia('(hover: none)').matches) {
+      setShowMobileDispatch(current => !current);
+    }
+  };
 
   const toggleMobileTypeBreakdown = () => {
     if (window.matchMedia('(hover: none)').matches) {
@@ -546,6 +555,45 @@ export default function PatDashboard() {
           <div className="cable-kpi-sub" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px' }}>
             <span className="cable-kpi-sub-value" style={{ color: '#3b82f6' }}>{kpis.circuitosDespachados.toLocaleString()}</span>
             <span className="cable-kpi-sub-label">{itemLabel} Despachados (und)</span>
+          </div>
+        </div>
+
+        <div
+          className={`cable-kpi-card highlight progress-gauge-card ${showMobileDispatch ? 'mobile-show-dispatched' : ''}`}
+          onClick={toggleMobileGauge}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              setShowMobileDispatch(current => !current);
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label={showMobileDispatch ? 'Mostrar avance tendido' : 'Mostrar avance despachado'}
+        >
+          <div style={{ position: 'relative', width: 110, height: 110, flexShrink: 0 }}>
+            <div className="kpi-card-front" style={{ position: 'absolute', inset: 0 }}>
+              <CableGauge
+                value={kpis.tendidoPct}
+                label={isPvc ? 'INSTALADO' : 'TENDIDO'}
+                size={110}
+                strokeWidth={8}
+                color="#f59e0b"
+                bgColor="rgba(255,255,255,0.08)"
+                type="donut"
+              />
+            </div>
+            <div className="kpi-card-back" style={{ inset: 0, padding: 0, alignItems: 'center', justifyContent: 'center', background: 'transparent' }}>
+              <CableGauge
+                value={kpis.despachadoPct}
+                label="DESPACHADO"
+                size={110}
+                strokeWidth={8}
+                color="#3b82f6"
+                bgColor="rgba(255,255,255,0.08)"
+                type="donut"
+              />
+            </div>
           </div>
         </div>
 
