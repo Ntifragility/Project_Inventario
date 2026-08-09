@@ -163,6 +163,17 @@ export default function PatDashboard() {
     }
   };
 
+  const handleDashboardBackgroundClick = (event) => {
+    if (!detailFilter) return;
+
+    const selectionTarget = event.target.closest(
+      '.dashboard-drilldown-target, .cable-bar-fill.clickable'
+    );
+    if (!selectionTarget) {
+      setDetailFilter(null);
+    }
+  };
+
   // ══════════════════════════════════════════════════════════════
   // DATA FETCHING
   // ══════════════════════════════════════════════════════════════
@@ -430,7 +441,11 @@ export default function PatDashboard() {
   // ══════════════════════════════════════════════════════════════
 
   return (
-    <div id="cable-dashboard" className="tab-content active">
+    <div
+      id="cable-dashboard"
+      className="tab-content active"
+      onClick={handleDashboardBackgroundClick}
+    >
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, padding: 4, width: 'fit-content', borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
         <button
           className={`btn btn-sm ${!isPvc ? 'btn-primary' : 'btn-secondary'}`}
