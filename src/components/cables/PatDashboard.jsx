@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../supabase';
 import {
   RefreshCw, Upload, Package, Activity, Cable, Filter, FilterX,
@@ -33,7 +33,6 @@ export default function PatDashboard() {
   const [selectedTipoCable, setSelectedTipoCable] = useState('');
   const [processedSourceRows, setProcessedSourceRows] = useState([]);
   const [detailFilter, setDetailFilter] = useState(null);
-  const detailSectionRef = useRef(null);
 
   const isPvc = activePatSection === 'pvc';
   const materialPattern = isPvc ? 'TUBERIA PVC SCH%' : 'CABLE%';
@@ -149,10 +148,6 @@ export default function PatDashboard() {
         && current.value === nextFilter.value
         && current.condition === nextFilter.condition;
       return isSame ? null : nextFilter;
-    });
-    setShowTable(true);
-    window.requestAnimationFrame(() => {
-      detailSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }, []);
 
@@ -700,7 +695,7 @@ export default function PatDashboard() {
       </div>
 
       {/* ── Detail Table Toggle ── */}
-      <div className="cable-table-section" ref={detailSectionRef}>
+      <div className="cable-table-section">
         <button
           className="btn btn-secondary"
           onClick={() => setShowTable(!showTable)}
