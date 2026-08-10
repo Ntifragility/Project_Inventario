@@ -359,15 +359,24 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   useEffect(() => {
     if (!activeFilter) return undefined;
 
-    const closeFilterOnOutsideClick = (event) => {
-      if (!(event.target instanceof Element)) return;
-      if (!event.target.closest('.cable-header-filter-control')) {
+    const closeFilterOnOutsidePointer = (event) => {
+      const clickedInsideFilter = event.composedPath().some(
+        node => node instanceof Element && node.classList.contains('cable-header-filter-control')
+      );
+      if (!clickedInsideFilter) {
         setActiveFilter(null);
       }
     };
+    const closeFilterOnEscape = (event) => {
+      if (event.key === 'Escape') setActiveFilter(null);
+    };
 
-    document.addEventListener('mousedown', closeFilterOnOutsideClick);
-    return () => document.removeEventListener('mousedown', closeFilterOnOutsideClick);
+    document.addEventListener('pointerdown', closeFilterOnOutsidePointer, true);
+    document.addEventListener('keydown', closeFilterOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeFilterOnOutsidePointer, true);
+      document.removeEventListener('keydown', closeFilterOnEscape);
+    };
   }, [activeFilter]);
 
   const getFilterValue = (row, field) => {
