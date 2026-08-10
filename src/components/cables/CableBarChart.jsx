@@ -85,7 +85,7 @@ export default function CableBarChart({ data = [], title = '', maxItems = 10, di
                   aria-label={item.tendido > 0 ? `Mostrar ${item.name}: con avance` : undefined}
                 >
                   {tendidoPct >= 6 && (item.tendido >= 10000
-                    ? `${(item.tendido / 1000).toFixed(0)}K`
+                    ? `${(item.tendido / 1000).toFixed(1)}K`
                     : item.tendido > 0
                     ? Math.round(item.tendido).toLocaleString()
                     : '')}
@@ -100,7 +100,7 @@ export default function CableBarChart({ data = [], title = '', maxItems = 10, di
                   aria-label={item.porTender > 0 ? `Mostrar ${item.name}: pendientes` : undefined}
                 >
                   {porTenderPct >= 6 && (item.porTender >= 10000
-                    ? `${(item.porTender / 1000).toFixed(0)}K`
+                    ? `${(item.porTender / 1000).toFixed(1)}K`
                     : item.porTender > 0
                     ? Math.round(item.porTender).toLocaleString()
                     : '')}
@@ -108,7 +108,7 @@ export default function CableBarChart({ data = [], title = '', maxItems = 10, di
               </div>
               <div className="cable-bar-total">
                 {item.total >= 10000
-                  ? `${(item.total / 1000).toFixed(0)}K`
+                  ? `${(item.total / 1000).toFixed(1)}K`
                   : Math.round(item.total).toLocaleString()}
               </div>
             </div>

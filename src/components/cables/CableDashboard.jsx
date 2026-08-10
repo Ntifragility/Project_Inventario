@@ -341,7 +341,7 @@ export default function CableDashboard() {
 
   const formatNumber = (n) => {
     if (n >= 1000000) return `${(n / 1000000).toFixed(2)}M`;
-    if (n >= 10000) return `${(n / 1000).toFixed(0)}K`;
+    if (n >= 10000) return `${(n / 1000).toFixed(1)}K`;
     return Math.round(n).toLocaleString();
   };
 
