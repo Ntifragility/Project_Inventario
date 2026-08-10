@@ -361,10 +361,19 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
 
           if (error) throw error;
 
+          const { data: scheduleIds, error: scheduleIdsError } = await supabase
+            .from('cable_schedule')
+            .select('id, tag_unico')
+            .eq('project_area_id', activeAreaId)
+            .in('tag_unico', batchTags);
+          if (scheduleIdsError) throw scheduleIdsError;
+          const scheduleIdByTag = new Map((scheduleIds || []).map(row => [row.tag_unico, row.id]));
+
           // If there is total_despachado_m mapped, insert/upsert into cable_despachos
           const despachadoRows = batch
             .filter(row => row.total_despachado_m !== undefined && parseFloat(row.total_despachado_m) > 0)
             .map(row => ({
+              cable_schedule_id: scheduleIdByTag.get(row.tag_unico),
               tag_unico: row.tag_unico,
               longitud_despachada_m: parseFloat(row.total_despachado_m),
               vale_almacen: 'IMPORT_PAT',
@@ -391,7 +400,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
           const batchTags = batch.map(row => row.tag_unico).filter(Boolean);
           const { data: parentRows, error: parentError } = await supabase
             .from('cable_schedule')
-            .select('tag_unico')
+            .select('id, tag_unico')
             .eq('project_area_id', activeAreaId)
             .in('tag_unico', batchTags);
 
@@ -402,6 +411,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
             const examples = missingTags.slice(0, 5).join(', ');
             throw new Error(`No se puede importar despachos en ${activeArea?.name || 'esta area'}: los TAG ${examples}${missingTags.length > 5 ? '...' : ''} no existen en el Cable Schedule de esta area.`);
           }
+          const parentIdByTag = new Map((parentRows || []).map(row => [row.tag_unico, row.id]));
 
           // Simulated upsert: delete existing records for these tags first to prevent duplicate entries
           const tagsToDelete = batchTags;
@@ -415,7 +425,10 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
 
           const { data, error } = await supabase
             .from(table)
-            .insert(batch);
+            .insert(batch.map(row => ({
+              ...row,
+              cable_schedule_id: parentIdByTag.get(row.tag_unico),
+            })));
 
           if (error) throw error;
           inserted += batch.length;

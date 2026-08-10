@@ -540,6 +540,9 @@ export default function CableDashboard() {
               filterSistema={selectedSistema}
               filterCleanTipo={selectedTipoCable}
               filterTipoCable="CIRCUITO"
+              onDataChanged={async () => {
+                await Promise.all([fetchData(), fetchFilters()]);
+              }}
             />
           )}
         </div>

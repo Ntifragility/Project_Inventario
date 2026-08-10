@@ -724,6 +724,10 @@ export default function PatDashboard() {
             filterMaterialPrefix={isPvc ? 'TUBERIA PVC SCH' : 'CABLE'}
             sourceData={processedSourceRows}
             dashboardFilter={detailFilter}
+            onDataChanged={async () => {
+              setDetailFilter(null);
+              await Promise.all([fetchData(), fetchFilters()]);
+            }}
           />
           </>
         )}

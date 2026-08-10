@@ -2,14 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../supabase';
 import {
   Search, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
-  ArrowUpDown, Package, Filter, FilterX, Download
+  ArrowUpDown, Package, Filter, FilterX, Download, Pencil, Trash2,
+  Save, AlertCircle
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { cleanPatMaterialType, deriveCableMetrics, matchesDashboardFilter } from './cableMetrics';
 import { useProjectArea } from '../../contexts/ProjectAreaContext';
 
-export default function CableTable({ filterArea = '', filterTipoServicio = '', filterTipoCable = '', filterWbs = '', filterSistema = '', filterCleanTipo = '', filterMaterialPrefix = 'CABLE', sourceData = null, dashboardFilter = null }) {
-  const { activeAreaId } = useProjectArea();
+export default function CableTable({ filterArea = '', filterTipoServicio = '', filterTipoCable = '', filterWbs = '', filterSistema = '', filterCleanTipo = '', filterMaterialPrefix = 'CABLE', sourceData = null, dashboardFilter = null, onDataChanged = null }) {
+  const { activeAreaId, role } = useProjectArea();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -18,6 +19,13 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   const [expandedRow, setExpandedRow] = useState(null);
   const [despachos, setDespachos] = useState([]);
   const [loadingDespachos, setLoadingDespachos] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
+  const [editTag, setEditTag] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [affectedDispatches, setAffectedDispatches] = useState(0);
+  const [mutationLoading, setMutationLoading] = useState(false);
+  const [mutationError, setMutationError] = useState('');
   
   // Excel-like filter state
   const [headerFilters, setHeaderFilters] = useState({});
@@ -25,6 +33,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
 
   const isPvc = filterMaterialPrefix.toUpperCase().startsWith('TUBERIA PVC');
   const itemLabel = isPvc ? 'tramos' : 'circuitos';
+  const canManageCables = role === 'admin' || role === 'supervisor';
 
   const COLUMNS = filterTipoCable === 'PAT' ? [
     { field: 'tag_unico', label: 'TAG UNICO', width: '144px' },
@@ -217,6 +226,103 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     }
   };
 
+  const loadCableImpact = async (row) => {
+    const { data: impact, error } = await supabase.rpc('obtener_impacto_cable', {
+      p_cable_id: row.id,
+      p_project_area_id: activeAreaId,
+    });
+    if (error) throw error;
+    return impact?.[0]?.dispatch_count || 0;
+  };
+
+  const handleStartEdit = async (row) => {
+    setMutationError('');
+    setEditTarget(row);
+    setEditTag(row.tag_unico);
+    setAffectedDispatches(0);
+    try {
+      setAffectedDispatches(await loadCableImpact(row));
+    } catch (error) {
+      setMutationError(error.message || 'No se pudo verificar el impacto del cambio.');
+    }
+  };
+
+  const handleStartDelete = async (row) => {
+    setMutationError('');
+    setDeleteTarget(row);
+    setDeleteConfirmation('');
+    setAffectedDispatches(0);
+    try {
+      setAffectedDispatches(await loadCableImpact(row));
+    } catch (error) {
+      setMutationError(error.message || 'No se pudo verificar el impacto de la eliminación.');
+    }
+  };
+
+  const refreshAfterMutation = async () => {
+    setExpandedRow(null);
+    setDespachos([]);
+    setHeaderFilters({});
+    if (onDataChanged) {
+      await onDataChanged();
+    } else {
+      await fetchData();
+    }
+  };
+
+  const handleSaveTag = async () => {
+    const normalizedTag = editTag.trim().toUpperCase();
+    if (!normalizedTag) {
+      setMutationError('TAG ÚNICO no puede estar vacío.');
+      return;
+    }
+    if (normalizedTag === editTarget?.tag_unico) {
+      setMutationError('Ingrese un TAG ÚNICO diferente.');
+      return;
+    }
+
+    setMutationLoading(true);
+    setMutationError('');
+    try {
+      const { error } = await supabase.rpc('editar_tag_cable_autorizado', {
+        p_cable_id: editTarget.id,
+        p_project_area_id: activeAreaId,
+        p_new_tag: normalizedTag,
+      });
+      if (error) throw error;
+      setEditTarget(null);
+      await refreshAfterMutation();
+    } catch (error) {
+      setMutationError(error.message || 'No se pudo actualizar TAG ÚNICO.');
+    } finally {
+      setMutationLoading(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (deleteConfirmation !== deleteTarget?.tag_unico) {
+      setMutationError('Escriba exactamente el TAG ÚNICO para confirmar.');
+      return;
+    }
+
+    setMutationLoading(true);
+    setMutationError('');
+    try {
+      const { error } = await supabase.rpc('eliminar_cable_autorizado', {
+        p_cable_id: deleteTarget.id,
+        p_project_area_id: activeAreaId,
+        p_confirm_tag: deleteConfirmation,
+      });
+      if (error) throw error;
+      setDeleteTarget(null);
+      await refreshAfterMutation();
+    } catch (error) {
+      setMutationError(error.message || 'No se pudo eliminar el registro.');
+    } finally {
+      setMutationLoading(false);
+    }
+  };
+
   const handleSort = (field) => {
     if (field === sortField) {
       setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -383,6 +489,16 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                       <span className="status-badge" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>{isPvc ? 'PVC' : 'PAT'}</span>
                     ) : (
                       getEstadoBadge(row.estado)
+                    )}
+                    {canManageCables && (
+                      <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }} onClick={(event) => event.stopPropagation()}>
+                        <button className="btn btn-secondary" style={{ padding: '4px 8px' }} onClick={() => handleStartEdit(row)} title="Editar TAG ÚNICO">
+                          <Pencil size={12} />
+                        </button>
+                        <button className="btn btn-danger" style={{ padding: '4px 8px' }} onClick={() => handleStartDelete(row)} title="Eliminar registro">
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -599,18 +715,23 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                 </th>
                 );
               })}
+              {canManageCables && (
+                <th style={{ width: '88px', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-card)', textAlign: 'center' }}>
+                  Acciones
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={COLUMNS.length + 1} className="cable-table-loading">
+                <td colSpan={COLUMNS.length + (canManageCables ? 2 : 1)} className="cable-table-loading">
                   Cargando...
                 </td>
               </tr>
             ) : filteredData.length === 0 ? (
               <tr>
-                <td colSpan={COLUMNS.length + 1} className="cable-table-empty">
+                <td colSpan={COLUMNS.length + (canManageCables ? 2 : 1)} className="cable-table-empty">
                   No se encontraron {itemLabel}.
                 </td>
               </tr>
@@ -676,11 +797,33 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                           <td>{row.conexion_destino || '—'}</td>
                         </>
                       )}
+                      {canManageCables && (
+                        <td style={{ position: 'relative', width: 88 }} onClick={(event) => event.stopPropagation()}>
+                          <div className="row-actions-hover">
+                            <button
+                              className="btn btn-secondary"
+                              style={{ padding: '4px 8px', height: 24 }}
+                              onClick={() => handleStartEdit(row)}
+                              title="Editar TAG ÚNICO"
+                            >
+                              <Pencil size={11} />
+                            </button>
+                            <button
+                              className="btn btn-danger"
+                              style={{ padding: '4px 8px', height: 24 }}
+                              onClick={() => handleStartDelete(row)}
+                              title="Eliminar registro"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
 
                     {isExpanded && filterTipoCable !== 'PAT' && (
                       <tr className="cable-despacho-row">
-                        <td colSpan={COLUMNS.length + 1}>
+                        <td colSpan={COLUMNS.length + (canManageCables ? 2 : 1)}>
                           <div className="cable-despacho-panel">
                             <h4><Package size={16} /> Despachos para {row.tag_unico}</h4>
                             {loadingDespachos ? (
@@ -720,6 +863,110 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
           </tbody>
         </table>
       </div>
+
+      {editTarget && (
+        <div className="dialog-overlay">
+          <div className="dialog-card" style={{ maxWidth: 520, width: '90%' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Pencil size={16} style={{ color: 'var(--primary)' }} />
+                <span>Editar TAG ÚNICO</span>
+              </div>
+            </div>
+            <div className="card-body" style={{ padding: 24 }}>
+              <p style={{ marginTop: 0, color: 'var(--text-secondary)' }}>
+                El registro interno <strong>#{editTarget.id}</strong> conservará su identidad.
+                {affectedDispatches > 0 && ` También se actualizarán ${affectedDispatches} despacho(s) relacionado(s).`}
+              </p>
+              <div className="form-group">
+                <label>TAG ÚNICO actual</label>
+                <input value={editTarget.tag_unico} disabled />
+              </div>
+              <div className="form-group" style={{ marginTop: 16 }}>
+                <label>Nuevo TAG ÚNICO *</label>
+                <input
+                  value={editTag}
+                  onChange={(event) => setEditTag(event.target.value.toUpperCase())}
+                  maxLength={100}
+                  autoFocus
+                />
+              </div>
+              {mutationError && (
+                <div className="message danger" style={{ marginTop: 16 }}>
+                  <AlertCircle size={16} /> <span>{mutationError}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+                <button className="btn btn-secondary" onClick={() => setEditTarget(null)} disabled={mutationLoading}>
+                  Cancelar
+                </button>
+                <button className="btn btn-success" onClick={handleSaveTag} disabled={mutationLoading || !editTag.trim()}>
+                  <Save size={16} />
+                  <span>{mutationLoading ? 'Guardando...' : 'Guardar Cambios'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="dialog-overlay">
+          <div className="dialog-card" style={{ maxWidth: 540, width: '90%' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Trash2 size={16} style={{ color: 'var(--danger)' }} />
+                <span>Eliminar registro de cable</span>
+              </div>
+            </div>
+            <div className="card-body" style={{ padding: 24 }}>
+              <div className="message warning" style={{ marginBottom: 16 }}>
+                <AlertCircle size={16} />
+                <span>
+                  Esta acción eliminará permanentemente <strong>{deleteTarget.tag_unico}</strong>
+                  {affectedDispatches > 0 && ` y sus ${affectedDispatches} despacho(s) relacionado(s)`}.
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 18, fontSize: '0.85rem' }}>
+                <span><strong>ID:</strong> {deleteTarget.id}</span>
+                <span><strong>WBS:</strong> {deleteTarget.wbs || '—'}</span>
+                <span><strong>Sistema:</strong> {deleteTarget.sistema || '—'}</span>
+                <span><strong>Material:</strong> {deleteTarget.material || deleteTarget.tipo_cable || '—'}</span>
+                <span><strong>Metrado OT:</strong> {parseFloat(deleteTarget.total_estimado_m || 0).toFixed(1)} m</span>
+                <span><strong>Despachado:</strong> {parseFloat(deleteTarget.total_despachado_m || 0).toFixed(1)} m</span>
+                <span><strong>Ejecutado:</strong> {parseFloat(deleteTarget.metrado_reportado_campo || 0).toFixed(1)} m</span>
+              </div>
+              <div className="form-group">
+                <label>Escriba <strong>{deleteTarget.tag_unico}</strong> para confirmar</label>
+                <input
+                  value={deleteConfirmation}
+                  onChange={(event) => setDeleteConfirmation(event.target.value)}
+                  autoComplete="off"
+                  autoFocus
+                />
+              </div>
+              {mutationError && (
+                <div className="message danger" style={{ marginTop: 16 }}>
+                  <AlertCircle size={16} /> <span>{mutationError}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+                <button className="btn btn-secondary" onClick={() => setDeleteTarget(null)} disabled={mutationLoading}>
+                  Cancelar
+                </button>
+                <button
+                  className="btn btn-danger"
+                  onClick={handleConfirmDelete}
+                  disabled={mutationLoading || deleteConfirmation !== deleteTarget.tag_unico}
+                >
+                  <Trash2 size={14} />
+                  <span>{mutationLoading ? 'Eliminando...' : 'Eliminar permanentemente'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
