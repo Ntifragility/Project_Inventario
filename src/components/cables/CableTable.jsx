@@ -531,7 +531,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                         className="cable-mobile-card-progress-bar-fill"
                         style={{
                           width: `${avance}%`,
-                          background: avance >= 100 ? '#10b981' : avance > 50 ? '#f59e0b' : '#ef4444',
+                          background: '#10b981',
                         }}
                       />
                     </div>
@@ -788,7 +788,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                                 className="cable-avance-fill"
                                 style={{
                                   width: `${avance}%`,
-                                  background: avance >= 100 ? '#10b981' : avance > 50 ? '#f59e0b' : '#ef4444',
+                                  background: '#10b981',
                                 }}
                               />
                               <span className="cable-avance-text">{avance.toFixed(0)}%</span>
@@ -809,7 +809,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                                 className="cable-avance-fill"
                                 style={{
                                   width: `${avance}%`,
-                                  background: avance >= 100 ? '#10b981' : avance > 50 ? '#f59e0b' : '#ef4444',
+                                  background: '#10b981',
                                 }}
                               />
                               <span className="cable-avance-text">{avance.toFixed(0)}%</span>
