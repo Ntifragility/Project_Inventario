@@ -356,6 +356,20 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   const [tempFilters, setTempFilters] = useState([]);
   const [filterSearch, setFilterSearch] = useState('');
 
+  useEffect(() => {
+    if (!activeFilter) return undefined;
+
+    const closeFilterOnOutsideClick = (event) => {
+      if (!(event.target instanceof Element)) return;
+      if (!event.target.closest('.cable-header-filter-control')) {
+        setActiveFilter(null);
+      }
+    };
+
+    document.addEventListener('mousedown', closeFilterOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeFilterOnOutsideClick);
+  }, [activeFilter]);
+
   const getFilterValue = (row, field) => {
     if (field === 'avance') return `${getAvance(row).toFixed(0)}%`;
     return (row[field] || '—').toString();
@@ -624,7 +638,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                           <ArrowUpDown size={12} className={sortDir === 'desc' ? 'flipped' : ''} />
                         )}
                       </div>
-                      <div style={{ position: 'relative', marginLeft: 'auto', paddingLeft: 8 }}>
+                      <div className="cable-header-filter-control" style={{ position: 'relative', marginLeft: 'auto', paddingLeft: 8 }}>
                           <button
                             style={{
                               background: headerFilters[col.field] ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.05)',
