@@ -447,7 +447,7 @@ export default function PatDashboard() {
   return (
     <div
       id="cable-dashboard"
-      className="tab-content active"
+      className="tab-content active pat-dashboard"
       onClick={handleDashboardBackgroundClick}
     >
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, padding: 4, width: 'fit-content', borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
@@ -706,7 +706,10 @@ export default function PatDashboard() {
       {/* ── Detail Table Toggle ── */}
       <button
         className={`pat-detail-tab ${showTable ? 'open' : ''}`}
-        onClick={() => setShowTable(true)}
+        onClick={(event) => {
+          event.stopPropagation();
+          setShowTable(true);
+        }}
         aria-label={`Abrir detalle de ${itemLabel}`}
         aria-expanded={showTable}
       >
@@ -716,8 +719,15 @@ export default function PatDashboard() {
 
       {showTable && (
         <>
-          <button className="pat-detail-backdrop" onClick={() => setShowTable(false)} aria-label="Cerrar detalle" />
-          <aside className="pat-detail-drawer" aria-label={`Detalle de ${itemLabel}`}>
+          <button
+            className="pat-detail-backdrop"
+            onClick={(event) => {
+              event.stopPropagation();
+              setShowTable(false);
+            }}
+            aria-label="Cerrar detalle"
+          />
+          <aside className="pat-detail-drawer" aria-label={`Detalle de ${itemLabel}`} onClick={(event) => event.stopPropagation()}>
             <div className="pat-detail-drawer-header">
               <div>
                 <strong>Detalle de {itemLabel}</strong>

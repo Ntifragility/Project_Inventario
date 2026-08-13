@@ -229,14 +229,15 @@ body {
   z-index: 1080;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 10px;
+  gap: 5px;
+  padding: 8px 6px;
   border: 1px solid var(--border-color);
   border-right: 0;
   border-radius: 10px 0 0 10px;
   background: var(--primary);
   color: #fff;
   font: inherit;
+  font-size: 0.72rem;
   font-weight: 700;
   cursor: pointer;
   writing-mode: vertical-rl;
@@ -262,7 +263,7 @@ body {
   position: fixed;
   inset: 0 0 0 auto;
   z-index: 1110;
-  width: min(88vw, 1440px);
+  width: 100vw;
   display: flex;
   flex-direction: column;
   background: var(--bg-app);
@@ -309,6 +310,38 @@ body {
   min-height: 0;
   overflow: auto;
   padding: 18px;
+}
+
+.pat-detail-drawer-body .cable-table-container {
+  min-height: 100%;
+}
+
+.pat-dashboard {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.pat-dashboard .cable-kpi-row {
+  min-height: 145px;
+}
+
+.pat-dashboard .cable-charts-row {
+  flex: 1;
+  min-height: 280px;
+  margin-bottom: 0 !important;
+}
+
+.pat-dashboard .cable-chart-col,
+.pat-dashboard .cable-bar-chart-card {
+  height: 100%;
+  min-height: 280px;
+}
+
+@media (min-width: 1200px) and (min-height: 760px) {
+  .pat-dashboard .cable-bar-chart-card {
+    min-height: clamp(280px, calc(100dvh - 585px), 430px);
+  }
 }
 
 @keyframes patDrawerIn {
