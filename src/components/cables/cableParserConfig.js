@@ -20,6 +20,7 @@ export const CABLE_SCHEDULE_COLUMNS = {
   tipo_servicio:           { label: 'TIPO SERVICIO',           required: false, type: 'text' },
   metrado_reportado_campo: { label: 'METRADO REPORTADO CAMPO', required: false, type: 'number' },
   fecha_tendido:           { label: 'FECHA',                   required: false, type: 'date' },
+  vale:                    { label: 'VALE',                    required: false, type: 'text' },
 };
 
 // Signature columns used to auto-detect a Cable Schedule file
@@ -62,6 +63,7 @@ export const CABLE_PAT_COLUMNS = {
   total_despachado_m:      { label: 'METRADO DESPACHADO (M)',  required: false, type: 'number' },
   metrado_reportado_campo: { label: 'METRADO CAMPO',           required: false, type: 'number' },
   fecha_tendido:           { label: 'FECHA METRADO CAMPO',     required: false, type: 'date' },
+  vale:                    { label: 'VALE',                    required: false, type: 'text' },
 };
 
 export const CABLE_PAT_SIGNATURES = [
@@ -133,7 +135,8 @@ export function autoMapColumns(headers, columnDefs) {
     conexion_destino: ['CONEXION DE DESTINO', 'CONEXION DESTINO', 'DESTINO'],
     tipo_servicio: ['TIPO SERVICIO', 'TIPO', 'SERVICIO'],
     metrado_reportado_campo: ['METRADO REPORTADO CAMPO', 'METRADO CAMPO', 'METRADO CAMPO (M)', 'METRADO EN CAMPO'],
-    fecha_tendido: ['FECHA', 'FECHA METRADO CAMPO', 'FECHA DE METRADO', 'FECHA TENDIDO', 'FECHA_TENDIDO']
+    fecha_tendido: ['FECHA', 'FECHA METRADO CAMPO', 'FECHA DE METRADO', 'FECHA TENDIDO', 'FECHA_TENDIDO'],
+    vale: ['VALE', 'NRO VALE', 'NUMERO DE VALE', 'VALE DE ALMACEN']
   };
 
   for (const [field, def] of Object.entries(columnDefs)) {

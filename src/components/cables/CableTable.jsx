@@ -45,6 +45,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     { field: 'metrado_reportado_campo', label: 'Metrado\nCampo (m)', width: '110px', align: 'right' },
     { field: 'avance', label: '% Avance', width: '90px', align: 'center', computed: true },
     { field: 'fecha_tendido', label: 'Fecha Metrado\nCampo', width: '120px', align: 'center' },
+    { field: 'vale', label: 'VALE', width: '110px' },
   ] : [
     { field: 'tag_unico', label: 'TAG UNICO', width: '180px' },
     { field: 'area', label: 'Área', width: '100px' },
@@ -56,6 +57,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     { field: 'estado', label: 'Estado', width: '120px', align: 'center' },
     { field: 'conexion_origen', label: 'Conex. Origen', width: '150px' },
     { field: 'conexion_destino', label: 'Conex. Destino', width: '150px' },
+    { field: 'vale', label: 'VALE', width: '110px' },
   ];
 
   const fetchData = useCallback(async () => {
@@ -563,6 +565,9 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                           <div className="cable-mobile-card-detail-item">
                             <strong>Fecha Metrado Campo:</strong> <span>{row.fecha_tendido || '—'}</span>
                           </div>
+                          <div className="cable-mobile-card-detail-item">
+                            <strong>Vale:</strong> <span>{row.vale || '—'}</span>
+                          </div>
                         </>
                       ) : (
                         <>
@@ -586,6 +591,9 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                           </div>
                           <div className="cable-mobile-card-detail-item">
                             <strong>Conex. Destino:</strong> <span>{row.conexion_destino || '—'}</span>
+                          </div>
+                          <div className="cable-mobile-card-detail-item">
+                            <strong>Vale:</strong> <span>{row.vale || '—'}</span>
                           </div>
 
                           {/* Mobile subtable for Despachos */}
@@ -738,23 +746,18 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                 </th>
                 );
               })}
-              {canManageCables && (
-                <th style={{ width: '88px', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-card)', textAlign: 'center' }}>
-                  Acciones
-                </th>
-              )}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={COLUMNS.length + (canManageCables ? 2 : 1)} className="cable-table-loading">
+                <td colSpan={COLUMNS.length + 1} className="cable-table-loading">
                   Cargando...
                 </td>
               </tr>
             ) : filteredData.length === 0 ? (
               <tr>
-                <td colSpan={COLUMNS.length + (canManageCables ? 2 : 1)} className="cable-table-empty">
+                <td colSpan={COLUMNS.length + 1} className="cable-table-empty">
                   No se encontraron {itemLabel}.
                 </td>
               </tr>
@@ -795,6 +798,15 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                             </div>
                           </td>
                           <td style={{ textAlign: 'center' }}>{row.fecha_tendido || '—'}</td>
+                          <td style={{ position: 'relative' }} onClick={(event) => event.stopPropagation()}>
+                            <span>{row.vale || '—'}</span>
+                            {canManageCables && (
+                              <div className="row-actions-hover">
+                                <button className="btn btn-secondary" style={{ padding: '4px 8px', height: 24 }} onClick={() => handleStartEdit(row)} title="Editar TAG ÚNICO"><Pencil size={11} /></button>
+                                <button className="btn btn-danger" style={{ padding: '4px 8px', height: 24 }} onClick={() => handleStartDelete(row)} title="Eliminar registro"><Trash2 size={11} /></button>
+                              </div>
+                            )}
+                          </td>
                         </>
                       ) : (
                         <>
@@ -818,35 +830,22 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                           <td style={{ textAlign: 'center' }}>{getEstadoBadge(row.estado)}</td>
                           <td>{row.conexion_origen || '—'}</td>
                           <td>{row.conexion_destino || '—'}</td>
+                          <td style={{ position: 'relative' }} onClick={(event) => event.stopPropagation()}>
+                            <span>{row.vale || '—'}</span>
+                            {canManageCables && (
+                              <div className="row-actions-hover">
+                                <button className="btn btn-secondary" style={{ padding: '4px 8px', height: 24 }} onClick={() => handleStartEdit(row)} title="Editar TAG ÚNICO"><Pencil size={11} /></button>
+                                <button className="btn btn-danger" style={{ padding: '4px 8px', height: 24 }} onClick={() => handleStartDelete(row)} title="Eliminar registro"><Trash2 size={11} /></button>
+                              </div>
+                            )}
+                          </td>
                         </>
-                      )}
-                      {canManageCables && (
-                        <td style={{ position: 'relative', width: 88 }} onClick={(event) => event.stopPropagation()}>
-                          <div className="row-actions-hover">
-                            <button
-                              className="btn btn-secondary"
-                              style={{ padding: '4px 8px', height: 24 }}
-                              onClick={() => handleStartEdit(row)}
-                              title="Editar TAG ÚNICO"
-                            >
-                              <Pencil size={11} />
-                            </button>
-                            <button
-                              className="btn btn-danger"
-                              style={{ padding: '4px 8px', height: 24 }}
-                              onClick={() => handleStartDelete(row)}
-                              title="Eliminar registro"
-                            >
-                              <Trash2 size={11} />
-                            </button>
-                          </div>
-                        </td>
                       )}
                     </tr>
 
                     {isExpanded && filterTipoCable !== 'PAT' && (
                       <tr className="cable-despacho-row">
-                        <td colSpan={COLUMNS.length + (canManageCables ? 2 : 1)}>
+                        <td colSpan={COLUMNS.length + 1}>
                           <div className="cable-despacho-panel">
                             <h4><Package size={16} /> Despachos para {row.tag_unico}</h4>
                             {loadingDespachos ? (

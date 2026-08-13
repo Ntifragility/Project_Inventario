@@ -376,7 +376,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
               cable_schedule_id: scheduleIdByTag.get(row.tag_unico),
               tag_unico: row.tag_unico,
               longitud_despachada_m: parseFloat(row.total_despachado_m),
-              vale_almacen: 'IMPORT_PAT',
+              vale_almacen: row.vale || 'IMPORT_PAT',
               fecha_entrega: new Date().toISOString().split('T')[0]
             }));
 
