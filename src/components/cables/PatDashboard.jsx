@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../supabase';
 import {
   RefreshCw, Upload, Package, Activity, Cable, Filter, FilterX,
-  ChevronDown, Search, Download
+  ChevronDown, Download, X, PanelRightOpen
 } from 'lucide-react';
 import CableGauge from './CableGauge';
 import CableBarChart from './CableBarChart';
@@ -110,6 +110,15 @@ export default function PatDashboard() {
 
   // Detail table
   const [showTable, setShowTable] = useState(false);
+
+  useEffect(() => {
+    if (!showTable) return undefined;
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') setShowTable(false);
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [showTable]);
 
   useEffect(() => {
     setSelectedTipoCable('');
@@ -695,18 +704,30 @@ export default function PatDashboard() {
       </div>
 
       {/* ── Detail Table Toggle ── */}
-      <div className="cable-table-section">
-        <button
-          className="btn btn-secondary"
-          onClick={() => setShowTable(!showTable)}
-          style={{ marginBottom: showTable ? 8 : 16 }}
-        >
-          <Search size={14} />
-          {showTable ? 'Ocultar Detalle' : `Ver Detalle de ${itemLabel}`}
-        </button>
+      <button
+        className={`pat-detail-tab ${showTable ? 'open' : ''}`}
+        onClick={() => setShowTable(true)}
+        aria-label={`Abrir detalle de ${itemLabel}`}
+        aria-expanded={showTable}
+      >
+        <PanelRightOpen size={18} />
+        <span>Detalle de {itemLabel}</span>
+      </button>
 
-        {showTable && (
-          <>
+      {showTable && (
+        <>
+          <button className="pat-detail-backdrop" onClick={() => setShowTable(false)} aria-label="Cerrar detalle" />
+          <aside className="pat-detail-drawer" aria-label={`Detalle de ${itemLabel}`}>
+            <div className="pat-detail-drawer-header">
+              <div>
+                <strong>Detalle de {itemLabel}</strong>
+                <span>La selección del dashboard se aplica a esta lista.</span>
+              </div>
+              <button className="pat-detail-close" onClick={() => setShowTable(false)} aria-label="Cerrar detalle">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="pat-detail-drawer-body">
           {detailFilter && (
             <div className="dashboard-detail-filter-banner">
               <div>
@@ -729,9 +750,10 @@ export default function PatDashboard() {
               await Promise.all([fetchData(), fetchFilters()]);
             }}
           />
-          </>
-        )}
-      </div>
+            </div>
+          </aside>
+        </>
+      )}
 
       {/* ── Import Wizard Modal ── */}
       {showImportWizard && (

@@ -198,6 +198,141 @@ body {
   transition: all 0.3s ease;
 }
 
+/* PAT uses the full desktop canvas; navigation remains available as an overlay. */
+.pat-fullscreen .sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 1200;
+  transform: translateX(-100%);
+  box-shadow: 12px 0 32px rgba(15, 23, 42, 0.18);
+}
+
+.pat-fullscreen .sidebar.open {
+  transform: translateX(0);
+}
+
+.pat-fullscreen .sidebar-toggle-btn,
+.pat-fullscreen .sidebar-close-btn {
+  display: flex;
+}
+
+.pat-fullscreen .sidebar-overlay {
+  display: block;
+  z-index: 1190;
+}
+
+/* PAT cable detail opens without moving the dashboard or its scroll position. */
+.pat-detail-tab {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  z-index: 1080;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 10px;
+  border: 1px solid var(--border-color);
+  border-right: 0;
+  border-radius: 10px 0 0 10px;
+  background: var(--primary);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  writing-mode: vertical-rl;
+  transform: translateY(-50%) rotate(180deg);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2);
+}
+
+.pat-detail-tab.open {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pat-detail-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  border: 0;
+  background: rgba(15, 23, 42, 0.35);
+  cursor: default;
+}
+
+.pat-detail-drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 1110;
+  width: min(88vw, 1440px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-app);
+  border-left: 1px solid var(--border-color);
+  box-shadow: -16px 0 40px rgba(15, 23, 42, 0.25);
+  animation: patDrawerIn 0.25s ease-out;
+}
+
+.pat-detail-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-card);
+}
+
+.pat-detail-drawer-header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pat-detail-drawer-header span {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.pat-detail-close {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.pat-detail-drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px;
+}
+
+@keyframes patDrawerIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@media (max-width: 768px) {
+  .pat-detail-drawer {
+    width: 100vw;
+  }
+
+  .pat-detail-drawer-body {
+    padding: 12px;
+  }
+
+  .pat-detail-tab {
+    top: auto;
+    bottom: 18px;
+    writing-mode: horizontal-tb;
+    transform: none;
+  }
+}
+
 .sidebar-header {
   padding: 24px 20px;
   border-bottom: 1px solid var(--border-color);

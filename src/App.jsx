@@ -197,7 +197,7 @@ export default function App() {
 
   return (
     <ProjectAreaProvider user={session.user}>
-    <div className={`app-container ${!activeModule ? 'no-sidebar' : ''}`}>
+    <div className={`app-container ${!activeModule ? 'no-sidebar' : ''} ${activeTab === 'cables_pat' ? 'pat-fullscreen' : ''}`}>
       {activeModule && (
         <>
           <Sidebar 
