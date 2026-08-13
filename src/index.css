@@ -314,6 +314,19 @@ body {
 
 .pat-detail-drawer-body .cable-table-container {
   min-height: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.pat-detail-drawer-body .cable-table-header {
+  flex: 0 0 auto;
+}
+
+.pat-detail-drawer-body .cable-table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none !important;
 }
 
 .pat-dashboard {
@@ -327,9 +340,70 @@ body {
 }
 
 .pat-dashboard .cable-charts-row {
-  flex: 1;
   min-height: 280px;
-  margin-bottom: 0 !important;
+  margin-bottom: 16px !important;
+}
+
+.production-timeline-card {
+  flex: 0 0 auto;
+  margin-bottom: 0;
+  padding: 16px 18px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+}
+
+.production-timeline-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+.production-timeline-header h4 {
+  margin: 0 0 3px;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+}
+
+.production-timeline-header span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.production-grouping {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-card-header);
+}
+
+.production-grouping button {
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.production-grouping button.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.production-timeline-empty {
+  display: grid;
+  place-items: center;
+  height: 200px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
 }
 
 .pat-dashboard .cable-chart-col,

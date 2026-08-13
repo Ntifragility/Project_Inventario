@@ -34,6 +34,13 @@ export function deriveCableMetrics(row, dispatchedOverride) {
 export function matchesDashboardFilter(row, filter) {
   if (!filter) return true;
 
+  if (filter.dateFrom || filter.dateTo) {
+    const rowDate = String(row.fecha_tendido || '').slice(0, 10);
+    if (!rowDate) return false;
+    if (filter.dateFrom && rowDate < filter.dateFrom) return false;
+    if (filter.dateTo && rowDate > filter.dateTo) return false;
+  }
+
   if (filter.dimension) {
     const rowValue = filter.dimension === 'tipo'
       ? row.tipo_cable_clean

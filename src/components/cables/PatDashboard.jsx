@@ -9,6 +9,7 @@ import CableBarChart from './CableBarChart';
 import CableImportWizard from './CableImportWizard';
 import CableTable from './CableTable';
 import CustomDropdown from './CustomDropdown';
+import ProductionTimeline from './ProductionTimeline';
 import { cleanPatMaterialType, deriveCableMetrics, matchesDashboardFilter } from './cableMetrics';
 import { useProjectArea } from '../../contexts/ProjectAreaContext';
 
@@ -110,6 +111,13 @@ export default function PatDashboard() {
 
   // Detail table
   const [showTable, setShowTable] = useState(false);
+
+  const timelineRows = useMemo(() => processedSourceRows.filter((row) => {
+    if (selectedTipoCable && row.tipo_cable_clean !== selectedTipoCable) return false;
+    if (selectedWbs && row.wbs !== selectedWbs) return false;
+    if (selectedSistema && row.sistema !== selectedSistema) return false;
+    return matchesDashboardFilter(row, detailFilter);
+  }), [processedSourceRows, selectedTipoCable, selectedWbs, selectedSistema, detailFilter]);
 
   useEffect(() => {
     if (!showTable) return undefined;
@@ -702,6 +710,12 @@ export default function PatDashboard() {
           />
         </div>
       </div>
+
+      <ProductionTimeline
+        rows={timelineRows}
+        activeFilter={detailFilter}
+        onPeriodClick={activateDetailFilter}
+      />
 
       {/* ── Detail Table Toggle ── */}
       <button

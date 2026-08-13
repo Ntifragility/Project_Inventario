@@ -492,7 +492,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
         </div>
       </div>
 
-      <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '60vh', position: 'relative' }}>
+      <div className="cable-table-scroll" style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '60vh', position: 'relative' }}>
         {/* Mobile View: Card List */}
         <div className="cable-mobile-card-list" style={{ display: 'none' }}>
           {filteredData.length === 0 ? (
