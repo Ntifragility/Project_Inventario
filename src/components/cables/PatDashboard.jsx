@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../supabase';
 import {
   RefreshCw, Upload, Package, Activity, Cable, Filter, FilterX,
-  ChevronDown, Download, X, PanelRightOpen
+  ChevronDown, Download, X, PanelRightOpen, FileText
 } from 'lucide-react';
 import CableGauge from './CableGauge';
 import CableBarChart from './CableBarChart';
@@ -10,6 +10,7 @@ import CableImportWizard from './CableImportWizard';
 import CableTable from './CableTable';
 import CustomDropdown from './CustomDropdown';
 import ProductionTimeline from './ProductionTimeline';
+import PlanosDrawer from './PlanosDrawer';
 import { cleanPatMaterialType, deriveCableMetrics, matchesDashboardFilter } from './cableMetrics';
 import { useProjectArea } from '../../contexts/ProjectAreaContext';
 
@@ -112,6 +113,7 @@ export default function PatDashboard() {
 
   // Detail table
   const [showTable, setShowTable] = useState(false);
+  const [showPlanos, setShowPlanos] = useState(false);
 
   const timelineRows = useMemo(() => processedSourceRows.filter((row) => {
     if (selectedTipoCable && row.tipo_cable_clean !== selectedTipoCable) return false;
@@ -737,9 +739,18 @@ export default function PatDashboard() {
 
       {/* ── Detail Table Toggle ── */}
       <button
+        className={`pat-detail-tab planos-tab ${showPlanos ? 'open' : ''}`}
+        onClick={(event) => { event.stopPropagation(); setShowTable(false); setShowPlanos(true); }}
+        aria-label="Abrir planos"
+      >
+        <FileText size={18} />
+        <span>Planos</span>
+      </button>
+      <button
         className={`pat-detail-tab ${showTable ? 'open' : ''}`}
         onClick={(event) => {
           event.stopPropagation();
+          setShowPlanos(false);
           setShowTable(true);
         }}
         aria-label={`Abrir detalle de ${itemLabel}`}
@@ -798,6 +809,8 @@ export default function PatDashboard() {
       )}
 
       {/* ── Import Wizard Modal ── */}
+      <PlanosDrawer open={showPlanos} onClose={() => setShowPlanos(false)} />
+
       {showImportWizard && (
         <CableImportWizard
           forceType={importType}
