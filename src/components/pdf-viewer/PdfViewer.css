@@ -1,0 +1,127 @@
+.pdf-viewer-root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.pdf-viewer-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pdf-viewer-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pdf-viewer-group button {
+  border: 1px solid #ccc;
+  background: #f7f7f7;
+  color: #111;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.pdf-viewer-group button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pdf-viewer-group button:hover:not(:disabled) {
+  background: #e8e8e8;
+}
+
+.pdf-viewer-frame {
+  position: relative;
+  min-height: 420px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.pdf-viewer-placeholder,
+.pdf-viewer-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  padding: 24px;
+  color: #555;
+  text-align: center;
+}
+
+.pdf-viewer-error {
+  color: #a00;
+}
+
+.pdf-viewer-page {
+  width: 100%;
+  box-shadow: 0 0 18px rgba(0, 0, 0, 0.06);
+}
+
+.pdf-demo-container {
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.pdf-demo-container h2 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.pdf-demo-container p {
+  margin: 0;
+  color: #444;
+}
+
+.pdf-demo-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.pdf-demo-table th,
+.pdf-demo-table td {
+  padding: 12px 14px;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+.pdf-demo-table th {
+  background: #fafafa;
+}
+
+.pdf-demo-link {
+  background: transparent;
+  border: none;
+  color: #0b61ff;
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0;
+}
+
+.pdf-demo-link:hover {
+  text-decoration: underline;
+}
+
+.pdf-demo-link.active {
+  color: #0039d1;
+}
+
+.pdf-demo-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
