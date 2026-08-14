@@ -38,6 +38,7 @@ export default function PatDashboard() {
   const isPvc = activePatSection === 'pvc';
   const materialPattern = isPvc ? 'TUBERIA PVC SCH%' : 'CABLE%';
   const itemLabel = isPvc ? 'Tramos' : 'Circuitos';
+  const activeFilterCount = [selectedTipoCable, selectedWbs, selectedSistema, detailFilter].filter(Boolean).length;
 
   const getCleanMaterialType = useCallback((material = '') => {
     return cleanPatMaterialType(material, isPvc);
@@ -458,7 +459,7 @@ export default function PatDashboard() {
       className="tab-content active pat-dashboard"
       onClick={handleDashboardBackgroundClick}
     >
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, padding: 4, width: 'fit-content', borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+      <div className="pat-section-switcher" style={{ display: 'flex', gap: 8, marginBottom: 16, padding: 4, width: 'fit-content', borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
         <button
           className={`btn btn-sm ${!isPvc ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActivePatSection('conductores')}
@@ -471,20 +472,26 @@ export default function PatDashboard() {
         >
           Tubería PVC
         </button>
-      </div>
-
-      {/* ── Top Bar: Filters + Actions ── */}
-      <div className="cable-topbar">
         <button
           className="btn btn-secondary btn-sm cable-mobile-filter-toggle"
           style={{ display: 'none' }}
-          onClick={() => setShowMobileFilters(!showMobileFilters)}
+          onClick={(event) => {
+            event.stopPropagation();
+            setShowMobileFilters(!showMobileFilters);
+          }}
         >
           <Filter size={14} />
-          <span>{showMobileFilters ? 'Ocultar Filtros' : 'Filtros y Acciones'}</span>
+          <span>Filtros{activeFilterCount ? ` (${activeFilterCount})` : ''}</span>
         </button>
+      </div>
 
+      {/* ── Top Bar: Filters + Actions ── */}
+      <div className="cable-topbar" onClick={(event) => event.stopPropagation()}>
+        {showMobileFilters && <button className="cable-mobile-filter-backdrop" onClick={() => setShowMobileFilters(false)} aria-label="Cerrar filtros" />}
         <div className={`cable-filters ${showMobileFilters ? 'expanded' : ''}`}>
+          <div className="cable-mobile-filter-header">
+            <button onClick={() => setShowMobileFilters(false)} aria-label="Cerrar filtros"><X size={20} /></button>
+          </div>
           <CustomDropdown
             label={isPvc ? 'Tipo de Tubería' : 'Tipo de Cable'}
             value={selectedTipoCable}
@@ -509,6 +516,7 @@ export default function PatDashboard() {
               <span>Limpiar Filtros</span>
             </button>
           )}
+          <button className="btn btn-primary cable-mobile-filter-apply" onClick={() => setShowMobileFilters(false)}>Aplicar</button>
         </div>
         <div className="cable-actions">
           <button className="btn btn-primary btn-sm" onClick={() => openImport('pat')}>
@@ -643,7 +651,7 @@ export default function PatDashboard() {
         </div>
 
         <div
-          className={`cable-kpi-card dashboard-drilldown-target ${detailFilter?.dimension === null && detailFilter?.condition === 'deviation' ? 'active' : ''}`}
+          className={`cable-kpi-card cable-mobile-hide dashboard-drilldown-target ${detailFilter?.dimension === null && detailFilter?.condition === 'deviation' ? 'active' : ''}`}
           onClick={() => activateDetailFilter({ source: 'kpi', dimension: null, value: null, label: 'Desviación de almacén', condition: 'deviation' })}
           onKeyDown={(event) => activateDetailFilterFromKeyboard(event, { source: 'kpi', dimension: null, value: null, label: 'Desviación de almacén', condition: 'deviation' })}
           role="button"
@@ -710,6 +718,16 @@ export default function PatDashboard() {
           />
         </div>
       </div>
+
+      {activeFilterCount > 0 && (
+        <div className="cable-mobile-filter-chips" onClick={(event) => event.stopPropagation()}>
+          {selectedTipoCable && <button onClick={() => setSelectedTipoCable('')}>{selectedTipoCable}<X size={12} /></button>}
+          {selectedWbs && <button onClick={() => setSelectedWbs('')}>WBS {selectedWbs}<X size={12} /></button>}
+          {selectedSistema && <button onClick={() => setSelectedSistema('')}>{selectedSistema}<X size={12} /></button>}
+          {detailFilter && <button onClick={() => setDetailFilter(null)}>{detailFilter.segmentLabel || detailFilter.label}<X size={12} /></button>}
+          <button className="clear" onClick={handleClearFilters}>Limpiar</button>
+        </div>
+      )}
 
       <ProductionTimeline
         rows={timelineRows}

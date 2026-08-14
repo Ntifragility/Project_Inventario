@@ -57,7 +57,7 @@ export default function Sidebar({ activeModule, setActiveModule, activeTab, setA
       icon: Cable,
       items: [
         { id: 'cables', label: 'Circuitos', icon: Cable },
-        { id: 'cables_pat', label: 'Puesta a Tierra', icon: Zap },
+        { id: 'cables_pat', label: 'PAT', icon: Zap },
       ]
     },
     {

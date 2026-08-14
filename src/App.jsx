@@ -186,7 +186,7 @@ export default function App() {
       case 'productos': return 'Gestión de Productos';
       case 'movimientos': return 'Registro de Movimientos';
       case 'cables': return 'Cable Schedule Manager';
-      case 'cables_pat': return 'Puesta a Tierra (PAT)';
+      case 'cables_pat': return 'PAT';
       case 'consumos': return 'Reportes de Stock y Balance';
       case 'recetas': return 'Gestor de Ensambles (BOM)';
       case 'material_config': return 'Configuración de Materiales';
