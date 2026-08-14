@@ -395,15 +395,25 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     return uniqueValues.sort();
   };
 
+  const getValuesVisibleBeforeColumnFilter = (field) => {
+    const visibleRows = data.filter(row => {
+      if (!matchesDashboardFilter(row, dashboardFilter)) return false;
+      return Object.entries(headerFilters).every(([key, selectedValues]) => {
+        if (key === field || !selectedValues) return true;
+        return selectedValues.includes(getFilterValue(row, key));
+      });
+    });
+    return [...new Set(visibleRows.map(row => getFilterValue(row, field)))];
+  };
+
   const openFilter = (field) => {
     setActiveFilter(field);
     setFilterSearch('');
     const current = headerFilters[field];
-    if (!current) {
-      setTempFilters(getUniqueValues(field));
-    } else {
-      setTempFilters([...current]);
-    }
+    const visibleValues = getValuesVisibleBeforeColumnFilter(field);
+    setTempFilters(current
+      ? current.filter(value => visibleValues.includes(value))
+      : visibleValues);
   };
 
   const applyFilter = (field) => {
