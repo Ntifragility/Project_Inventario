@@ -82,7 +82,7 @@ export default function ProductionTimeline({ rows = [], onPeriodClick, activeFil
         </div>
       </div>
       {data.length ? (
-        <ResponsiveContainer width="100%" height={250}>
+        <ResponsiveContainer width="100%" height={170}>
           <ComposedChart data={data} margin={{ top: 12, right: 20, left: 4, bottom: 4 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
             <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} minTickGap={20} />
