@@ -335,15 +335,6 @@ export default function PlanosDrawer({ open, onClose }) {
                 <span><strong>Revision:</strong> {deletePlanoTarget.revision || '—'}</span>
                 <span><strong>Titulo:</strong> {deletePlanoTarget.sistema || '—'}</span>
               </div>
-              <div className="form-group">
-                <label>Escriba <strong>{deletePlanoTarget.plano}</strong> para confirmar</label>
-                <input
-                  value={deleteConfirmation}
-                  onChange={(event) => setDeleteConfirmation(event.target.value)}
-                  autoComplete="off"
-                  autoFocus
-                />
-              </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
                 <button className="btn btn-secondary" onClick={() => setDeletePlanoTarget(null)} disabled={deleteLoading}>
                   Cancelar
@@ -351,7 +342,7 @@ export default function PlanosDrawer({ open, onClose }) {
                 <button
                   className="btn btn-danger"
                   onClick={handleConfirmDeletePlano}
-                  disabled={deleteLoading || deleteConfirmation !== deletePlanoTarget.plano}
+                  disabled={deleteLoading}
                 >
                   {deleteLoading ? 'Eliminando...' : 'Eliminar'}
                 </button>

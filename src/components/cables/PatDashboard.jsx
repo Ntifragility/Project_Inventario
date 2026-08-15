@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../supabase';
 import {
   RefreshCw, Upload, Package, Activity, Cable, Filter, FilterX,
-  ChevronDown, Download, X, PanelRightOpen, FileText
+  ChevronDown, Download, X, PanelRightOpen, FileText, FileSpreadsheet
 } from 'lucide-react';
 import CableGauge from './CableGauge';
 import CableBarChart from './CableBarChart';
@@ -27,6 +27,7 @@ export default function PatDashboard() {
   const [error, setError] = useState('');
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [importType, setImportType] = useState(null);
+  const [showUploadPrompt, setShowUploadPrompt] = useState(false);
 
   // Filters Raw Data
   const [rawFiltersData, setRawFiltersData] = useState([]);
@@ -429,6 +430,10 @@ export default function PatDashboard() {
     fetchData();
   }, [fetchData, fetchFilters]);
 
+  useEffect(() => {
+    setShowUploadPrompt(true);
+  }, []);
+
   // ══════════════════════════════════════════════════════════════
   // HELPERS
   // ══════════════════════════════════════════════════════════════
@@ -817,6 +822,38 @@ export default function PatDashboard() {
           onClose={() => setShowImportWizard(false)}
           onImportComplete={handleImportComplete}
         />
+      )}
+
+      {showUploadPrompt && (
+        <div className="dialog-overlay planos-dialog-overlay" onClick={() => setShowUploadPrompt(false)}>
+          <div className="dialog-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 420, width: '90%' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <FileSpreadsheet size={18} style={{ color: 'var(--primary)' }} />
+                <span>Importar datos de PAT</span>
+              </div>
+            </div>
+            <div className="card-body" style={{ padding: 24, textAlign: 'center' }}>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: 24, fontSize: '0.9rem' }}>
+                ¿Desea importar un archivo de Excel para Puesta a Tierra (PAT)?
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
+                <button className="btn btn-secondary" onClick={() => setShowUploadPrompt(false)}>
+                  No
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setShowUploadPrompt(false);
+                    openImport('pat');
+                  }}
+                >
+                  Sí, importar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
