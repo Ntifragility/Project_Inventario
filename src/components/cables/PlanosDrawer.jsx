@@ -359,9 +359,6 @@ export default function PlanosDrawer({ open, onClose }) {
               </div>
             </div>
             <div className="card-body" style={{ padding: 24 }}>
-              <p style={{ color: 'var(--text-secondary)', marginBottom: 16, fontSize: '0.88rem' }}>
-                Esta acción eliminará permanentemente el WBS <strong>{deleteGroupTarget.wbs}</strong> y todos sus planos relacionados.
-              </p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8, marginBottom: 18, fontSize: '0.85rem' }}>
                 <span><strong>WBS a eliminar:</strong> {deleteGroupTarget.wbs}</span>
                 <span><strong>Cantidad de planos:</strong> {deleteGroupTarget.rows?.length || 0}</span>
