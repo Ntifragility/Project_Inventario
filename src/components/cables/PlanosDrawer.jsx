@@ -190,9 +190,18 @@ export default function PlanosDrawer({ open, onClose }) {
       parsedRows.forEach(payload => {
         const groupKey = `${payload.partition}|${payload.wbs}`.toLowerCase();
         if (!urlsByGroup.has(groupKey)) urlsByGroup.set(groupKey, { wbs: payload.wbs, urls: new Set() });
-        urlsByGroup.get(groupKey).urls.add(payload.document_url);
+        if (payload.document_url) {
+          urlsByGroup.get(groupKey).urls.add(payload.document_url);
+        }
       });
-      const conflictingWbs = [...urlsByGroup.entries()].filter(([key, group]) => group.urls.size > 1 || (knownGroups.has(key) && !group.urls.has(knownGroups.get(key).folder_url || ''))).map(([, group]) => group.wbs);
+      const conflictingWbs = [...urlsByGroup.entries()].filter(([key, group]) => {
+        if (group.urls.size > 1) return true;
+        const dbGroup = knownGroups.get(key);
+        if (dbGroup && dbGroup.folder_url && group.urls.size === 1 && !group.urls.has(dbGroup.folder_url)) {
+          return true;
+        }
+        return false;
+      }).map(([, group]) => group.wbs);
       const rejectedBeforeImport = missingFields + wrongPartition;
       if (rejectedBeforeImport || conflictingWbs.length) {
         const reasons = [
@@ -208,7 +217,14 @@ export default function PlanosDrawer({ open, onClose }) {
         const existing = knownRows.get(businessKey);
         let group = knownGroups.get(groupKey);
         let error;
-        if (group && group.folder_url !== payload.document_url) error = new Error(`El WBS ${payload.wbs} contiene URLs diferentes.`);
+        if (group && payload.document_url && group.folder_url && group.folder_url !== payload.document_url) {
+          error = new Error(`El WBS ${payload.wbs} contiene URLs diferentes.`);
+        }
+        if (group && !group.folder_url && payload.document_url && !error) {
+          const result = await supabase.from('project_plano_groups').update({ folder_url: payload.document_url }).eq('id', group.id).select().single();
+          group = result.data; error = result.error;
+          if (group) knownGroups.set(groupKey, group);
+        }
         if (!group && !error) {
           const result = await supabase.from('project_plano_groups').insert({ project_area_id: activeAreaId, partition: payload.partition, wbs: payload.wbs, folder_url: payload.document_url || null }).select().single();
           group = result.data; error = result.error;
