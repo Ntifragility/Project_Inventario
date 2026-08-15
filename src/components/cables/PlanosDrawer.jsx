@@ -326,9 +326,6 @@ export default function PlanosDrawer({ open, onClose }) {
               </div>
             </div>
             <div className="card-body" style={{ padding: 24 }}>
-              <p style={{ color: 'var(--text-secondary)', marginBottom: 16, fontSize: '0.88rem' }}>
-                Esta acción eliminará permanentemente el plano <strong>{deletePlanoTarget.plano}</strong>.
-              </p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8, marginBottom: 18, fontSize: '0.85rem' }}>
                 <span><strong>WBS:</strong> {deletePlanoTarget.wbs || '—'}</span>
                 <span><strong>Plano:</strong> {deletePlanoTarget.plano}</span>
