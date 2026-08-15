@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpDown, CheckSquare, Download, ExternalLink, FileSpreadsheet, LoaderCircle, Pencil, Plus, Search, Square, Trash2, X } from 'lucide-react';
+import { ArrowUpDown, CheckSquare, Download, ExternalLink, FileSpreadsheet, LoaderCircle, Pencil, Plus, Search, Square, Trash2, X, AlertCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../supabase';
 import { useProjectArea } from '../../contexts/ProjectAreaContext';
@@ -38,6 +38,12 @@ export default function PlanosDrawer({ open, onClose }) {
   const [sortField, setSortField] = useState('wbs');
   const [sortDirection, setSortDirection] = useState('asc');
   const fileRef = useRef(null);
+
+  // Deletion modals state
+  const [deletePlanoTarget, setDeletePlanoTarget] = useState(null);
+  const [deleteGroupTarget, setDeleteGroupTarget] = useState(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const load = useCallback(async () => {
     if (!open || !activeAreaId) return;
@@ -99,10 +105,19 @@ export default function PlanosDrawer({ open, onClose }) {
     if (error) setMessage(error.message); else { setEditing(false); setForm(emptyForm); await load(); }
   };
 
-  const remove = async (row) => {
-    if (!window.confirm(`¿Eliminar el plano ${row.plano}?`)) return;
-    const { error } = await supabase.from('project_planos').delete().eq('id', row.id).eq('project_area_id', activeAreaId);
-    if (error) setMessage(error.message); else await load();
+  const remove = (row) => {
+    setDeletePlanoTarget(row);
+    setDeleteConfirmation('');
+  };
+
+  const handleConfirmDeletePlano = async () => {
+    if (!deletePlanoTarget) return;
+    setDeleteLoading(true);
+    const { error } = await supabase.from('project_planos').delete().eq('id', deletePlanoTarget.id).eq('project_area_id', activeAreaId);
+    if (error) setMessage(error.message);
+    setDeletePlanoTarget(null);
+    await load();
+    setDeleteLoading(false);
   };
 
   const saveGroupUrl = async (group) => {
@@ -118,13 +133,20 @@ export default function PlanosDrawer({ open, onClose }) {
     return next;
   });
 
-  const removeGroup = async (group) => {
-    if (!selectedGroups.has(group.id) || !window.confirm(`¿Eliminar el WBS ${group.wbs} y todos sus planos? Esta acción no se puede deshacer.`)) return;
-    const { error } = await supabase.rpc('delete_project_plano_group', { p_group_id: group.id });
-    if (error) setMessage(error.message); else {
-      setSelectedGroups(current => { const next = new Set(current); next.delete(group.id); return next; });
-      await load();
-    }
+  const removeGroup = (group) => {
+    setDeleteGroupTarget(group);
+    setDeleteConfirmation('');
+  };
+
+  const handleConfirmDeleteGroup = async () => {
+    if (!deleteGroupTarget) return;
+    setDeleteLoading(true);
+    const { error } = await supabase.rpc('delete_project_plano_group', { p_group_id: deleteGroupTarget.id });
+    if (error) setMessage(error.message);
+    setSelectedGroups(current => { const next = new Set(current); next.delete(deleteGroupTarget.id); return next; });
+    setDeleteGroupTarget(null);
+    await load();
+    setDeleteLoading(false);
   };
 
   const importExcel = async (event) => {
@@ -225,11 +247,35 @@ export default function PlanosDrawer({ open, onClose }) {
     </React.Fragment>
   );
 
+  const handleDrawerClick = (e) => {
+    const isEditRow = e.target.closest('.planos-inline-editor') || e.target.closest('.planos-inline-partition');
+    const isWbsRow = e.target.closest('.planos-wbs-row');
+    const isButton = e.target.closest('button') || e.target.closest('a');
+    const isInput = e.target.closest('input');
+    const isActionCell = e.target.closest('.planos-link-cell');
+
+    if (!isEditRow && !isWbsRow && !isButton && !isInput && !isActionCell) {
+      setEditing(false);
+      setForm(emptyForm);
+      setEditingGroup(null);
+      setSelectedGroups(new Set());
+    }
+  };
+
+  useEffect(() => {
+    if (!open) {
+      setEditing(false);
+      setForm(emptyForm);
+      setEditingGroup(null);
+      setSelectedGroups(new Set());
+    }
+  }, [open]);
+
   if (!open) return null;
   return (
     <>
       <button className="pat-detail-backdrop" onClick={onClose} aria-label="Cerrar planos" />
-      <aside className="pat-detail-drawer planos-drawer" onClick={e => e.stopPropagation()}>
+      <aside className="pat-detail-drawer planos-drawer" onClick={(e) => { e.stopPropagation(); handleDrawerClick(e); }}>
         <header className="pat-detail-drawer-header">
           <div><strong>Planos</strong><span>Documentos de OneDrive, SharePoint y Google Drive</span></div>
           <button className="pat-detail-close" onClick={onClose}><X size={20} /></button>
@@ -245,15 +291,102 @@ export default function PlanosDrawer({ open, onClose }) {
           <table className="planos-table"><thead><tr>
             {[['wbs','WBS'],['plano','PLANO'],['revision','REV'],['sistema','TITULO'],['document_url','URL']].map(([field, label]) => <th key={field}><button className="planos-sort" onClick={() => sortBy(field)}>{label}<ArrowUpDown size={12} className={sortField === field && sortDirection === 'desc' ? 'flipped' : ''} /></button></th>)}
           </tr></thead><tbody>
-            <tr className="planos-partition-row"><td colSpan="5">{PAT_PARTITION}</td></tr>
             {editing && !form.id && editorRow()}
             {loading ? <tr><td colSpan="5">Cargando...</td></tr> : filtered.length === 0 && !(editing && !form.id) ? <tr><td colSpan="5">No hay planos registrados en la partición PUESTA A TIERRA.</td></tr> : groupedRows.map(group => <React.Fragment key={group.wbs}>
-              <tr className="planos-wbs-row"><td colSpan="4"><div className="planos-wbs-heading">{isAdmin && <button className={`planos-group-select${selectedGroups.has(group.id) ? ' selected' : ''}`} onClick={() => toggleGroup(group.id)}>{selectedGroups.has(group.id) ? <CheckSquare size={15} /> : <Square size={15} />} Seleccionar</button>}<strong>{group.wbs}</strong>{isAdmin && selectedGroups.has(group.id) && <button className="planos-group-delete" onClick={() => removeGroup(group)} title="Eliminar WBS completo"><Trash2 size={14} /> Eliminar WBS</button>}</div></td><td>{editingGroup?.id === group.id ? <div className="planos-group-url-editor"><input value={editingGroup.url} onChange={e => setEditingGroup({ ...editingGroup, url: e.target.value })} placeholder="https://..." /><button onClick={() => saveGroupUrl(group)}>Guardar</button><button onClick={() => setEditingGroup(null)}>Cancelar</button></div> : <div className="planos-group-url">{group.url ? <a href={group.url} target="_blank" rel="noopener noreferrer">Abrir carpeta<ExternalLink size={13} /></a> : <span>Sin URL</span>}{isAdmin && <button onClick={() => setEditingGroup({ id: group.id, url: group.url || '' })} title="Editar URL del WBS"><Pencil size={13} /></button>}</div>}</td></tr>
+              <tr className="planos-wbs-row"><td colSpan="4"><div className="planos-wbs-heading">{isAdmin && <button className={`planos-group-select${selectedGroups.has(group.id) ? ' selected' : ''}`} onClick={() => toggleGroup(group.id)} title="Seleccionar WBS">{selectedGroups.has(group.id) ? <CheckSquare size={15} /> : <Square size={15} />}</button>}<strong>{group.wbs}</strong>{isAdmin && selectedGroups.has(group.id) && <button className="planos-group-delete" onClick={() => removeGroup(group)} title="Eliminar WBS completo"><Trash2 size={14} /> Eliminar WBS</button>}</div></td><td className={`planos-group-url-cell${editingGroup?.id === group.id ? ' editing' : ''}`}>{editingGroup?.id === group.id ? <div className="planos-group-url-editor"><input value={editingGroup.url} onChange={e => setEditingGroup({ ...editingGroup, url: e.target.value })} placeholder="https://..." /><button onClick={() => saveGroupUrl(group)}>Guardar</button><button onClick={() => setEditingGroup(null)}>Cancelar</button></div> : <div className="planos-group-url">{group.url ? <a href={group.url} target="_blank" rel="noopener noreferrer">Abrir carpeta<ExternalLink size={13} /></a> : <span>Sin URL</span>}{isAdmin && <button onClick={() => setEditingGroup({ id: group.id, url: group.url || '' })} title="Editar URL del WBS"><Pencil size={13} /></button>}</div>}</td></tr>
               {group.rows.map(row => editing && form.id === row.id ? editorRow(row.id) : <tr key={row.id}>
-                <td></td><td>{row.plano}</td><td>{row.revision || '—'}</td><td>{row.sistema}</td><td className="planos-link-cell">{isAdmin && <span><button onClick={() => { setForm(row); setEditing(true); }} title="Editar REV y TITULO"><Pencil size={13} /></button><button onClick={() => remove(row)} title="Eliminar plano"><Trash2 size={13} /></button></span>}</td>
+                <td></td><td>{row.plano}</td><td>{row.revision || '—'}</td><td>{row.sistema}</td><td className="planos-link-cell">{isAdmin && <span><button onClick={() => { setForm(row); setEditing(true); }} title="Editar REV y TITULO"><Pencil size={13} /></button><button className="planos-row-delete" onClick={() => remove(row)} title="Eliminar plano"><Trash2 size={13} /></button></span>}</td>
               </tr>)}</React.Fragment>)}</tbody></table>
         </div>
       </aside>
+
+      {deletePlanoTarget && (
+        <div className="dialog-overlay planos-dialog-overlay" onClick={() => setDeletePlanoTarget(null)}>
+          <div className="dialog-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 540, width: '90%' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Trash2 size={16} style={{ color: 'var(--danger)' }} />
+                <span>Eliminar plano</span>
+              </div>
+            </div>
+            <div className="card-body" style={{ padding: 24 }}>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: 16, fontSize: '0.88rem' }}>
+                Esta acción eliminará permanentemente el plano <strong>{deletePlanoTarget.plano}</strong>.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8, marginBottom: 18, fontSize: '0.85rem' }}>
+                <span><strong>WBS:</strong> {deletePlanoTarget.wbs || '—'}</span>
+                <span><strong>Plano:</strong> {deletePlanoTarget.plano}</span>
+                <span><strong>Revision:</strong> {deletePlanoTarget.revision || '—'}</span>
+                <span><strong>Titulo:</strong> {deletePlanoTarget.sistema || '—'}</span>
+              </div>
+              <div className="form-group">
+                <label>Escriba <strong>{deletePlanoTarget.plano}</strong> para confirmar</label>
+                <input
+                  value={deleteConfirmation}
+                  onChange={(event) => setDeleteConfirmation(event.target.value)}
+                  autoComplete="off"
+                  autoFocus
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+                <button className="btn btn-secondary" onClick={() => setDeletePlanoTarget(null)} disabled={deleteLoading}>
+                  Cancelar
+                </button>
+                <button
+                  className="btn btn-danger"
+                  onClick={handleConfirmDeletePlano}
+                  disabled={deleteLoading || deleteConfirmation !== deletePlanoTarget.plano}
+                >
+                  {deleteLoading ? 'Eliminando...' : 'Eliminar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteGroupTarget && (
+        <div className="dialog-overlay planos-dialog-overlay" onClick={() => setDeleteGroupTarget(null)}>
+          <div className="dialog-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 540, width: '90%' }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Trash2 size={16} style={{ color: 'var(--danger)' }} />
+                <span>Eliminar WBS Completo</span>
+              </div>
+            </div>
+            <div className="card-body" style={{ padding: 24 }}>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: 16, fontSize: '0.88rem' }}>
+                Esta acción eliminará permanentemente el WBS <strong>{deleteGroupTarget.wbs}</strong> y todos sus planos relacionados.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8, marginBottom: 18, fontSize: '0.85rem' }}>
+                <span><strong>WBS a eliminar:</strong> {deleteGroupTarget.wbs}</span>
+                <span><strong>Cantidad de planos:</strong> {deleteGroupTarget.rows?.length || 0}</span>
+              </div>
+              <div className="form-group">
+                <label>Escriba <strong>{deleteGroupTarget.wbs}</strong> para confirmar</label>
+                <input
+                  value={deleteConfirmation}
+                  onChange={(event) => setDeleteConfirmation(event.target.value)}
+                  autoComplete="off"
+                  autoFocus
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+                <button className="btn btn-secondary" onClick={() => setDeleteGroupTarget(null)} disabled={deleteLoading}>
+                  Cancelar
+                </button>
+                <button
+                  className="btn btn-danger"
+                  onClick={handleConfirmDeleteGroup}
+                  disabled={deleteLoading || deleteConfirmation !== deleteGroupTarget.wbs}
+                >
+                  {deleteLoading ? 'Eliminando...' : 'Eliminar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
