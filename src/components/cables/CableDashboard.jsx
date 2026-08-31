@@ -178,7 +178,7 @@ export default function CableDashboard() {
         const metrado = parseFloat(r.metrado_reportado_campo) || 0;
         const materialStr = r.material || '';
         const cleanTipo = materialStr.replace(/^cable\s+/i, '').trim().toUpperCase();
-        const despachado = despMap.get(r.tag_unico) || 0;
+        const despachado = r.despachado_override_m ?? despMap.get(r.tag_unico) ?? 0;
         return {
           ...r,
           longitud_despachada_m: despachado,

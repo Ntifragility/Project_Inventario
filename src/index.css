@@ -2946,6 +2946,24 @@ tr.row-resolved {
   gap: 6px;
 }
 
+.cable-measurement-value { display:inline-flex; align-items:center; justify-content:flex-end; gap:5px; min-width:72px; }
+.cable-measurement-value button,.cable-measurement-editor button { display:grid; place-items:center; width:23px; height:23px; padding:0; border:1px solid var(--border-color); border-radius:5px; background:var(--bg-card); color:var(--text-secondary); cursor:pointer; }
+.cable-measurement-value button { opacity:0; transition:opacity .15s ease,color .15s ease; }
+tr:hover .cable-measurement-value button,.cable-mobile-card .cable-measurement-value button { opacity:1; }
+.cable-measurement-value button:hover { color:var(--primary); border-color:var(--primary); }
+.cable-measurement-editor { display:flex; align-items:center; justify-content:flex-end; gap:4px; min-width:150px; }
+.cable-measurement-editor input { width:82px; min-width:0; padding:5px 6px; border:1px solid var(--primary); border-radius:5px; background:var(--bg-card); color:var(--text-primary); text-align:right; }
+.cable-measurement-error { margin:0 0 10px; }
+.cable-history-dialog { width:min(92vw,560px); }
+.cable-history-dialog .card-header { display:flex; align-items:center; justify-content:space-between; }
+.cable-history-title { display:flex; align-items:center; gap:8px; }
+.cable-history-date-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:18px 0; }
+.cable-history-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+
+@media (max-width:600px) {
+  .cable-history-date-grid { grid-template-columns:1fr; }
+}
+
 .dark-theme .row-actions-hover {
   background: #121212;
 }

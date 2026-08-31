@@ -261,7 +261,7 @@ export default function PatDashboard() {
       });
       const processedRows = rawRows.map(r => {
         const cleanTipo = getCleanMaterialType(r.material || '');
-        const despachado = despMap.get(r.tag_unico) || 0;
+        const despachado = r.despachado_override_m ?? despMap.get(r.tag_unico) ?? 0;
         const metrics = deriveCableMetrics(r, despachado);
         return {
           ...metrics,

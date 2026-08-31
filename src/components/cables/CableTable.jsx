@@ -3,14 +3,14 @@ import { supabase } from '../../supabase';
 import {
   Search, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   ArrowUpDown, Package, Filter, FilterX, Download, Pencil, Trash2,
-  Save, AlertCircle
+  Save, AlertCircle, History, X
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { cleanPatMaterialType, deriveCableMetrics, matchesDashboardFilter } from './cableMetrics';
 import { useProjectArea } from '../../contexts/ProjectAreaContext';
 
 export default function CableTable({ filterArea = '', filterTipoServicio = '', filterTipoCable = '', filterWbs = '', filterSistema = '', filterCleanTipo = '', filterMaterialPrefix = 'CABLE', sourceData = null, dashboardFilter = null, onDataChanged = null }) {
-  const { activeAreaId, role } = useProjectArea();
+  const { activeAreaId, activeArea, role } = useProjectArea();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -26,6 +26,18 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   const [affectedDispatches, setAffectedDispatches] = useState(0);
   const [mutationLoading, setMutationLoading] = useState(false);
   const [mutationError, setMutationError] = useState('');
+  const [measurementEdit, setMeasurementEdit] = useState(null);
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [historyStartDate, setHistoryStartDate] = useState(() => {
+    const date = new Date();
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+  const [historyEndDate, setHistoryEndDate] = useState(() => {
+    const date = new Date();
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  });
+  const [historyExporting, setHistoryExporting] = useState(false);
+  const [historyError, setHistoryError] = useState('');
   
   // Excel-like filter state
   const [headerFilters, setHeaderFilters] = useState({});
@@ -34,6 +46,8 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   const isPvc = filterMaterialPrefix.toUpperCase().startsWith('TUBERIA PVC');
   const itemLabel = isPvc ? 'tramos' : 'circuitos';
   const canManageCables = role === 'admin' || role === 'supervisor';
+  const canEditMetradoOt = role === 'admin';
+  const canEditMetradoDespachado = ['admin', 'supervisor', 'user'].includes(role);
 
   const COLUMNS = filterTipoCable === 'PAT' ? [
     { field: 'tag_unico', label: 'TAG UNICO', width: '144px' },
@@ -168,7 +182,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
       });
       
       let finalRows = (rows || []).map(r => ({
-        ...deriveCableMetrics(r, despMap.get(r.tag_unico) || 0),
+        ...deriveCableMetrics(r, r.despachado_override_m ?? despMap.get(r.tag_unico) ?? 0),
         tipo_cable_clean: cleanPatMaterialType(r.material, isPvc) || 'SIN TIPO',
       }));
 
@@ -215,6 +229,8 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     setDespachos([]);
     setHeaderFilters({});
     setActiveFilter(null);
+    setMeasurementEdit(null);
+    setMutationError('');
   }, [activeAreaId]);
 
   const toggleExpand = (tagUnico) => {
@@ -267,7 +283,8 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     setHeaderFilters({});
     if (onDataChanged) {
       await onDataChanged();
-    } else {
+    }
+    if (!Array.isArray(sourceData)) {
       await fetchData();
     }
   };
@@ -322,6 +339,135 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
       setMutationError(error.message || 'No se pudo eliminar el registro.');
     } finally {
       setMutationLoading(false);
+    }
+  };
+
+  const startMeasurementEdit = (row, field) => {
+    const value = field === 'METRADO_OT' ? row.total_estimado_m : row.total_despachado_m;
+    setMutationError('');
+    setMeasurementEdit({
+      rowId: row.id,
+      field,
+      expectedValue: parseFloat(value) || 0,
+      value: String(parseFloat(value) || 0),
+    });
+  };
+
+  const saveMeasurementEdit = async () => {
+    if (!measurementEdit) return;
+    const nextValue = Number(measurementEdit.value);
+    if (!Number.isFinite(nextValue) || nextValue < 0) {
+      setMutationError('Ingrese un metrado numérico mayor o igual a cero.');
+      return;
+    }
+
+    setMutationLoading(true);
+    setMutationError('');
+    try {
+      const rpcName = measurementEdit.field === 'METRADO_OT'
+        ? 'actualizar_metrado_ot_cable'
+        : 'actualizar_metrado_despachado_cable';
+      const { error } = await supabase.rpc(rpcName, {
+        p_cable_id: measurementEdit.rowId,
+        p_project_area_id: activeAreaId,
+        p_expected_old_value: measurementEdit.expectedValue,
+        p_new_value: nextValue,
+        p_reason: null,
+      });
+      if (error) throw error;
+      setMeasurementEdit(null);
+      await refreshAfterMutation();
+    } catch (error) {
+      setMutationError(error.message || 'No se pudo actualizar el metrado.');
+    } finally {
+      setMutationLoading(false);
+    }
+  };
+
+  const renderMeasurementValue = (row, field) => {
+    const isOt = field === 'METRADO_OT';
+    const canEdit = isOt ? canEditMetradoOt : canEditMetradoDespachado;
+    const value = isOt ? row.total_estimado_m : row.total_despachado_m;
+    const isEditing = measurementEdit?.rowId === row.id && measurementEdit?.field === field;
+    const isOverride = !isOt && row.despachado_override_m !== null && row.despachado_override_m !== undefined;
+
+    if (isEditing) {
+      return (
+        <div className="cable-measurement-editor" onClick={(event) => event.stopPropagation()}>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={measurementEdit.value}
+            onChange={(event) => setMeasurementEdit({ ...measurementEdit, value: event.target.value })}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') saveMeasurementEdit();
+              if (event.key === 'Escape') setMeasurementEdit(null);
+            }}
+            autoFocus
+          />
+          <button onClick={saveMeasurementEdit} disabled={mutationLoading} title="Guardar"><Save size={12} /></button>
+          <button onClick={() => setMeasurementEdit(null)} disabled={mutationLoading} title="Cancelar"><X size={12} /></button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="cable-measurement-value" onClick={(event) => event.stopPropagation()}>
+        <span title={isOverride ? 'Valor despachado ajustado manualmente' : undefined}>
+          {parseFloat(value || 0).toFixed(1)}{isOverride ? ' *' : ''}
+        </span>
+        {canEdit && <button onClick={() => startMeasurementEdit(row, field)} title={`Editar ${isOt ? 'METRADO OT' : 'METRADO DESPACHADO'}`}><Pencil size={11} /></button>}
+      </div>
+    );
+  };
+
+  const handleExportMeasurementHistory = async () => {
+    if (!historyStartDate || !historyEndDate || historyEndDate < historyStartDate) {
+      setHistoryError('Seleccione un rango de fechas válido.');
+      return;
+    }
+
+    setHistoryExporting(true);
+    setHistoryError('');
+    try {
+      const { data: changes, error } = await supabase.rpc('exportar_cambios_metrado_cable', {
+        p_project_area_id: activeAreaId,
+        p_start_date: historyStartDate,
+        p_end_date: historyEndDate,
+      });
+      if (error) throw error;
+
+      const detailRows = (changes || []).map(change => ({
+        'Fecha y hora': new Date(change.changed_at).toLocaleString('es-PE', { timeZone: 'America/Lima' }),
+        'Área': change.area_name,
+        'TAG UNICO': change.tag_unico,
+        'WBS': change.wbs || '',
+        'Sistema': change.sistema || '',
+        'Campo': change.field_name === 'METRADO_OT' ? 'METRADO OT' : 'METRADO DESPACHADO',
+        'Valor anterior': Number(change.old_value),
+        'Valor nuevo': Number(change.new_value),
+        'Diferencia': Number(change.difference),
+        'Usuario': change.changed_by_name,
+        'Rol': change.changed_by_role,
+        'Origen': change.source,
+        'Motivo': change.reason || '',
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(detailRows.length ? detailRows : [{ Mensaje: 'No se encontraron modificaciones en el rango seleccionado.' }]);
+      worksheet['!cols'] = [
+        { wch: 21 }, { wch: 16 }, { wch: 24 }, { wch: 16 }, { wch: 34 }, { wch: 23 },
+        { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 24 }, { wch: 12 }, { wch: 20 }, { wch: 30 },
+      ];
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Modificaciones');
+      const areaCode = activeArea?.code || 'AREA';
+      XLSX.writeFile(workbook, `Modificaciones_Cables_${areaCode}_${historyStartDate}_${historyEndDate}.xlsx`);
+      setHistoryDialogOpen(false);
+    } catch (error) {
+      setHistoryError(error.message || 'No se pudo exportar el historial de modificaciones.');
+    } finally {
+      setHistoryExporting(false);
     }
   };
 
@@ -488,6 +634,15 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <button
             className="btn btn-secondary btn-sm"
+            onClick={() => { setHistoryError(''); setHistoryDialogOpen(true); }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            title="Exportar modificaciones de metrado por rango de fechas"
+          >
+            <History size={14} />
+            <span>Historial</span>
+          </button>
+          <button
+            className="btn btn-secondary btn-sm"
             onClick={handleExportExcel}
             disabled={filteredData.length === 0}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
@@ -501,6 +656,12 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
           </div>
         </div>
       </div>
+
+      {measurementEdit && mutationError && (
+        <div className="message danger cable-measurement-error">
+          <AlertCircle size={16} /> <span>{mutationError}</span>
+        </div>
+      )}
 
       <div className="cable-table-scroll" style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '60vh', position: 'relative' }}>
         {/* Mobile View: Card List */}
@@ -564,10 +725,10 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                             <strong>{isPvc ? 'Tubería' : 'Descripción'}:</strong> <span>{row.material || '—'}</span>
                           </div>
                           <div className="cable-mobile-card-detail-item">
-                            <strong>Metrado OT (m):</strong> <span>{parseFloat(row.total_estimado_m || 0).toFixed(1)} m</span>
+                            <strong>Metrado OT (m):</strong> {renderMeasurementValue(row, 'METRADO_OT')}
                           </div>
                           <div className="cable-mobile-card-detail-item">
-                            <strong>Metrado Despachado (m):</strong> <span>{parseFloat(row.total_despachado_m || 0).toFixed(1)} m</span>
+                            <strong>Metrado Despachado (m):</strong> {renderMeasurementValue(row, 'METRADO_DESPACHADO')}
                           </div>
                           <div className="cable-mobile-card-detail-item">
                             <strong>Metrado Construcción (m):</strong> <span>{parseFloat(row.metrado_reportado_campo || 0).toFixed(1)} m</span>
@@ -588,10 +749,10 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                             <strong>Tipo Cable:</strong> <span>{row.tipo_cable || '—'}</span>
                           </div>
                           <div className="cable-mobile-card-detail-item">
-                            <strong>Long. Diseño (m):</strong> <span>{parseFloat(row.total_estimado_m || 0).toFixed(1)} m</span>
+                            <strong>Long. Diseño (m):</strong> {renderMeasurementValue(row, 'METRADO_OT')}
                           </div>
                           <div className="cable-mobile-card-detail-item">
-                            <strong>Metrado Despachado (m):</strong> <span>{parseFloat(row.total_despachado_m || 0).toFixed(1)} m</span>
+                            <strong>Metrado Despachado (m):</strong> {renderMeasurementValue(row, 'METRADO_DESPACHADO')}
                           </div>
                           <div className="cable-mobile-card-detail-item">
                             <strong>Metrado Construcción (m):</strong> <span>{parseFloat(row.metrado_reportado_campo || 0).toFixed(1)} m</span>
@@ -792,8 +953,8 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                           <td>{row.wbs || '—'}</td>
                           <td>{row.sistema || '—'}</td>
                           <td>{row.material || '—'}</td>
-                          <td style={{ textAlign: 'right' }}>{parseFloat(row.total_estimado_m || 0).toFixed(1)}</td>
-                          <td style={{ textAlign: 'right' }}>{parseFloat(row.total_despachado_m || 0).toFixed(1)}</td>
+                          <td style={{ textAlign: 'right' }}>{renderMeasurementValue(row, 'METRADO_OT')}</td>
+                          <td style={{ textAlign: 'right' }}>{renderMeasurementValue(row, 'METRADO_DESPACHADO')}</td>
                           <td style={{ textAlign: 'right' }}>{parseFloat(row.metrado_reportado_campo || 0).toFixed(1)}</td>
                           <td style={{ textAlign: 'center' }}>
                             <div className="cable-avance-bar">
@@ -822,8 +983,8 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                         <>
                           <td>{row.area || '—'}</td>
                           <td>{row.tipo_cable || '—'}</td>
-                          <td style={{ textAlign: 'right' }}>{parseFloat(row.total_estimado_m || 0).toFixed(1)}</td>
-                          <td style={{ textAlign: 'right' }}>{parseFloat(row.total_despachado_m || 0).toFixed(1)}</td>
+                          <td style={{ textAlign: 'right' }}>{renderMeasurementValue(row, 'METRADO_OT')}</td>
+                          <td style={{ textAlign: 'right' }}>{renderMeasurementValue(row, 'METRADO_DESPACHADO')}</td>
                           <td style={{ textAlign: 'right' }}>{parseFloat(row.metrado_reportado_campo || 0).toFixed(1)}</td>
                           <td style={{ textAlign: 'center' }}>
                             <div className="cable-avance-bar">
@@ -895,6 +1056,37 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
           </tbody>
         </table>
       </div>
+
+      {historyDialogOpen && (
+        <div className="dialog-overlay">
+          <div className="dialog-card cable-history-dialog">
+            <div className="card-header">
+              <div className="cable-history-title"><History size={17} /><span>Exportar modificaciones de metrado</span></div>
+              <button className="btn btn-secondary btn-sm" onClick={() => setHistoryDialogOpen(false)} disabled={historyExporting} title="Cerrar"><X size={15} /></button>
+            </div>
+            <div className="card-body">
+              <p className="text-muted">Se exportarán los cambios guardados en {activeArea?.name || 'el área activa'}, usando la zona horaria de Lima.</p>
+              <div className="cable-history-date-grid">
+                <div className="form-group">
+                  <label>Fecha inicial</label>
+                  <input type="date" value={historyStartDate} onChange={(event) => setHistoryStartDate(event.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label>Fecha final</label>
+                  <input type="date" value={historyEndDate} onChange={(event) => setHistoryEndDate(event.target.value)} />
+                </div>
+              </div>
+              {historyError && <div className="message danger"><AlertCircle size={16} /><span>{historyError}</span></div>}
+              <div className="cable-history-actions">
+                <button className="btn btn-secondary" onClick={() => setHistoryDialogOpen(false)} disabled={historyExporting}>Cancelar</button>
+                <button className="btn btn-primary" onClick={handleExportMeasurementHistory} disabled={historyExporting}>
+                  <Download size={15} /><span>{historyExporting ? 'Preparando...' : 'Exportar Excel'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editTarget && (
         <div className="dialog-overlay">
