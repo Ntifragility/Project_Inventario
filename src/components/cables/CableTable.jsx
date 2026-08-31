@@ -42,9 +42,9 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     { field: 'material', label: isPvc ? 'Descripción de Tubería' : 'Descripción de Cable', width: '200px' },
     { field: 'total_estimado_m', label: 'Metrado\nOT (m)', width: '110px', align: 'right' },
     { field: 'total_despachado_m', label: 'Metrado\nDespachado (m)', width: '130px', align: 'right' },
-    { field: 'metrado_reportado_campo', label: 'Metrado\nCampo (m)', width: '110px', align: 'right' },
+    { field: 'metrado_reportado_campo', label: 'Metrado\nConstrucción (m)', width: '110px', align: 'right' },
     { field: 'avance', label: '% Avance', width: '90px', align: 'center', computed: true },
-    { field: 'fecha_tendido', label: 'Fecha Metrado\nCampo', width: '120px', align: 'center' },
+    { field: 'fecha_tendido', label: 'F. Reporte\nConstrucción', width: '120px', align: 'center' },
     { field: 'vale', label: 'VALE', width: '110px' },
   ] : [
     { field: 'tag_unico', label: 'TAG UNICO', width: '180px' },
@@ -52,7 +52,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     { field: 'tipo_cable', label: 'Tipo Cable', width: '180px' },
     { field: 'total_estimado_m', label: 'Long. Diseño\n(m)', width: '120px', align: 'right' },
     { field: 'total_despachado_m', label: 'Metrado\nDespachado (m)', width: '140px', align: 'right' },
-    { field: 'metrado_reportado_campo', label: 'Metrado\nCampo (m)', width: '120px', align: 'right' },
+    { field: 'metrado_reportado_campo', label: 'Metrado\nConstrucción (m)', width: '120px', align: 'right' },
     { field: 'avance', label: '% Avance', width: '100px', align: 'center', computed: true },
     { field: 'estado', label: 'Estado', width: '120px', align: 'center' },
     { field: 'conexion_origen', label: 'Conex. Origen', width: '150px' },
@@ -570,10 +570,10 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                             <strong>Metrado Despachado (m):</strong> <span>{parseFloat(row.total_despachado_m || 0).toFixed(1)} m</span>
                           </div>
                           <div className="cable-mobile-card-detail-item">
-                            <strong>Metrado Campo (m):</strong> <span>{parseFloat(row.metrado_reportado_campo || 0).toFixed(1)} m</span>
+                            <strong>Metrado Construcción (m):</strong> <span>{parseFloat(row.metrado_reportado_campo || 0).toFixed(1)} m</span>
                           </div>
                           <div className="cable-mobile-card-detail-item">
-                            <strong>Fecha Metrado Campo:</strong> <span>{row.fecha_tendido || '—'}</span>
+                            <strong>F. Reporte Construcción:</strong> <span>{row.fecha_tendido || '—'}</span>
                           </div>
                           <div className="cable-mobile-card-detail-item">
                             <strong>Vale:</strong> <span>{row.vale || '—'}</span>
@@ -594,7 +594,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                             <strong>Metrado Despachado (m):</strong> <span>{parseFloat(row.total_despachado_m || 0).toFixed(1)} m</span>
                           </div>
                           <div className="cable-mobile-card-detail-item">
-                            <strong>Metrado Campo (m):</strong> <span>{parseFloat(row.metrado_reportado_campo || 0).toFixed(1)} m</span>
+                            <strong>Metrado Construcción (m):</strong> <span>{parseFloat(row.metrado_reportado_campo || 0).toFixed(1)} m</span>
                           </div>
                           <div className="cable-mobile-card-detail-item">
                             <strong>Conex. Origen:</strong> <span>{row.conexion_origen || '—'}</span>

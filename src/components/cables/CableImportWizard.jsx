@@ -498,9 +498,9 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
         {/* Header */}
         <div className="smart-wizard-header">
           <h3>
-            {importType === 'schedule' ? '📋 Importar Cable Schedule' :
-              importType === 'despacho' ? '📦 Importar Despachos' :
-                '📋 Importar Cables'}
+            {importType === 'despacho'
+              ? '📦 Importar Despachos'
+              : 'Importar información de cableado'}
           </h3>
           <button className="smart-wizard-close" onClick={handleClose}>
             <X size={18} />

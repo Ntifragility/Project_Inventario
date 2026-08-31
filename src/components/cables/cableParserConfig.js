@@ -1,5 +1,7 @@
 /**
  * Cable Schedule Manager — Parser Configuration
+/**
+ * Cable Schedule Manager — Parser Configuration
  * Defines the column mappings for the 2 import types:
  * 1. Cable Schedule (master list + installation tracking)
  * 2. Cable Despachos (warehouse dispatching)
@@ -18,8 +20,8 @@ export const CABLE_SCHEDULE_COLUMNS = {
   conexion_origen:         { label: 'CONEXION DE ORIGEN',      required: false, type: 'text' },
   conexion_destino:        { label: 'CONEXION DE DESTINO',     required: false, type: 'text' },
   tipo_servicio:           { label: 'TIPO SERVICIO',           required: false, type: 'text' },
-  metrado_reportado_campo: { label: 'METRADO REPORTADO CAMPO', required: false, type: 'number' },
-  fecha_tendido:           { label: 'FECHA',                   required: false, type: 'date' },
+  metrado_reportado_campo: { label: 'METRADO CONSTRUCCION',    required: false, type: 'number' },
+  fecha_tendido:           { label: 'F. REPORTE CONSTRUCCION', required: false, type: 'date' },
   vale:                    { label: 'VALE',                    required: false, type: 'text' },
 };
 
@@ -61,8 +63,8 @@ export const CABLE_PAT_COLUMNS = {
   material:                { label: 'DESCRIPCION DE MATERIAL', required: false, type: 'text' },
   total_estimado_m:        { label: 'METRADO OT',              required: false, type: 'number' },
   total_despachado_m:      { label: 'METRADO DESPACHADO (M)',  required: false, type: 'number' },
-  metrado_reportado_campo: { label: 'METRADO CAMPO',           required: false, type: 'number' },
-  fecha_tendido:           { label: 'FECHA METRADO CAMPO',     required: false, type: 'date' },
+  metrado_reportado_campo: { label: 'METRADO CONSTRUCCION',    required: false, type: 'number' },
+  fecha_tendido:           { label: 'F. REPORTE CONSTRUCCION', required: false, type: 'date' },
   vale:                    { label: 'VALE',                    required: false, type: 'text' },
 };
 
@@ -70,6 +72,7 @@ export const CABLE_PAT_SIGNATURES = [
   'WBS',
   'METRADO DESPACHADO',
   'METRADO OT',
+  'METRADO CONSTRUCCION',
   'METRADO CAMPO',
   'DESCRIPCION DE CABLE',
   'DESCRIPCION DE MATERIAL'
@@ -128,21 +131,22 @@ export function autoMapColumns(headers, columnDefs) {
     tag_unico: ['TAG UNICO', 'TAG_UNICO', 'TAG'],
     numero: ['N°', 'N', 'NUMERO'],
     area: ['AREA', 'WBS', 'ZONA'],
+    wbs: ['WBS', 'AREA'],
     sistema: ['SISTEMA', 'SUBSISTEMA', 'SUB-SISTEMA'],
-    material: ['DESCRIPCION DE CABLE', 'DESCRIPCION DE TUBERIA', 'DESCRIPCION DE MATERIAL', 'DESCRIPCION CABLE', 'DESCRIPCION', 'MATERIAL'],
+    material: ['DESCRIPCION DE MATERIAL', 'DESCRIPCION MATERIAL', 'DESCRIPCION DE CABLE', 'DESCRIPCION DE TUBERIA', 'DESCRIPCION CABLE', 'DESCRIPCION', 'MATERIAL'],
     total_estimado_m: ['TOTAL ESTIMADO', 'TOTAL ESTIM', 'TOTAL ESTIM. (M)', 'METRADO OT', 'METRADO OT (M)'],
     conexion_origen: ['CONEXION DE ORIGEN', 'CONEXION ORIGEN', 'ORIGEN'],
     conexion_destino: ['CONEXION DE DESTINO', 'CONEXION DESTINO', 'DESTINO'],
     tipo_servicio: ['TIPO SERVICIO', 'TIPO', 'SERVICIO'],
-    metrado_reportado_campo: ['METRADO REPORTADO CAMPO', 'METRADO CAMPO', 'METRADO CAMPO (M)', 'METRADO EN CAMPO'],
-    fecha_tendido: ['FECHA', 'FECHA METRADO CAMPO', 'FECHA DE METRADO', 'FECHA TENDIDO', 'FECHA_TENDIDO'],
+    metrado_reportado_campo: ['METRADO CONSTRUCCION', 'METRADO CONSTRUCCIÓN', 'METRADO DE CONSTRUCCION', 'METRADO REPORTADO CAMPO', 'METRADO CAMPO', 'METRADO CAMPO (M)', 'METRADO EN CAMPO'],
+    fecha_tendido: ['F. REPORTE CONSTRUCCION', 'F. REPORTE CONSTRUCCIÓN', 'F REPORTE CONSTRUCCION', 'FECHA REPORTE CONSTRUCCION', 'FECHA REPORTE CONSTRUCCIÓN', 'FECHA METRADO CAMPO', 'FECHA', 'FECHA DE METRADO', 'FECHA TENDIDO', 'FECHA_TENDIDO'],
     vale: ['VALE', 'NRO VALE', 'NUMERO DE VALE', 'VALE DE ALMACEN']
   };
 
   for (const [field, def] of Object.entries(columnDefs)) {
     const list = ALIASES[field] || [def.label];
-    
-    // Find the first header that matches any alias
+
+    // Find the first header that matches any alias (exact match)
     let idx = -1;
     for (const alias of list) {
       const aliasUpper = normalizeImportText(alias).replace(/[^A-Z0-9]/g, '');
