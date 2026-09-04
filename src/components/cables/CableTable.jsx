@@ -3,11 +3,12 @@ import { supabase } from '../../supabase';
 import {
   Search, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   ArrowUpDown, Package, Filter, FilterX, Download, Pencil, Trash2,
-  Save, AlertCircle, History, X
+  Save, AlertCircle, History, X, Eye
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { cleanPatMaterialType, deriveCableMetrics, matchesDashboardFilter } from './cableMetrics';
 import { useProjectArea } from '../../contexts/ProjectAreaContext';
+import CableDispatchModal from './CableDispatchModal';
 
 export default function CableTable({ filterArea = '', filterTipoServicio = '', filterTipoCable = '', filterWbs = '', filterSistema = '', filterCleanTipo = '', filterMaterialPrefix = 'CABLE', sourceData = null, dashboardFilter = null, onDataChanged = null }) {
   const { activeAreaId, activeArea, role } = useProjectArea();
@@ -27,6 +28,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   const [mutationLoading, setMutationLoading] = useState(false);
   const [mutationError, setMutationError] = useState('');
   const [measurementEdit, setMeasurementEdit] = useState(null);
+  const [dispatchModal, setDispatchModal] = useState({ open: false, cable: null, initialTab: 'register' });
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [historyStartDate, setHistoryStartDate] = useState(() => {
     const date = new Date();
@@ -38,6 +40,8 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   });
   const [historyExporting, setHistoryExporting] = useState(false);
   const [historyError, setHistoryError] = useState('');
+  const [exportPromptOpen, setExportPromptOpen] = useState(false);
+  const [exportingDispatches, setExportingDispatches] = useState(false);
   
   // Excel-like filter state
   const [headerFilters, setHeaderFilters] = useState({});
@@ -386,10 +390,35 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
 
   const renderMeasurementValue = (row, field) => {
     const isOt = field === 'METRADO_OT';
-    const canEdit = isOt ? canEditMetradoOt : canEditMetradoDespachado;
-    const value = isOt ? row.total_estimado_m : row.total_despachado_m;
+
+    if (!isOt) {
+      const value = row.total_despachado_m;
+      return (
+        <div className="cable-measurement-value" onClick={(event) => event.stopPropagation()}>
+          <span>{parseFloat(value || 0).toFixed(1)}</span>
+          <button
+            type="button"
+            onClick={() => setDispatchModal({ open: true, cable: row, initialTab: 'history' })}
+            title="Ver historial de despachos"
+          >
+            <Eye size={11} />
+          </button>
+          {canManageCables && (
+            <button
+              type="button"
+              onClick={() => setDispatchModal({ open: true, cable: row, initialTab: 'register' })}
+              title="Registrar / Editar despacho"
+            >
+              <Pencil size={11} />
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    const canEdit = canEditMetradoOt;
+    const value = row.total_estimado_m;
     const isEditing = measurementEdit?.rowId === row.id && measurementEdit?.field === field;
-    const isOverride = !isOt && row.despachado_override_m !== null && row.despachado_override_m !== undefined;
 
     if (isEditing) {
       return (
@@ -414,10 +443,10 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
 
     return (
       <div className="cable-measurement-value" onClick={(event) => event.stopPropagation()}>
-        <span title={isOverride ? 'Valor despachado ajustado manualmente' : undefined}>
-          {parseFloat(value || 0).toFixed(1)}{isOverride ? ' *' : ''}
+        <span>
+          {parseFloat(value || 0).toFixed(1)}
         </span>
-        {canEdit && <button onClick={() => startMeasurementEdit(row, field)} title={`Editar ${isOt ? 'METRADO OT' : 'METRADO DESPACHADO'}`}><Pencil size={11} /></button>}
+        {canEdit && <button onClick={() => startMeasurementEdit(row, field)} title="Editar METRADO OT"><Pencil size={11} /></button>}
       </div>
     );
   };
@@ -468,6 +497,139 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
       setHistoryError(error.message || 'No se pudo exportar el historial de modificaciones.');
     } finally {
       setHistoryExporting(false);
+    }
+  };
+
+  const handleExportAllDispatches = async () => {
+    setExportingDispatches(true);
+    try {
+      let allDespachos = [];
+      let start = 0;
+      const batchSize = 1000;
+      let hasMore = true;
+
+      // Fast lookup map of loaded cables for metadata fallback
+      const cableMap = new Map();
+      (data || []).forEach(c => {
+        if (c.tag_unico) cableMap.set(c.tag_unico, c);
+      });
+
+      while (hasMore) {
+        let query = supabase
+          .from('cable_despachos')
+          .select(`
+            id,
+            tag_unico,
+            longitud_despachada_m,
+            vale_almacen,
+            fecha_entrega,
+            solicitado_por,
+            observaciones,
+            created_at,
+            cable_schedule (
+              project_area_id,
+              wbs,
+              sistema,
+              material,
+              tipo_servicio,
+              total_estimado_m
+            )
+          `);
+
+        if (activeAreaId) {
+          query = query.eq('cable_schedule.project_area_id', activeAreaId);
+        }
+
+        const { data: batch, error } = await query
+          .order('fecha_entrega', { ascending: false })
+          .range(start, start + batchSize - 1);
+
+        if (error) {
+          console.warn('Primary query failed, running fallback:', error);
+          let fallbackQuery = supabase
+            .from('cable_despachos')
+            .select('*')
+            .order('fecha_entrega', { ascending: false })
+            .range(start, start + batchSize - 1);
+
+          const { data: fbBatch, error: fbErr } = await fallbackQuery;
+          if (fbErr) throw fbErr;
+
+          if (!fbBatch || fbBatch.length === 0) {
+            hasMore = false;
+          } else {
+            allDespachos = [...allDespachos, ...fbBatch];
+            if (fbBatch.length < batchSize) {
+              hasMore = false;
+            } else {
+              start += batchSize;
+            }
+          }
+        } else {
+          if (!batch || batch.length === 0) {
+            hasMore = false;
+          } else {
+            allDespachos = [...allDespachos, ...batch];
+            if (batch.length < batchSize) {
+              hasMore = false;
+            } else {
+              start += batchSize;
+            }
+          }
+        }
+      }
+
+      if (allDespachos.length === 0) {
+        alert('No se encontraron registros de despachos de cable para exportar.');
+        return;
+      }
+
+      const detailRows = allDespachos.map((item, idx) => {
+        const fallbackCable = cableMap.get(item.tag_unico) || {};
+        const scheduleInfo = item.cable_schedule || fallbackCable;
+
+        return {
+          'N°': idx + 1,
+          'TAG UNICO': item.tag_unico || fallbackCable.tag_unico || '—',
+          'WBS': scheduleInfo.wbs || fallbackCable.wbs || '—',
+          'SISTEMA': scheduleInfo.sistema || fallbackCable.sistema || '—',
+          'MATERIAL / TIPO': scheduleInfo.material || fallbackCable.material || fallbackCable.tipo_cable || '—',
+          'TIPO DE SERVICIO': scheduleInfo.tipo_servicio || fallbackCable.tipo_servicio || '—',
+          'METRADO DESPACHADO (m)': parseFloat(item.longitud_despachada_m || 0),
+          'VALE (N° Vale Almacén)': item.vale_almacen || '—',
+          'FECHA DE DESPACHO': item.fecha_entrega ? String(item.fecha_entrega).slice(0, 10) : '—',
+          'RECIBIDO POR': item.solicitado_por || '—',
+          'OBSERVACIONES': item.observaciones || '',
+          'FECHA DE REGISTRO': item.created_at ? new Date(item.created_at).toLocaleString('es-PE', { timeZone: 'America/Lima' }) : '—',
+        };
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(detailRows);
+      worksheet['!cols'] = [
+        { wch: 6 },
+        { wch: 24 },
+        { wch: 16 },
+        { wch: 28 },
+        { wch: 32 },
+        { wch: 18 },
+        { wch: 24 },
+        { wch: 22 },
+        { wch: 20 },
+        { wch: 26 },
+        { wch: 24 },
+        { wch: 22 }
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Historial Despachos');
+      const areaCode = activeArea?.code || 'AREA';
+      const today = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(workbook, `Historial_Despachos_Cables_${areaCode}_${today}.xlsx`);
+    } catch (err) {
+      console.error('Error al exportar historial de despachos:', err);
+      alert('Error al exportar el historial de despachos: ' + (err.message || 'Error desconocido'));
+    } finally {
+      setExportingDispatches(false);
     }
   };
 
@@ -639,14 +801,13 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
             title="Exportar modificaciones de metrado por rango de fechas"
           >
             <History size={14} />
-            <span>Historial</span>
+            <span>Historial Modificaciones</span>
           </button>
           <button
             className="btn btn-secondary btn-sm"
-            onClick={handleExportExcel}
-            disabled={filteredData.length === 0}
+            onClick={() => setExportPromptOpen(true)}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-            title="Exportar tabla filtrada a Excel"
+            title="Exportar a Excel"
           >
             <Download size={14} />
             <span>Exportar Excel</span>
@@ -1088,6 +1249,96 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
         </div>
       )}
 
+      {/* ── Export Prompt Dialog (Parallel Cards) ── */}
+      {exportPromptOpen && (
+        <div className="dialog-overlay" onClick={() => !exportingDispatches && setExportPromptOpen(false)}>
+          <div className="dialog-card cable-export-dialog" onClick={e => e.stopPropagation()}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Download size={17} style={{ color: 'var(--primary)' }} />
+                <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>Exportar a Excel</span>
+              </div>
+              <button
+                className="btn btn-secondary btn-sm"
+                style={{ position: 'absolute', right: 16, top: 12, padding: '4px 8px' }}
+                onClick={() => setExportPromptOpen(false)}
+                disabled={exportingDispatches}
+                title="Cerrar"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <div className="card-body" style={{ padding: '20px 24px' }}>
+              <div className="cable-export-grid">
+                {/* Option 1: Historial de Despachos */}
+                <div
+                  className="cable-export-card"
+                  onClick={async () => {
+                    if (exportingDispatches) return;
+                    await handleExportAllDispatches();
+                    setExportPromptOpen(false);
+                  }}
+                >
+                  <div className="cable-export-card-icon">
+                    <Package size={22} />
+                  </div>
+                  <h4 className="cable-export-card-title">Historial de Despachos</h4>
+                  <p className="cable-export-card-desc">
+                    Registro detallado de todas las entregas parciales y totales (vales, fechas, metrados y solicitantes).
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-primary cable-export-card-btn"
+                    disabled={exportingDispatches}
+                  >
+                    {exportingDispatches ? 'Descargando...' : 'Descargar Despachos'}
+                  </button>
+                </div>
+
+                {/* Option 2: Planilla Completa */}
+                <div
+                  className="cable-export-card"
+                  onClick={() => {
+                    if (filteredData.length === 0 || exportingDispatches) return;
+                    handleExportExcel();
+                    setExportPromptOpen(false);
+                  }}
+                  style={{ opacity: filteredData.length === 0 ? 0.5 : 1, cursor: filteredData.length === 0 ? 'not-allowed' : 'pointer' }}
+                >
+                  <div className="cable-export-card-icon" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10b981' }}>
+                    <Download size={22} />
+                  </div>
+                  <h4 className="cable-export-card-title">Planilla Completa</h4>
+                  <p className="cable-export-card-desc">
+                    Schedule completo de circuitos filtrados con metrado OT, despachado, tendido y % de avance.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-secondary cable-export-card-btn"
+                    disabled={filteredData.length === 0 || exportingDispatches}
+                  >
+                    Descargar Planilla
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 12, textAlign: 'center' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setExportPromptOpen(false)}
+                  disabled={exportingDispatches}
+                  style={{ padding: '6px 20px' }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit TAG Dialog ── */}
       {editTarget && (
         <div className="dialog-overlay">
           <div className="dialog-card" style={{ maxWidth: 520, width: '90%' }}>
@@ -1191,6 +1442,20 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
           </div>
         </div>
       )}
+
+      {/* ── Cable Dispatch Management Modal (No Icons) ── */}
+      <CableDispatchModal
+        open={dispatchModal.open}
+        cable={dispatchModal.cable}
+        initialTab={dispatchModal.initialTab}
+        canManage={canManageCables}
+        activeAreaId={activeAreaId}
+        onClose={() => setDispatchModal({ open: false, cable: null, initialTab: 'register' })}
+        onSaved={async () => {
+          await refreshAfterMutation();
+          if (onDataChanged) await onDataChanged();
+        }}
+      />
     </div>
   );
 }
