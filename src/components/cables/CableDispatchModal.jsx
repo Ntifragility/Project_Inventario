@@ -415,12 +415,12 @@ export default function CableDispatchModal({
                 <table className="dispatch-history-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '28px', textAlign: 'center' }}>N°</th>
-                      <th style={{ width: '80px' }}>Fecha</th>
-                      <th style={{ width: '115px' }}>Vale</th>
-                      <th style={{ width: '85px', textAlign: 'right' }}>Metrado</th>
+                      <th style={{ width: '35px', textAlign: 'center' }}>N°</th>
+                      <th style={{ width: '110px', textAlign: 'center' }}>Fecha</th>
+                      <th style={{ width: '135px' }}>Vale</th>
+                      <th style={{ width: '95px', textAlign: 'right' }}>Metrado (m)</th>
                       <th>Recibido Por</th>
-                      {canManage && <th style={{ width: '105px', textAlign: 'center' }}>Acciones</th>}
+                      {canManage && <th style={{ width: '120px', textAlign: 'center' }}>Acciones</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -431,7 +431,9 @@ export default function CableDispatchModal({
                           <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
                             {index + 1}
                           </td>
-                          <td>{item.fecha_entrega || '—'}</td>
+                          <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                            {item.fecha_entrega || '—'}
+                          </td>
                           <td>
                             <strong>{item.vale_almacen || '—'}</strong>
                           </td>

@@ -5206,8 +5206,8 @@ tr:hover .row-actions-hover {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  width: 660px;
-  height: 462px;
+  width: 760px;
+  height: 530px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
@@ -5466,14 +5466,14 @@ tr:hover .row-actions-hover {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   overflow-x: hidden;
-  max-height: 220px;
+  max-height: 270px;
   overflow-y: auto;
 }
 
 .dispatch-history-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.76rem;
+  font-size: 0.8rem;
 }
 
 .dispatch-history-table thead th {
@@ -5481,16 +5481,16 @@ tr:hover .row-actions-hover {
   color: var(--text-muted);
   font-weight: 600;
   text-transform: uppercase;
-  font-size: 0.67rem;
+  font-size: 0.7rem;
   letter-spacing: 0.3px;
-  padding: 7px 6px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--border-color);
   text-align: center;
   white-space: nowrap;
 }
 
 .dispatch-history-table tbody td {
-  padding: 6px 6px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--border-color);
   color: var(--text-primary);
   text-align: center;
@@ -5501,10 +5501,10 @@ tr:hover .row-actions-hover {
 }
 
 .dispatch-history-table tfoot td {
-  padding: 8px 6px;
+  padding: 10px 10px;
   background: var(--bg-card-header);
   border-top: 1px solid var(--border-color);
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   text-align: center;
 }
 

@@ -63,7 +63,6 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     { field: 'metrado_reportado_campo', label: 'Metrado\nConstrucción (m)', width: '110px', align: 'right' },
     { field: 'avance', label: '% Avance', width: '90px', align: 'center', computed: true },
     { field: 'fecha_tendido', label: 'F. Reporte\nConstrucción', width: '120px', align: 'center' },
-    { field: 'vale', label: 'VALE', width: '110px' },
   ] : [
     { field: 'tag_unico', label: 'TAG UNICO', width: '180px' },
     { field: 'area', label: 'Área', width: '100px' },
@@ -75,7 +74,6 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     { field: 'estado', label: 'Estado', width: '120px', align: 'center' },
     { field: 'conexion_origen', label: 'Conex. Origen', width: '150px' },
     { field: 'conexion_destino', label: 'Conex. Destino', width: '150px' },
-    { field: 'vale', label: 'VALE', width: '110px' },
   ];
 
   const fetchData = useCallback(async () => {
@@ -897,9 +895,6 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                           <div className="cable-mobile-card-detail-item">
                             <strong>F. Reporte Construcción:</strong> <span>{row.fecha_tendido || '—'}</span>
                           </div>
-                          <div className="cable-mobile-card-detail-item">
-                            <strong>Vale:</strong> <span>{row.vale || '—'}</span>
-                          </div>
                         </>
                       ) : (
                         <>
@@ -923,9 +918,6 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                           </div>
                           <div className="cable-mobile-card-detail-item">
                             <strong>Conex. Destino:</strong> <span>{row.conexion_destino || '—'}</span>
-                          </div>
-                          <div className="cable-mobile-card-detail-item">
-                            <strong>Vale:</strong> <span>{row.vale || '—'}</span>
                           </div>
 
                           {/* Mobile subtable for Despachos */}
@@ -1129,9 +1121,8 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                               <span className="cable-avance-text">{avance.toFixed(0)}%</span>
                             </div>
                           </td>
-                          <td style={{ textAlign: 'center' }}>{row.fecha_tendido || '—'}</td>
-                          <td style={{ position: 'relative' }} onClick={(event) => event.stopPropagation()}>
-                            <span>{row.vale || '—'}</span>
+                          <td style={{ textAlign: 'center', position: 'relative' }} onClick={(event) => event.stopPropagation()}>
+                            <span>{row.fecha_tendido || '—'}</span>
                             {canManageCables && (
                               <div className="row-actions-hover">
                                 <button className="btn btn-secondary" style={{ padding: '4px 8px', height: 24 }} onClick={() => handleStartEdit(row)} title="Editar TAG ÚNICO"><Pencil size={11} /></button>
@@ -1161,9 +1152,8 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                           </td>
                           <td style={{ textAlign: 'center' }}>{getEstadoBadge(row.estado)}</td>
                           <td>{row.conexion_origen || '—'}</td>
-                          <td>{row.conexion_destino || '—'}</td>
                           <td style={{ position: 'relative' }} onClick={(event) => event.stopPropagation()}>
-                            <span>{row.vale || '—'}</span>
+                            <span>{row.conexion_destino || '—'}</span>
                             {canManageCables && (
                               <div className="row-actions-hover">
                                 <button className="btn btn-secondary" style={{ padding: '4px 8px', height: 24 }} onClick={() => handleStartEdit(row)} title="Editar TAG ÚNICO"><Pencil size={11} /></button>
