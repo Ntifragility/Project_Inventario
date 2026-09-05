@@ -50,7 +50,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   const isPvc = filterMaterialPrefix.toUpperCase().startsWith('TUBERIA PVC');
   const itemLabel = isPvc ? 'tramos' : 'circuitos';
   const canManageCables = role === 'admin' || role === 'supervisor';
-  const canEditMetradoOt = role === 'admin';
+  const canEditMetradoOt = role === 'admin' || role === 'supervisor';
   const canEditMetradoDespachado = ['admin', 'supervisor', 'user'].includes(role);
 
   const COLUMNS = filterTipoCable === 'PAT' ? [
@@ -506,8 +506,39 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
       const batchSize = 1000;
       let hasMore = true;
 
+      // Build an explicit allow-list for the selected project area. Besides
+      // protecting the fallback query, this prevents an administrator's wider
+      // RLS access from leaking dispatches from another area into the export.
+      const areaTagSet = new Set();
+      const areaCableMap = new Map();
+      let tagStart = 0;
+      let hasMoreTags = true;
+
+      while (hasMoreTags) {
+        const { data: tagBatch, error: tagError } = await supabase
+          .from('cable_schedule')
+          .select('id, tag_unico, project_area_id, wbs, sistema, material, tipo_servicio, total_estimado_m')
+          .eq('project_area_id', activeAreaId)
+          .range(tagStart, tagStart + batchSize - 1);
+
+        if (tagError) throw tagError;
+
+        (tagBatch || []).forEach(row => {
+          if (row.tag_unico) {
+            areaTagSet.add(row.tag_unico);
+            areaCableMap.set(row.tag_unico, row);
+          }
+        });
+
+        if (!tagBatch || tagBatch.length < batchSize) {
+          hasMoreTags = false;
+        } else {
+          tagStart += batchSize;
+        }
+      }
+
       // Fast lookup map of loaded cables for metadata fallback
-      const cableMap = new Map();
+      const cableMap = new Map(areaCableMap);
       (data || []).forEach(c => {
         if (c.tag_unico) cableMap.set(c.tag_unico, c);
       });
@@ -524,7 +555,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
             solicitado_por,
             observaciones,
             created_at,
-            cable_schedule (
+            cable_schedule!cable_despachos_schedule_id_fkey!inner (
               project_area_id,
               wbs,
               sistema,
@@ -556,7 +587,10 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
           if (!fbBatch || fbBatch.length === 0) {
             hasMore = false;
           } else {
-            allDespachos = [...allDespachos, ...fbBatch];
+            allDespachos = [
+              ...allDespachos,
+              ...fbBatch.filter(item => areaTagSet.has(item.tag_unico)),
+            ];
             if (fbBatch.length < batchSize) {
               hasMore = false;
             } else {
@@ -577,6 +611,10 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
         }
       }
 
+      // Final defense-in-depth check shared by both the primary and fallback
+      // paths. TAG UNICO is globally unique, so membership identifies its area.
+      allDespachos = allDespachos.filter(item => areaTagSet.has(item.tag_unico));
+
       if (allDespachos.length === 0) {
         alert('No se encontraron registros de despachos de cable para exportar.');
         return;
@@ -584,7 +622,10 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
 
       const detailRows = allDespachos.map((item, idx) => {
         const fallbackCable = cableMap.get(item.tag_unico) || {};
-        const scheduleInfo = item.cable_schedule || fallbackCable;
+        const relatedSchedule = Array.isArray(item.cable_schedule)
+          ? item.cable_schedule[0]
+          : item.cable_schedule;
+        const scheduleInfo = relatedSchedule || fallbackCable;
 
         return {
           'N°': idx + 1,
