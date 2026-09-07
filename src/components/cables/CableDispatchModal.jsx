@@ -118,6 +118,21 @@ export default function CableDispatchModal({
       return;
     }
 
+    if (!formVale.trim()) {
+      setError('Ingrese el número de vale de almacén.');
+      return;
+    }
+
+    if (!formRecibidoPor.trim()) {
+      setError('Ingrese quién recibió la entrega.');
+      return;
+    }
+
+    if (formComentarios.trim().length > 50) {
+      setError('Los comentarios no pueden superar los 50 caracteres.');
+      return;
+    }
+
     setSaving(true);
     try {
       if (editingId) {
@@ -126,9 +141,9 @@ export default function CableDispatchModal({
           .from('cable_despachos')
           .update({
             longitud_despachada_m: metradoNum,
-            vale_almacen: formVale.trim() || null,
+            vale_almacen: formVale.trim(),
             fecha_entrega: formFecha,
-            solicitado_por: formRecibidoPor.trim() || null,
+            solicitado_por: formRecibidoPor.trim(),
             observaciones: formComentarios.trim() || null,
           })
           .eq('id', editingId);
@@ -141,9 +156,9 @@ export default function CableDispatchModal({
           cable_schedule_id: cable.id,
           tag_unico: cable.tag_unico,
           longitud_despachada_m: metradoNum,
-          vale_almacen: formVale.trim() || null,
+          vale_almacen: formVale.trim(),
           fecha_entrega: formFecha,
-          solicitado_por: formRecibidoPor.trim() || null,
+          solicitado_por: formRecibidoPor.trim(),
           observaciones: formComentarios.trim() || null,
         };
 
@@ -332,13 +347,16 @@ export default function CableDispatchModal({
               </div>
 
               <div className="dispatch-form-group">
-                <label className="dispatch-form-label">VALE (N° Vale Almacén)</label>
+                <label className="dispatch-form-label">
+                  VALE (N° Vale Almacén) <span className="dispatch-req">*</span>
+                </label>
                 <input
                   type="text"
                   className="dispatch-form-input text-center"
                   value={formVale}
                   onChange={(e) => setFormVale(e.target.value)}
                   disabled={!canManage || saving}
+                  required
                 />
               </div>
 
@@ -357,13 +375,16 @@ export default function CableDispatchModal({
               </div>
 
               <div className="dispatch-form-group dispatch-form-group-full">
-                <label className="dispatch-form-label">RECIBIDO POR</label>
+                <label className="dispatch-form-label">
+                  RECIBIDO POR <span className="dispatch-req">*</span>
+                </label>
                 <input
                   type="text"
                   className="dispatch-form-input text-center"
                   value={formRecibidoPor}
                   onChange={(e) => setFormRecibidoPor(e.target.value)}
                   disabled={!canManage || saving}
+                  required
                 />
               </div>
 
@@ -375,8 +396,10 @@ export default function CableDispatchModal({
                   onChange={(e) => setFormComentarios(e.target.value)}
                   disabled={!canManage || saving}
                   placeholder="Agregar comentarios sobre esta entrega..."
+                  maxLength={50}
                   rows={3}
                 />
+                <span className="dispatch-comments-counter">{formComentarios.length}/50</span>
               </div>
             </div>
 

@@ -5437,6 +5437,13 @@ tr:hover .row-actions-hover {
   line-height: 1.4;
 }
 
+.dispatch-comments-counter {
+  align-self: flex-end;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  line-height: 1;
+}
+
 .dispatch-form-actions {
   display: flex;
   justify-content: center;
