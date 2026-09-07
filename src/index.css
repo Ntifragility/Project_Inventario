@@ -5207,7 +5207,7 @@ tr:hover .row-actions-hover {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   width: min(1140px, calc(100vw - 32px));
-  height: 530px;
+  height: 610px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
