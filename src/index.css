@@ -5207,6 +5207,7 @@ tr:hover .row-actions-hover {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   width: min(1140px, calc(100vw - 32px));
+  max-width: min(1140px, calc(100vw - 32px));
   height: 610px;
   max-height: 90vh;
   display: flex;
@@ -5605,6 +5606,7 @@ tr:hover .row-actions-hover {
 @media (max-width: 600px) {
   .dispatch-modal-card {
     width: 95vw;
+    max-width: 95vw;
     height: 90vh;
   }
   .dispatch-form-grid {
