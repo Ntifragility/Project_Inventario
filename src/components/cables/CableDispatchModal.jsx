@@ -38,6 +38,7 @@ export default function CableDispatchModal({
   const [formVale, setFormVale] = useState('');
   const [formFecha, setFormFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [formRecibidoPor, setFormRecibidoPor] = useState('');
+  const [formComentarios, setFormComentarios] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
   // Sync initial tab when opening
@@ -85,6 +86,7 @@ export default function CableDispatchModal({
     setFormVale('');
     setFormFecha(new Date().toISOString().slice(0, 10));
     setFormRecibidoPor('');
+    setFormComentarios('');
     setDeleteConfirmId(null);
   };
 
@@ -94,6 +96,7 @@ export default function CableDispatchModal({
     setFormVale(item.vale_almacen || '');
     setFormFecha(item.fecha_entrega ? String(item.fecha_entrega).slice(0, 10) : new Date().toISOString().slice(0, 10));
     setFormRecibidoPor(item.solicitado_por || '');
+    setFormComentarios(item.observaciones || '');
     setActiveTab('register');
     setError('');
     setSuccessMsg('');
@@ -126,6 +129,7 @@ export default function CableDispatchModal({
             vale_almacen: formVale.trim() || null,
             fecha_entrega: formFecha,
             solicitado_por: formRecibidoPor.trim() || null,
+            observaciones: formComentarios.trim() || null,
           })
           .eq('id', editingId);
 
@@ -140,6 +144,7 @@ export default function CableDispatchModal({
           vale_almacen: formVale.trim() || null,
           fecha_entrega: formFecha,
           solicitado_por: formRecibidoPor.trim() || null,
+          observaciones: formComentarios.trim() || null,
         };
 
         const { error: insertErr } = await supabase
@@ -195,6 +200,7 @@ export default function CableDispatchModal({
         'VALE (N° Vale Almacén)': item.vale_almacen || '—',
         'METRADO DESPACHADO (m)': parseFloat(item.longitud_despachada_m || 0),
         'RECIBIDO POR': item.solicitado_por || '—',
+        'COMENTARIOS': item.observaciones || '—',
         'FECHA DE REGISTRO': item.created_at ? new Date(item.created_at).toLocaleString('es-PE', { timeZone: 'America/Lima' }) : '—'
       }));
 
@@ -206,6 +212,7 @@ export default function CableDispatchModal({
         { wch: 22 },
         { wch: 24 },
         { wch: 26 },
+        { wch: 42 },
         { wch: 22 }
       ];
       const workbook = XLSX.utils.book_new();
@@ -359,6 +366,18 @@ export default function CableDispatchModal({
                   disabled={!canManage || saving}
                 />
               </div>
+
+              <div className="dispatch-form-group dispatch-form-group-full">
+                <label className="dispatch-form-label">COMENTARIOS</label>
+                <textarea
+                  className="dispatch-form-input dispatch-form-comments"
+                  value={formComentarios}
+                  onChange={(e) => setFormComentarios(e.target.value)}
+                  disabled={!canManage || saving}
+                  placeholder="Agregar comentarios sobre esta entrega..."
+                  rows={3}
+                />
+              </div>
             </div>
 
             <div className="dispatch-form-actions">
@@ -420,6 +439,7 @@ export default function CableDispatchModal({
                       <th style={{ width: '135px' }}>Vale</th>
                       <th style={{ width: '95px', textAlign: 'right' }}>Metrado (m)</th>
                       <th>Recibido Por</th>
+                      <th className="dispatch-comments-column">Comentarios</th>
                       {canManage && <th style={{ width: '120px', textAlign: 'center' }}>Acciones</th>}
                     </tr>
                   </thead>
@@ -441,6 +461,7 @@ export default function CableDispatchModal({
                             {parseFloat(item.longitud_despachada_m || 0).toFixed(1)} m
                           </td>
                           <td>{item.solicitado_por || '—'}</td>
+                          <td className="dispatch-comments-cell">{item.observaciones || '—'}</td>
                           {canManage && (
                             <td style={{ textAlign: 'center' }}>
                               {isDeleting ? (
@@ -493,7 +514,7 @@ export default function CableDispatchModal({
                       <td style={{ textAlign: 'right', fontWeight: 'bold', color: 'var(--primary)' }}>
                         {totalCalculated.toFixed(1)} m
                       </td>
-                      <td colSpan={canManage ? 2 : 1}></td>
+                      <td colSpan={canManage ? 3 : 2}></td>
                     </tr>
                   </tfoot>
                 </table>
@@ -532,4 +553,3 @@ export default function CableDispatchModal({
     </div>
   );
 }
-

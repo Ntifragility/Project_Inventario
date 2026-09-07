@@ -5206,7 +5206,7 @@ tr:hover .row-actions-hover {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  width: 760px;
+  width: min(1140px, calc(100vw - 32px));
   height: 530px;
   max-height: 90vh;
   display: flex;
@@ -5430,6 +5430,13 @@ tr:hover .row-actions-hover {
   cursor: not-allowed;
 }
 
+.dispatch-form-comments {
+  min-height: 72px;
+  resize: vertical;
+  text-align: left;
+  line-height: 1.4;
+}
+
 .dispatch-form-actions {
   display: flex;
   justify-content: center;
@@ -5465,15 +5472,28 @@ tr:hover .row-actions-hover {
 .dispatch-history-table-wrapper {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  overflow-x: hidden;
+  overflow-x: auto;
   max-height: 270px;
   overflow-y: auto;
 }
 
 .dispatch-history-table {
   width: 100%;
+  min-width: 900px;
   border-collapse: collapse;
   font-size: 0.8rem;
+}
+
+.dispatch-history-table .dispatch-comments-column {
+  width: 260px;
+}
+
+.dispatch-history-table .dispatch-comments-cell {
+  min-width: 220px;
+  max-width: 360px;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .dispatch-history-table thead th {
