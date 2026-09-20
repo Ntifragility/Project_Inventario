@@ -7,6 +7,7 @@ const presentationFiles = [
   'src/features/accounts/presentation/hooks/useAccountActivity.js',
   'src/features/accounts/presentation/hooks/usePasswordChange.js',
   'src/features/accounts/presentation/hooks/usePendingAccountRequests.js',
+  'src/contexts/ProjectAreaContext.jsx',
 ];
 
 const violations = [];
@@ -25,5 +26,5 @@ if (violations.length) {
   console.error('Architecture boundary violations:\n' + violations.map(item => `- ${item}`).join('\n'));
   process.exitCode = 1;
 } else {
-  console.log(`Architecture boundary check passed for ${presentationFiles.length} migrated account files.`);
+  console.log(`Architecture boundary check passed for ${presentationFiles.length} migrated presentation files.`);
 }

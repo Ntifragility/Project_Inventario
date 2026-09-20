@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { supabase } from '../supabase';
+import { application } from '../app/composition/createApplication.js';
 
 const ProjectAreaContext = createContext(null);
 
@@ -18,36 +18,12 @@ export function ProjectAreaProvider({ user, children }) {
       setError('');
 
       try {
-        const { data: membershipData, error: membershipError } = await supabase
-          .from('project_memberships')
-          .select('project_id, role')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (membershipError) throw membershipError;
-        if (!membershipData) throw new Error('El usuario no tiene acceso al proyecto actual.');
-
-        const { data: areasData, error: areasError } = await supabase
-          .from('project_areas')
-          .select('id, project_id, code, name')
-          .eq('project_id', membershipData.project_id)
-          .eq('active', true)
-          .order('name');
-
-        if (areasError) throw areasError;
-        if (!areasData?.length) throw new Error('El usuario no tiene un área activa asignada.');
-
-        const storageKey = `active-project-area:${user.id}:${membershipData.project_id}`;
-        const savedAreaId = localStorage.getItem(storageKey);
-        const savedArea = areasData.find((area) => area.id === savedAreaId);
-        const secaArea = areasData.find((area) => area.code === 'SECA');
-        const initialArea = savedArea || secaArea || areasData[0];
+        const access = await application.projectAreas.loadAccess(user.id);
 
         if (!cancelled) {
-          setMembership(membershipData);
-          setAvailableAreas(areasData);
-          setActiveAreaState(initialArea);
-          localStorage.setItem(storageKey, initialArea.id);
+          setMembership(access.membership);
+          setAvailableAreas(access.availableAreas);
+          setActiveAreaState(access.activeArea);
         }
       } catch (loadError) {
         console.error('Error loading project-area access:', loadError);
@@ -65,14 +41,16 @@ export function ProjectAreaProvider({ user, children }) {
   }, [user?.id]);
 
   const setActiveArea = useCallback((areaId) => {
-    const nextArea = availableAreas.find((area) => area.id === areaId);
-    if (!nextArea || !membership) return false;
+    if (!membership) return false;
+    const nextArea = application.projectAreas.selectArea({
+      areaId,
+      availableAreas,
+      userId: user.id,
+      projectId: membership.project_id,
+    });
+    if (!nextArea) return false;
 
     setActiveAreaState(nextArea);
-    localStorage.setItem(
-      `active-project-area:${user.id}:${membership.project_id}`,
-      nextArea.id
-    );
     return true;
   }, [availableAreas, membership, user.id]);
 
