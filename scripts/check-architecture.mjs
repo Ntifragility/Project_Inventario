@@ -8,6 +8,7 @@ const presentationFiles = [
   'src/features/accounts/presentation/hooks/usePasswordChange.js',
   'src/features/accounts/presentation/hooks/usePendingAccountRequests.js',
   'src/contexts/ProjectAreaContext.jsx',
+  'src/components/cables/CableDispatchModal.jsx',
 ];
 
 const violations = [];

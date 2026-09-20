@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import * as XLSX from 'xlsx';
-import { supabase } from '../../supabase';
+import { application } from '../../app/composition/createApplication.js';
+import { calculateDispatchSummary } from '../../features/cables/domain/cableDispatch.js';
 
 /**
  * CableDispatchModal
@@ -56,27 +56,11 @@ export default function CableDispatchModal({
     setLoading(true);
     setError('');
     try {
-      let query = supabase
-        .from('cable_despachos')
-        .select('*')
-        .eq('tag_unico', cable.tag_unico)
-        .order('fecha_entrega', { ascending: false })
-        .order('id', { ascending: false });
-
-      const { data, error: fetchErr } = await query;
-      if (fetchErr) throw fetchErr;
-
-      const { data: creators, error: creatorsError } = await supabase.rpc('get_cable_dispatch_creators', {
-        p_project_area_id: activeAreaId,
-        p_cable_schedule_id: cable.id,
-      });
-      if (creatorsError) console.warn('Could not load dispatch creators:', creatorsError);
-      const creatorMap = new Map((creators || []).map(item => [item.dispatch_id, item.created_by_name]));
-
-      setDespachos((data || []).map(item => ({
-        ...item,
-        created_by_name: creatorMap.get(item.id) || (item.created_by ? String(item.created_by) : 'Registro anterior'),
-      })));
+      setDespachos(await application.cableDispatches.listDispatches({
+        cableId: cable.id,
+        tag: cable.tag_unico,
+        areaId: activeAreaId,
+      }));
     } catch (err) {
       console.error('Error fetching despachos:', err);
       setError('Error al cargar el historial de despachos.');
@@ -118,68 +102,21 @@ export default function CableDispatchModal({
     setError('');
     setSuccessMsg('');
 
-    const metradoNum = parseFloat(formMetrado);
-    if (isNaN(metradoNum) || metradoNum <= 0) {
-      setError('Ingrese un metrado numérico válido mayor a cero.');
-      return;
-    }
-
-    if (!formFecha) {
-      setError('Seleccione una fecha de despacho.');
-      return;
-    }
-
-    if (!formVale.trim()) {
-      setError('Ingrese el número de vale de almacén.');
-      return;
-    }
-
-    if (!formRecibidoPor.trim()) {
-      setError('Ingrese quién recibió la entrega.');
-      return;
-    }
-
-    if (formComentarios.trim().length > 50) {
-      setError('Los comentarios no pueden superar los 50 caracteres.');
-      return;
-    }
-
     setSaving(true);
     try {
-      if (editingId) {
-        // Update existing dispatch
-        const { error: updateErr } = await supabase
-          .from('cable_despachos')
-          .update({
-            longitud_despachada_m: metradoNum,
-            vale_almacen: formVale.trim(),
-            fecha_entrega: formFecha,
-            solicitado_por: formRecibidoPor.trim(),
-            observaciones: formComentarios.trim() || null,
-          })
-          .eq('id', editingId);
-
-        if (updateErr) throw updateErr;
-        setSuccessMsg('Despacho actualizado correctamente.');
-      } else {
-        // Insert new dispatch
-        const payload = {
-          cable_schedule_id: cable.id,
-          tag_unico: cable.tag_unico,
-          longitud_despachada_m: metradoNum,
-          vale_almacen: formVale.trim(),
-          fecha_entrega: formFecha,
-          solicitado_por: formRecibidoPor.trim(),
-          observaciones: formComentarios.trim() || null,
-        };
-
-        const { error: insertErr } = await supabase
-          .from('cable_despachos')
-          .insert([payload]);
-
-        if (insertErr) throw insertErr;
-        setSuccessMsg('Despacho registrado correctamente.');
-      }
+      await application.cableDispatches.saveDispatch({
+        dispatchId: editingId,
+        cableId: cable.id,
+        tag: cable.tag_unico,
+        form: {
+          dispatchedLength: formMetrado,
+          warehouseVoucher: formVale,
+          dispatchDate: formFecha,
+          receivedBy: formRecibidoPor,
+          comments: formComentarios,
+        },
+      });
+      setSuccessMsg(editingId ? 'Despacho actualizado correctamente.' : 'Despacho registrado correctamente.');
 
       resetForm();
       await fetchDespachos();
@@ -197,12 +134,7 @@ export default function CableDispatchModal({
     setSaving(true);
     setError('');
     try {
-      const { error: delErr } = await supabase
-        .from('cable_despachos')
-        .delete()
-        .eq('id', id);
-
-      if (delErr) throw delErr;
+      await application.cableDispatches.deleteDispatch(id);
 
       setDeleteConfirmId(null);
       setSuccessMsg('Despacho eliminado.');
@@ -219,34 +151,7 @@ export default function CableDispatchModal({
   const handleExportHistory = () => {
     if (!despachos || despachos.length === 0) return;
     try {
-      const rowsForExcel = despachos.map((item, index) => ({
-        'N°': index + 1,
-        'TAG ÚNICO': cable.tag_unico,
-        'FECHA DE DESPACHO': item.fecha_entrega ? item.fecha_entrega.slice(0, 10) : '—',
-        'VALE (N° Vale Almacén)': item.vale_almacen || '—',
-        'METRADO DESPACHADO (m)': parseFloat(item.longitud_despachada_m || 0),
-        'RECIBIDO POR': item.solicitado_por || '—',
-        'COMENTARIOS': item.observaciones || '—',
-        'REGISTRADO POR': item.created_by_name || 'Registro anterior',
-        'FECHA DE REGISTRO': item.created_at ? new Date(item.created_at).toLocaleString('es-PE', { timeZone: 'America/Lima' }) : '—'
-      }));
-
-      const worksheet = XLSX.utils.json_to_sheet(rowsForExcel);
-      worksheet['!cols'] = [
-        { wch: 6 },
-        { wch: 22 },
-        { wch: 20 },
-        { wch: 22 },
-        { wch: 24 },
-        { wch: 26 },
-        { wch: 42 },
-        { wch: 26 },
-        { wch: 22 }
-      ];
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Despachos');
-      const today = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(workbook, `Despachos_${cable.tag_unico}_${today}.xlsx`);
+      application.cableDispatches.exportHistory({ tag: cable.tag_unico, dispatches: despachos });
     } catch (err) {
       console.error('Error exporting single cable dispatches:', err);
       setError('Error al exportar a Excel.');
@@ -255,9 +160,10 @@ export default function CableDispatchModal({
 
   if (!open || !cable) return null;
 
-  const totalCalculated = despachos.reduce((sum, d) => sum + (parseFloat(d.longitud_despachada_m) || 0), 0);
-  const otMetrado = parseFloat(cable.total_estimado_m) || 0;
-  const pctDespachado = otMetrado > 0 ? (totalCalculated / otMetrado) * 100 : 0;
+  const summary = calculateDispatchSummary(despachos, cable.total_estimado_m);
+  const totalCalculated = summary.totalDispatched;
+  const otMetrado = summary.estimatedLength;
+  const pctDespachado = summary.progressPercent;
 
   return (
     <div className="dialog-overlay dispatch-dialog-overlay" onClick={onClose}>
