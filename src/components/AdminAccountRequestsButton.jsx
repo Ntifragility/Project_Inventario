@@ -1,37 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Bell, X, UserPlus } from 'lucide-react';
-import { supabase } from '../supabase';
 import { useProjectArea } from '../contexts/ProjectAreaContext';
+import { usePendingAccountRequests } from '../features/accounts/presentation/hooks/usePendingAccountRequests';
 
 export default function AdminAccountRequestsButton({ onManage, showLabel = false }) {
   const { isAdmin } = useProjectArea();
-  const [requests, setRequests] = useState([]);
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const fetchRequests = useCallback(async () => {
-    if (!isAdmin) return;
-    setLoading(true);
-    setError('');
-    try {
-      const { data, error: requestError } = await supabase.rpc('list_account_requests', { p_status: 'pending' });
-      if (requestError) throw requestError;
-      setRequests(data || []);
-    } catch (requestError) {
-      console.error('Error loading account request notifications:', requestError);
-      setError('No se pudieron cargar las solicitudes. Verifique la migración de la base de datos.');
-    } finally {
-      setLoading(false);
-    }
-  }, [isAdmin]);
-
-  useEffect(() => {
-    if (!isAdmin) return undefined;
-    fetchRequests();
-    const timer = window.setInterval(fetchRequests, 60000);
-    return () => window.clearInterval(timer);
-  }, [isAdmin, fetchRequests]);
+  const { requests, loading, error, refresh } = usePendingAccountRequests({ enabled: isAdmin });
 
   if (!isAdmin) return null;
 
@@ -40,7 +15,7 @@ export default function AdminAccountRequestsButton({ onManage, showLabel = false
       <button
         type="button"
         className={`admin-notification-button ${showLabel ? 'with-label' : ''}`}
-        onClick={() => { setOpen(true); fetchRequests(); }}
+        onClick={() => { setOpen(true); refresh(); }}
         title="Solicitudes de cuenta"
         aria-label={`Solicitudes de cuenta${requests.length ? `: ${requests.length} pendientes` : ''}`}
       >

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { supabase } from '../supabase';
 import { KeyRound, Mail, AlertCircle, ArrowLeft, UserPlus } from 'lucide-react';
+import { application } from '../app/composition/createApplication.js';
 
 export default function Login({ passwordRecovery = false, onPasswordRecoveryComplete }) {
   const [email, setEmail] = useState('');
@@ -24,8 +24,7 @@ export default function Login({ passwordRecovery = false, onPasswordRecoveryComp
     clearMessages();
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-      if (error) throw error;
+      await application.accounts.signIn({ email, password });
     } catch (error) {
       console.error('Login error:', error);
       setErrorMessage(error.message || 'Credenciales incorrectas');
@@ -43,10 +42,10 @@ export default function Login({ passwordRecovery = false, onPasswordRecoveryComp
     }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      await application.accounts.requestPasswordReset({
+        email,
         redirectTo: window.location.origin,
       });
-      if (error) throw error;
       setSuccessMessage('Si el correo está registrado, recibirá un enlace para restablecer la contraseña.');
     } catch (error) {
       console.error('Password reset error:', error);
@@ -59,18 +58,9 @@ export default function Login({ passwordRecovery = false, onPasswordRecoveryComp
   const handleUpdatePassword = async (event) => {
     event.preventDefault();
     clearMessages();
-    if (password.length < 8) {
-      setErrorMessage('La nueva contraseña debe tener al menos 8 caracteres.');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setErrorMessage('Las contraseñas no coinciden.');
-      return;
-    }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) throw error;
+      await application.accounts.completePasswordRecovery({ password, confirmPassword });
       window.history.replaceState({}, document.title, window.location.pathname);
       onPasswordRecoveryComplete?.();
     } catch (error) {
@@ -86,13 +76,12 @@ export default function Login({ passwordRecovery = false, onPasswordRecoveryComp
     clearMessages();
     setLoading(true);
     try {
-      const { error } = await supabase.rpc('submit_account_request', {
-        p_full_name: requestName.trim(),
-        p_email: email.trim(),
-        p_area_code: requestArea,
-        p_message: requestMessage.trim() || null,
+      await application.accounts.submitAccountRequest({
+        fullName: requestName,
+        email,
+        areaCode: requestArea,
+        message: requestMessage,
       });
-      if (error) throw error;
       setSuccessMessage('Solicitud enviada. Un administrador podrá revisarla dentro del sistema.');
       setRequestName('');
       setEmail('');

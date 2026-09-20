@@ -1,73 +1,38 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Mail, Shield, KeyRound, History, Bell, Save, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { supabase } from '../supabase';
 import { useProjectArea } from '../contexts/ProjectAreaContext';
+import { useAccountActivity } from '../features/accounts/presentation/hooks/useAccountActivity';
+import { usePasswordChange } from '../features/accounts/presentation/hooks/usePasswordChange';
 import AdminAccountRequestsButton from './AdminAccountRequestsButton';
 
 const ROLE_LABELS = { admin: 'Administrador', supervisor: 'Supervisor', user: 'Usuario' };
 
 export default function MyAccount({ user, onManageAccountRequests }) {
   const { role, isAdmin, availableAreas } = useProjectArea();
-  const [activity, setActivity] = useState([]);
-  const [loadingActivity, setLoadingActivity] = useState(true);
+  const { activity, loading: loadingActivity, error: activityError } = useAccountActivity();
+  const {
+    saving: savingPassword,
+    message: passwordMessage,
+    clearMessage: clearPasswordMessage,
+    changePassword,
+  } = usePasswordChange(user?.email);
   const [editingPassword, setEditingPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [savingPassword, setSavingPassword] = useState(false);
-  const [passwordMessage, setPasswordMessage] = useState({ type: '', text: '' });
-
-  useEffect(() => {
-    const loadActivity = async () => {
-      setLoadingActivity(true);
-      const { data, error } = await supabase.rpc('get_my_recent_activity', { p_limit: 25 });
-      if (error) console.error('Error loading personal activity:', error);
-      setActivity(data || []);
-      setLoadingActivity(false);
-    };
-    loadActivity();
-  }, []);
 
   const savePassword = async (event) => {
     event.preventDefault();
-    setPasswordMessage({ type: '', text: '' });
-    if (!currentPassword) {
-      setPasswordMessage({ type: 'error', text: 'Ingrese su contraseña actual.' });
-      return;
-    }
-    if (password.length < 8) {
-      setPasswordMessage({ type: 'error', text: 'La contraseña debe tener al menos 8 caracteres.' });
-      return;
-    }
-    if (password !== confirmPassword) {
-      setPasswordMessage({ type: 'error', text: 'Las contraseñas no coinciden.' });
-      return;
-    }
-    if (currentPassword === password) {
-      setPasswordMessage({ type: 'error', text: 'La nueva contraseña debe ser diferente de la contraseña actual.' });
-      return;
-    }
-    setSavingPassword(true);
-    const { error: verificationError } = await supabase.auth.signInWithPassword({
-      email: user.email,
-      password: currentPassword,
+    const changed = await changePassword({
+      currentPassword,
+      password,
+      confirmPassword,
     });
-    if (verificationError) {
-      setSavingPassword(false);
-      setPasswordMessage({ type: 'error', text: 'La contraseña actual no es correcta.' });
-      return;
-    }
-    const { error } = await supabase.auth.updateUser({ password });
-    setSavingPassword(false);
-    if (error) {
-      setPasswordMessage({ type: 'error', text: error.message });
-      return;
-    }
+    if (!changed) return;
     setCurrentPassword('');
     setPassword('');
     setConfirmPassword('');
     setEditingPassword(false);
-    setPasswordMessage({ type: 'success', text: 'Contraseña actualizada correctamente.' });
   };
 
   return (
@@ -103,7 +68,7 @@ export default function MyAccount({ user, onManageAccountRequests }) {
                     setCurrentPassword('');
                     setPassword('');
                     setConfirmPassword('');
-                    setPasswordMessage({ type: '', text: '' });
+                    clearPasswordMessage();
                   }}>Cancelar</button>
                   <button className="btn btn-primary" disabled={savingPassword}><Save size={15} />{savingPassword ? 'Verificando...' : 'Actualizar contraseña'}</button>
                 </div>
@@ -123,7 +88,8 @@ export default function MyAccount({ user, onManageAccountRequests }) {
       <section className="card my-account-activity-card my-account-section">
         <div className="card-header"><History size={18} /><strong>Mis Últimas Modificaciones</strong></div>
         <div className="card-body">
-          {loadingActivity ? <div className="account-requests-empty"><span className="spinner" /> Cargando actividad...</div> : activity.length === 0 ?
+          {loadingActivity ? <div className="account-requests-empty"><span className="spinner" /> Cargando actividad...</div> : activityError ?
+            <div className="message error"><AlertCircle size={16} />{activityError}</div> : activity.length === 0 ?
             <div className="account-requests-empty">Todavía no hay modificaciones registradas para esta cuenta.</div> :
             <div className="my-account-activity-list">{activity.map((item, index) => (
               <div className="my-account-activity-item" key={`${item.occurred_at}-${index}`}>
