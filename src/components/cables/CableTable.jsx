@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../../supabase';
+import { application } from '../../app/composition/createApplication.js';
 import {
   Search, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   ArrowUpDown, Package, Filter, FilterX, Download, Pencil, Trash2,
@@ -119,89 +119,21 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
         return;
       }
 
-      let rows = [];
-      let start = 0;
-      const batchSize = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        let query = supabase
-          .from('cable_schedule')
-          .select('*')
-          .eq('project_area_id', activeAreaId)
-          .range(start, start + batchSize - 1)
-          .ilike('material', `${filterMaterialPrefix}%`);
-
-        if (filterArea) query = query.eq('area', filterArea);
-        if (filterTipoServicio) query = query.eq('tipo_servicio', filterTipoServicio);
-        if (filterTipoCable) query = query.eq('tipo_cable', filterTipoCable);
-        if (filterWbs) query = query.eq('wbs', filterWbs);
-        if (filterSistema) query = query.eq('sistema', filterSistema);
-
-        if (search.trim()) {
-          const searchTerm = search.trim().replace(/\*/g, '%');
-          query = query.or(`tag_unico.ilike.%${searchTerm}%,tipo_cable.ilike.%${searchTerm}%,area.ilike.%${searchTerm}%,wbs.ilike.%${searchTerm}%,plano.ilike.%${searchTerm}%`);
-        }
-        query = query.order(sortField, { ascending: sortDir === 'asc' });
-
-        const { data: batchData, error } = await query;
-        if (error) throw error;
-
-        if (!batchData || batchData.length === 0) {
-          hasMore = false;
-        } else {
-          rows = [...rows, ...batchData];
-          if (batchData.length < batchSize) {
-            hasMore = false;
-          } else {
-            start += batchSize;
-          }
-        }
-      }
-
-      // Fetch all despachos recursively
-      let allDespachos = [];
-      let despStart = 0;
-      let despHasMore = true;
-
-      while (despHasMore) {
-        const { data: despBatch, error: despErr } = await supabase
-          .from('cable_despachos')
-          .select('tag_unico, longitud_despachada_m, cable_schedule!inner(project_area_id)')
-          .eq('cable_schedule.project_area_id', activeAreaId)
-          .range(despStart, despStart + batchSize - 1);
-
-        if (despErr) throw despErr;
-
-        if (!despBatch || despBatch.length === 0) {
-          despHasMore = false;
-        } else {
-          allDespachos = [...allDespachos, ...despBatch];
-          if (despBatch.length < batchSize) {
-            despHasMore = false;
-          } else {
-            despStart += batchSize;
-          }
-        }
-      }
-
-      const despMap = new Map();
-      allDespachos.forEach(d => {
-        despMap.set(d.tag_unico, (despMap.get(d.tag_unico) || 0) + (parseFloat(d.longitud_despachada_m) || 0));
-      });
-      
-      let finalRows = (rows || []).map(r => ({
-        ...deriveCableMetrics(r, r.despachado_override_m ?? despMap.get(r.tag_unico) ?? 0),
-        tipo_cable_clean: cleanPatMaterialType(r.material, isPvc) || 'SIN TIPO',
+      setData(await application.cableSchedule.listCableTable({
+        areaId: activeAreaId,
+        filters: {
+          area: filterArea,
+          serviceType: filterTipoServicio,
+          cableType: filterTipoCable,
+          wbs: filterWbs,
+          system: filterSistema,
+          cleanType: filterCleanTipo,
+          materialPrefix: filterMaterialPrefix,
+        },
+        search,
+        sort: { field: sortField, direction: sortDir },
+        isPvc,
       }));
-
-      if (filterCleanTipo) {
-        finalRows = finalRows.filter(r => {
-          return r.tipo_cable_clean === filterCleanTipo;
-        });
-      }
-      
-      setData(finalRows);
     } catch (err) {
       console.error('Cable table fetch error:', err);
     } finally {
@@ -216,15 +148,10 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   const fetchDespachos = useCallback(async (tagUnico) => {
     setLoadingDespachos(true);
     try {
-      const { data: desp, error } = await supabase
-        .from('cable_despachos')
-        .select('*, cable_schedule!inner(project_area_id)')
-        .eq('tag_unico', tagUnico)
-        .eq('cable_schedule.project_area_id', activeAreaId)
-        .order('fecha_entrega', { ascending: false });
-
-      if (error) throw error;
-      setDespachos(desp || []);
+      setDespachos(await application.cableSchedule.listDispatchesForTag({
+        areaId: activeAreaId,
+        tag: tagUnico,
+      }));
     } catch (err) {
       console.error('Despachos fetch error:', err);
       setDespachos([]);
@@ -254,12 +181,10 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   };
 
   const loadCableImpact = async (row) => {
-    const { data: impact, error } = await supabase.rpc('obtener_impacto_cable', {
-      p_cable_id: row.id,
-      p_project_area_id: activeAreaId,
+    return application.cableSchedule.getCableImpact({
+      cableId: row.id,
+      areaId: activeAreaId,
     });
-    if (error) throw error;
-    return impact?.[0]?.dispatch_count || 0;
   };
 
   const handleStartEdit = async (row) => {
@@ -299,25 +224,15 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   };
 
   const handleSaveTag = async () => {
-    const normalizedTag = editTag.trim().toUpperCase();
-    if (!normalizedTag) {
-      setMutationError('TAG ÚNICO no puede estar vacío.');
-      return;
-    }
-    if (normalizedTag === editTarget?.tag_unico) {
-      setMutationError('Ingrese un TAG ÚNICO diferente.');
-      return;
-    }
-
     setMutationLoading(true);
     setMutationError('');
     try {
-      const { error } = await supabase.rpc('editar_tag_cable_autorizado', {
-        p_cable_id: editTarget.id,
-        p_project_area_id: activeAreaId,
-        p_new_tag: normalizedTag,
+      await application.cableSchedule.renameCable({
+        cableId: editTarget.id,
+        areaId: activeAreaId,
+        currentTag: editTarget.tag_unico,
+        newTag: editTag,
       });
-      if (error) throw error;
       setEditTarget(null);
       await refreshAfterMutation();
     } catch (error) {
@@ -328,20 +243,15 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   };
 
   const handleConfirmDelete = async () => {
-    if (deleteConfirmation !== deleteTarget?.tag_unico) {
-      setMutationError('Escriba exactamente el TAG ÚNICO para confirmar.');
-      return;
-    }
-
     setMutationLoading(true);
     setMutationError('');
     try {
-      const { error } = await supabase.rpc('eliminar_cable_autorizado', {
-        p_cable_id: deleteTarget.id,
-        p_project_area_id: activeAreaId,
-        p_confirm_tag: deleteConfirmation,
+      await application.cableSchedule.deleteCable({
+        cableId: deleteTarget.id,
+        areaId: activeAreaId,
+        currentTag: deleteTarget.tag_unico,
+        confirmation: deleteConfirmation,
       });
-      if (error) throw error;
       setDeleteTarget(null);
       await refreshAfterMutation();
     } catch (error) {
@@ -364,26 +274,16 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
 
   const saveMeasurementEdit = async () => {
     if (!measurementEdit) return;
-    const nextValue = Number(measurementEdit.value);
-    if (!Number.isFinite(nextValue) || nextValue < 0) {
-      setMutationError('Ingrese un metrado numérico mayor o igual a cero.');
-      return;
-    }
-
     setMutationLoading(true);
     setMutationError('');
     try {
-      const rpcName = measurementEdit.field === 'METRADO_OT'
-        ? 'actualizar_metrado_ot_cable'
-        : 'actualizar_metrado_despachado_cable';
-      const { error } = await supabase.rpc(rpcName, {
-        p_cable_id: measurementEdit.rowId,
-        p_project_area_id: activeAreaId,
-        p_expected_old_value: measurementEdit.expectedValue,
-        p_new_value: nextValue,
-        p_reason: null,
+      await application.cableSchedule.updateMeasurement({
+        cableId: measurementEdit.rowId,
+        areaId: activeAreaId,
+        field: measurementEdit.field,
+        expectedValue: measurementEdit.expectedValue,
+        newValue: measurementEdit.value,
       });
-      if (error) throw error;
       setMeasurementEdit(null);
       await refreshAfterMutation();
     } catch (error) {
@@ -471,13 +371,12 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     setWeldReportSaving(true);
     setMutationError('');
     try {
-      const { error } = await supabase.rpc('registrar_soldadura_pat', {
-        p_cable_schedule_id: weldReportTarget.id,
-        p_project_area_id: activeAreaId,
-        p_fecha_ejecucion: weldReportDate,
-        p_comentarios: weldReportComments.trim() || null,
+      await application.cableSchedule.registerPatWeld({
+        cableId: weldReportTarget.id,
+        areaId: activeAreaId,
+        executionDate: weldReportDate,
+        comments: weldReportComments,
       });
-      if (error) throw error;
       setWeldReportTarget(null);
       await refreshAfterMutation();
     } catch (error) {
@@ -507,22 +406,16 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   };
 
   const handleExportMeasurementHistory = async () => {
-    if (!historyStartDate || !historyEndDate || historyEndDate < historyStartDate) {
-      setHistoryError('Seleccione un rango de fechas válido.');
-      return;
-    }
-
     setHistoryExporting(true);
     setHistoryError('');
     try {
-      const { data: changes, error } = await supabase.rpc('exportar_cambios_metrado_cable', {
-        p_project_area_id: activeAreaId,
-        p_start_date: historyStartDate,
-        p_end_date: historyEndDate,
+      const changes = await application.cableSchedule.listMeasurementChanges({
+        areaId: activeAreaId,
+        startDate: historyStartDate,
+        endDate: historyEndDate,
       });
-      if (error) throw error;
 
-      const detailRows = (changes || []).map(change => ({
+      const detailRows = changes.map(change => ({
         'Fecha y hora': new Date(change.changed_at).toLocaleString('es-PE', { timeZone: 'America/Lima' }),
         'Área': change.area_name,
         'TAG UNICO': change.tag_unico,
@@ -558,127 +451,13 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   const handleExportAllDispatches = async () => {
     setExportingDispatches(true);
     try {
-      let allDespachos = [];
-      let start = 0;
-      const batchSize = 1000;
-      let hasMore = true;
-
-      // Build an explicit allow-list for the selected project area. Besides
-      // protecting the fallback query, this prevents an administrator's wider
-      // RLS access from leaking dispatches from another area into the export.
-      const areaTagSet = new Set();
-      const areaCableMap = new Map();
-      let tagStart = 0;
-      let hasMoreTags = true;
-
-      while (hasMoreTags) {
-        const { data: tagBatch, error: tagError } = await supabase
-          .from('cable_schedule')
-          .select('id, tag_unico, project_area_id, wbs, sistema, material, tipo_servicio, total_estimado_m')
-          .eq('project_area_id', activeAreaId)
-          .range(tagStart, tagStart + batchSize - 1);
-
-        if (tagError) throw tagError;
-
-        (tagBatch || []).forEach(row => {
-          if (row.tag_unico) {
-            areaTagSet.add(row.tag_unico);
-            areaCableMap.set(row.tag_unico, row);
-          }
-        });
-
-        if (!tagBatch || tagBatch.length < batchSize) {
-          hasMoreTags = false;
-        } else {
-          tagStart += batchSize;
-        }
-      }
-
-      // Fast lookup map of loaded cables for metadata fallback
-      const cableMap = new Map(areaCableMap);
+      const exportData = await application.cableSchedule.getDispatchExportData(activeAreaId);
+      const allDespachos = exportData.dispatches;
+      const cableMap = new Map(exportData.cables.map(row => [row.tag_unico, row]));
       (data || []).forEach(c => {
         if (c.tag_unico) cableMap.set(c.tag_unico, c);
       });
-
-      while (hasMore) {
-        let query = supabase
-          .from('cable_despachos')
-          .select(`
-            id,
-            tag_unico,
-            longitud_despachada_m,
-            vale_almacen,
-            fecha_entrega,
-            solicitado_por,
-            observaciones,
-            created_by,
-            created_at,
-            cable_schedule!cable_despachos_schedule_id_fkey!inner (
-              project_area_id,
-              wbs,
-              sistema,
-              material,
-              tipo_servicio,
-              total_estimado_m
-            )
-          `);
-
-        if (activeAreaId) {
-          query = query.eq('cable_schedule.project_area_id', activeAreaId);
-        }
-
-        const { data: batch, error } = await query
-          .order('fecha_entrega', { ascending: false })
-          .range(start, start + batchSize - 1);
-
-        if (error) {
-          console.warn('Primary query failed, running fallback:', error);
-          let fallbackQuery = supabase
-            .from('cable_despachos')
-            .select('*')
-            .order('fecha_entrega', { ascending: false })
-            .range(start, start + batchSize - 1);
-
-          const { data: fbBatch, error: fbErr } = await fallbackQuery;
-          if (fbErr) throw fbErr;
-
-          if (!fbBatch || fbBatch.length === 0) {
-            hasMore = false;
-          } else {
-            allDespachos = [
-              ...allDespachos,
-              ...fbBatch.filter(item => areaTagSet.has(item.tag_unico)),
-            ];
-            if (fbBatch.length < batchSize) {
-              hasMore = false;
-            } else {
-              start += batchSize;
-            }
-          }
-        } else {
-          if (!batch || batch.length === 0) {
-            hasMore = false;
-          } else {
-            allDespachos = [...allDespachos, ...batch];
-            if (batch.length < batchSize) {
-              hasMore = false;
-            } else {
-              start += batchSize;
-            }
-          }
-        }
-      }
-
-      // Final defense-in-depth check shared by both the primary and fallback
-      // paths. TAG UNICO is globally unique, so membership identifies its area.
-      allDespachos = allDespachos.filter(item => areaTagSet.has(item.tag_unico));
-
-      const { data: creatorRows, error: creatorError } = await supabase.rpc('get_cable_dispatch_creators', {
-        p_project_area_id: activeAreaId,
-        p_cable_schedule_id: null,
-      });
-      if (creatorError) throw creatorError;
-      const creatorMap = new Map((creatorRows || []).map(item => [item.dispatch_id, item.created_by_name]));
+      const creatorMap = new Map(exportData.creators.map(item => [item.dispatch_id, item.created_by_name]));
 
       if (allDespachos.length === 0) {
         alert('No se encontraron registros de despachos de cable para exportar.');
@@ -932,36 +711,10 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     try {
       if (isWeldSection) {
         const visibleCableIds = new Set(filteredData.map(row => Number(row.id)));
-        const activeReports = [];
-        const consumptions = [];
-        const batchSize = 1000;
-
-        for (let start = 0; ; start += batchSize) {
-          const { data: batch, error } = await supabase
-            .from('pat_soldadura_reportes')
-            .select('id, cable_schedule_id, fecha_ejecucion, comentarios, created_at')
-            .eq('project_area_id', activeAreaId)
-            .is('reversed_at', null)
-            .range(start, start + batchSize - 1);
-          if (error) throw error;
-          activeReports.push(...(batch || []).filter(report => visibleCableIds.has(Number(report.cable_schedule_id))));
-          if (!batch || batch.length < batchSize) break;
-        }
-
-        const reportIds = new Set(activeReports.map(report => report.id));
-        if (reportIds.size > 0) {
-          for (let start = 0; ; start += batchSize) {
-            const { data: batch, error } = await supabase
-              .from('pat_soldadura_consumos')
-              .select('reporte_id, componente_tipo, componente_descripcion, cantidad, unidad, fecha_consumo')
-              .eq('project_area_id', activeAreaId)
-              .order('componente_tipo', { ascending: true })
-              .range(start, start + batchSize - 1);
-            if (error) throw error;
-            consumptions.push(...(batch || []).filter(item => reportIds.has(item.reporte_id)));
-            if (!batch || batch.length < batchSize) break;
-          }
-        }
+        const { reports: activeReports, consumptions } = await application.cableSchedule.getPatWeldExportData({
+          areaId: activeAreaId,
+          cableIds: visibleCableIds,
+        });
 
         const reportByCable = new Map(activeReports.map(report => [Number(report.cable_schedule_id), report]));
         const consumptionsByReport = new Map();

@@ -17,5 +17,15 @@ Database row mapping belongs to the Supabase adapter. Workbook labels and format
 
 - `listCircuitCables(areaId)`
 - `listDispatchLengths(areaId)`
+- `listCables({ areaId, filters, search, sort })`
+- `listDispatchesForTag({ areaId, tag })`
+- `getCableImpact({ cableId, areaId })`
+- `renameCable(command)`
+- `deleteCable(command)`
+- `updateMeasurement(command)`
+- `registerPatWeld(command)`
+- `listMeasurementChanges(query)`
+- `getDispatchExportData(areaId)`
+- `getPatWeldExportData({ areaId, cableIds })`
 
 The Supabase adapter reads in batches so dashboard results are not truncated by the PostgREST row limit.

@@ -10,6 +10,7 @@ const presentationFiles = [
   'src/contexts/ProjectAreaContext.jsx',
   'src/components/cables/CableDispatchModal.jsx',
   'src/components/cables/CableDashboard.jsx',
+  'src/components/cables/CableTable.jsx',
 ];
 
 const violations = [];
