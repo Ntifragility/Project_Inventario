@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { supabase } from '../../supabase';
+import { application } from '../../app/composition/createApplication.js';
 import {
   RefreshCw, Upload, Package, Activity, Cable, Filter, FilterX,
   ChevronDown, Search, Download
@@ -112,194 +112,19 @@ export default function CableDashboard() {
     setError('');
 
     try {
-      // Fetch all data recursively in batches of 1000 to bypass PostgREST max_rows limit
-      let rawRows = [];
-      let start = 0;
-      const batchSize = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        let query = supabase
-          .from('cable_schedule')
-          .select('*')
-          .range(start, start + batchSize - 1)
-          .eq('project_area_id', activeAreaId)
-          .eq('tipo_cable', 'CIRCUITO')
-          .ilike('material', 'CABLE%');
-
-        const { data: batchData, error: fetchErr } = await query;
-        if (fetchErr) throw fetchErr;
-
-        if (!batchData || batchData.length === 0) {
-          hasMore = false;
-        } else {
-          rawRows = [...rawRows, ...batchData];
-          if (batchData.length < batchSize) {
-            hasMore = false;
-          } else {
-            start += batchSize;
-          }
-        }
-      }
-
-      // Fetch all despachos recursively
-      let allDespachos = [];
-      let despStart = 0;
-      let despHasMore = true;
-
-      while (despHasMore) {
-        const { data: despBatch, error: despErr } = await supabase
-          .from('cable_despachos')
-          .select('tag_unico, longitud_despachada_m, cable_schedule!inner(project_area_id)')
-          .eq('cable_schedule.project_area_id', activeAreaId)
-          .range(despStart, despStart + batchSize - 1);
-
-        if (despErr) throw despErr;
-
-        if (!despBatch || despBatch.length === 0) {
-          despHasMore = false;
-        } else {
-          allDespachos = [...allDespachos, ...despBatch];
-          if (despBatch.length < batchSize) {
-            despHasMore = false;
-          } else {
-            despStart += batchSize;
-          }
-        }
-      }
-
-      const despMap = new Map();
-      allDespachos.forEach(d => {
-        despMap.set(d.tag_unico, (despMap.get(d.tag_unico) || 0) + (parseFloat(d.longitud_despachada_m) || 0));
+      const dashboard = await application.cableSchedule.loadCircuitDashboard({
+        areaId: activeAreaId,
+        filters: {
+          type: selectedTipoCable,
+          wbs: selectedWbs,
+          system: selectedSistema,
+        },
       });
-
-      const processedRows = rawRows.map(r => {
-        const total = parseFloat(r.total_estimado_m) || 0;
-        const metrado = parseFloat(r.metrado_reportado_campo) || 0;
-        const materialStr = r.material || '';
-        const cleanTipo = materialStr.replace(/^cable\s+/i, '').trim().toUpperCase();
-        const despachado = r.despachado_override_m ?? despMap.get(r.tag_unico) ?? 0;
-        return {
-          ...r,
-          longitud_despachada_m: despachado,
-          longitud_pendiente_m: Math.max(0, total - metrado),
-          is_tendido: metrado >= total && total > 0,
-          tipo_cable_clean: cleanTipo || 'SIN TIPO'
-        };
-      });
-
-      // Filter in-memory by active filters
-      let rows = processedRows;
-      if (selectedTipoCable) {
-        rows = rows.filter(r => r.tipo_cable_clean === selectedTipoCable);
-      }
-      if (selectedWbs) {
-        rows = rows.filter(r => r.wbs === selectedWbs);
-      }
-      if (selectedSistema) {
-        rows = rows.filter(r => r.sistema === selectedSistema);
-      }
-
-      // ── Compute KPIs ──
-      const longitudTotal = rows.reduce((sum, r) => sum + (parseFloat(r.total_estimado_m) || 0), 0);
-      const longitudTendida = rows.reduce((sum, r) => sum + (parseFloat(r.metrado_reportado_campo) || 0), 0);
-      const longitudPendiente = rows.reduce((sum, r) => sum + (parseFloat(r.longitud_pendiente_m) || 0), 0);
-      const longitudDespachada = rows.reduce((sum, r) => sum + (parseFloat(r.longitud_despachada_m) || 0), 0);
-      const circuitosTotales = rows.length;
-      const circuitosPendientes = rows.filter(r => !r.is_tendido).length;
-      const tendidoPct = longitudTotal > 0 ? (longitudTendida / longitudTotal) * 100 : 0;
-      const despachadoPct = longitudTotal > 0 ? (longitudDespachada / longitudTotal) * 100 : 0;
-      const desviacionAlmacen = longitudDespachada - longitudTendida;
-      const circuitosDesviados = rows.filter(r => r.longitud_despachada_m > r.metrado_reportado_campo).length;
-
-      // Connection stats (for now, based on the is_tendido / estado field)
-      // These will be refined when connection tracking is implemented
-      const withConexOrigen = rows.filter(r => r.conexion_origen && r.is_tendido).length;
-      const withConexDestino = rows.filter(r => r.conexion_destino && r.is_tendido).length;
-      const totalWithOrigen = rows.filter(r => r.conexion_origen).length;
-      const totalWithDestino = rows.filter(r => r.conexion_destino).length;
-
-      // Compute type breakdown
-      const countByType = {};
-      rows.forEach(r => {
-        const type = r.tipo_cable_clean || 'SIN TIPO';
-        countByType[type] = (countByType[type] || 0) + 1;
-      });
-      const sortedTypes = Object.entries(countByType)
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count);
-
-      setKpis({
-        longitudTotal,
-        circuitosTotales,
-        longitudTendida,
-        longitudPendiente,
-        circuitosPendientes,
-        tendidoPct,
-        longitudDespachada,
-        despachadoPct,
-        desviacionAlmacen,
-        circuitosDesviados,
-        conexOrigenPct: totalWithOrigen > 0 ? (withConexOrigen / totalWithOrigen) * 100 : 0,
-        conexDestinoPct: totalWithDestino > 0 ? (withConexDestino / totalWithDestino) * 100 : 0,
-        conexOrigenPendientes: totalWithOrigen - withConexOrigen,
-        conexDestinoPendientes: totalWithDestino - withConexDestino,
-        circuitosPorTipo: sortedTypes,
-      });
-
-      // ── Compute bar chart data by TIPO ──
-      const tipoMap = new Map();
-      rows.forEach(r => {
-        const key = r.tipo_cable_clean || 'SIN TIPO';
-        if (!tipoMap.has(key)) tipoMap.set(key, { tendido: 0, porTender: 0 });
-        const entry = tipoMap.get(key);
-        entry.tendido += parseFloat(r.metrado_reportado_campo) || 0;
-        entry.porTender += parseFloat(r.longitud_pendiente_m) || 0;
-      });
-      setTipoBars(
-        [...tipoMap.entries()].map(([name, val]) => ({
-          name,
-          tendido: val.tendido,
-          porTender: val.porTender,
-          total: val.tendido + val.porTender,
-        }))
-      );
-
-      // ── Compute bar chart data by WBS ──
-      const wbsMap = new Map();
-      rows.forEach(r => {
-        const key = r.wbs || 'SIN WBS';
-        if (!wbsMap.has(key)) wbsMap.set(key, { tendido: 0, porTender: 0 });
-        const entry = wbsMap.get(key);
-        entry.tendido += parseFloat(r.metrado_reportado_campo) || 0;
-        entry.porTender += parseFloat(r.longitud_pendiente_m) || 0;
-      });
-      setWbsBars(
-        [...wbsMap.entries()].map(([name, val]) => ({
-          name,
-          tendido: val.tendido,
-          porTender: val.porTender,
-          total: val.tendido + val.porTender,
-        }))
-      );
-
-      // ── Compute bar chart data by SISTEMA ──
-      const sisMap = new Map();
-      rows.forEach(r => {
-        const key = r.sistema || 'SIN SISTEMA';
-        if (!sisMap.has(key)) sisMap.set(key, { tendido: 0, porTender: 0 });
-        const entry = sisMap.get(key);
-        entry.tendido += parseFloat(r.metrado_reportado_campo) || 0;
-        entry.porTender += parseFloat(r.longitud_pendiente_m) || 0;
-      });
-      setSistemaBars(
-        [...sisMap.entries()].map(([name, val]) => ({
-          name,
-          tendido: val.tendido,
-          porTender: val.porTender,
-          total: val.tendido + val.porTender,
-        }))
-      );
+      setRawFiltersData(dashboard.filterRows);
+      setKpis(dashboard.kpis);
+      setTipoBars(dashboard.tipoBars);
+      setWbsBars(dashboard.wbsBars);
+      setSistemaBars(dashboard.sistemaBars);
 
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
@@ -309,31 +134,14 @@ export default function CableDashboard() {
     }
   }, [selectedWbs, selectedSistema, selectedTipoCable, activeAreaId]);
 
-  // Fetch filter options once on mount
-  const fetchFilters = useCallback(async () => {
-    try {
-      const { data } = await supabase
-        .from('cable_schedule')
-        .select('wbs, sistema, material')
-        .eq('project_area_id', activeAreaId)
-        .eq('tipo_cable', 'CIRCUITO')
-        .ilike('material', 'CABLE%');
-
-      setRawFiltersData(data || []);
-    } catch (err) {
-      console.error('Error fetching filters:', err);
-    }
-  }, [activeAreaId]);
-
   useEffect(() => {
     handleClearFilters();
     setShowTable(false);
   }, [activeAreaId]);
 
   useEffect(() => {
-    fetchFilters();
     fetchData();
-  }, [fetchData, fetchFilters]);
+  }, [fetchData]);
 
   // ══════════════════════════════════════════════════════════════
   // HELPERS
@@ -353,7 +161,6 @@ export default function CableDashboard() {
   const handleImportComplete = () => {
     setShowImportWizard(false);
     fetchData();
-    fetchFilters();
   };
 
   // ══════════════════════════════════════════════════════════════
@@ -541,7 +348,7 @@ export default function CableDashboard() {
               filterCleanTipo={selectedTipoCable}
               filterTipoCable="CIRCUITO"
               onDataChanged={async () => {
-                await Promise.all([fetchData(), fetchFilters()]);
+                await fetchData();
               }}
             />
           )}

@@ -9,6 +9,7 @@ const presentationFiles = [
   'src/features/accounts/presentation/hooks/usePendingAccountRequests.js',
   'src/contexts/ProjectAreaContext.jsx',
   'src/components/cables/CableDispatchModal.jsx',
+  'src/components/cables/CableDashboard.jsx',
 ];
 
 const violations = [];
