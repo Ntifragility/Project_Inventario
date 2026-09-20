@@ -33,19 +33,23 @@ const startOfWeek = (date) => {
 
 const compact = (value) => value >= 1000 ? `${(value / 1000).toFixed(1)}K` : Math.round(value).toLocaleString();
 
-export default function ProductionTimeline({ rows = [], onPeriodClick, activeFilter }) {
+export default function ProductionTimeline({
+  rows = [], onPeriodClick, activeFilter,
+  dateField = 'fecha_tendido', quantityField = 'metrado_reportado_campo',
+  unitLabel = 'm', itemLabel = 'circuitos', subtitle = 'Metros instalados por período y avance acumulado'
+}) {
   const [grouping, setGrouping] = useState('week');
 
   const data = useMemo(() => {
     const groups = new Map();
     rows.forEach((row) => {
-      const date = parseLocalDate(row.fecha_tendido);
-      const meters = parseFloat(row.metrado_reportado_campo) || 0;
-      if (!date || meters <= 0) return;
+      const date = parseLocalDate(row[dateField]);
+      const quantity = parseFloat(row[quantityField]) || 0;
+      if (!date || quantity <= 0) return;
       const start = grouping === 'week' ? startOfWeek(date) : date;
       const key = toKey(start);
       const current = groups.get(key) || { date: key, production: 0, circuits: 0 };
-      current.production += meters;
+      current.production += quantity;
       current.circuits += 1;
       groups.set(key, current);
     });
@@ -65,7 +69,7 @@ export default function ProductionTimeline({ rows = [], onPeriodClick, activeFil
           : start.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' }),
       };
     });
-  }, [rows, grouping]);
+  }, [rows, grouping, dateField, quantityField]);
 
   const selected = (entry) => activeFilter?.dateFrom === entry.dateFrom && activeFilter?.dateTo === entry.dateTo;
 
@@ -74,7 +78,7 @@ export default function ProductionTimeline({ rows = [], onPeriodClick, activeFil
       <div className="production-timeline-header">
         <div>
           <h4>Producción ejecutada en el tiempo</h4>
-          <span>Metros instalados por período y avance acumulado</span>
+          <span>{subtitle}</span>
         </div>
         <div className="production-grouping" aria-label="Agrupación de producción">
           <button className={grouping === 'day' ? 'active' : ''} onClick={() => setGrouping('day')}>Diario</button>
@@ -90,8 +94,8 @@ export default function ProductionTimeline({ rows = [], onPeriodClick, activeFil
             <YAxis yAxisId="cumulative" orientation="right" tickFormatter={compact} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
             <Tooltip
               contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 8 }}
-              formatter={(value, name) => [`${Math.round(value).toLocaleString()} m`, name === 'production' ? 'Producción' : 'Acumulado']}
-              labelFormatter={(_, payload) => payload?.[0]?.payload ? `${payload[0].payload.dateFrom} — ${payload[0].payload.dateTo} · ${payload[0].payload.circuits} circuitos` : ''}
+              formatter={(value, name) => [`${Math.round(value).toLocaleString()} ${unitLabel}`, name === 'production' ? 'Producción' : 'Acumulado']}
+              labelFormatter={(_, payload) => payload?.[0]?.payload ? `${payload[0].payload.dateFrom} — ${payload[0].payload.dateTo} · ${payload[0].payload.circuits} ${itemLabel}` : ''}
             />
             <Bar
               yAxisId="production"

@@ -37,14 +37,21 @@ export default function PatDashboard() {
   const [processedSourceRows, setProcessedSourceRows] = useState([]);
   const [detailFilter, setDetailFilter] = useState(null);
 
+  const patSections = {
+    conductores: { pattern: 'CABLE%', prefix: 'CABLE', itemLabel: 'Circuitos', typeLabel: 'Tipo de Cable', metricLabel: 'Longitud', chartSubject: 'Cable', gaugeLabel: 'TENDIDO', isUnit: false },
+    pvc: { pattern: 'TUBERIA PVC SCH%', prefix: 'TUBERIA PVC SCH', itemLabel: 'Tramos', typeLabel: 'Tipo de Tubería', metricLabel: 'Longitud', chartSubject: 'Tubería PVC', gaugeLabel: 'INSTALADO', isUnit: false },
+    soldaduras: { pattern: 'SOLDADURA%', prefix: 'SOLDADURA', itemLabel: 'Soldaduras', typeLabel: 'Tipo de Soldadura', metricLabel: 'Cantidad', chartSubject: 'Soldaduras', gaugeLabel: 'EJECUTADO', isUnit: true },
+    pozos: { pattern: 'POZO%', prefix: 'POZO', itemLabel: 'Pozos', typeLabel: 'Tipo de Pozo', metricLabel: 'Cantidad', chartSubject: 'Pozos a Tierra', gaugeLabel: 'EJECUTADO', isUnit: true },
+  };
+  const section = patSections[activePatSection];
   const isPvc = activePatSection === 'pvc';
-  const materialPattern = isPvc ? 'TUBERIA PVC SCH%' : 'CABLE%';
-  const itemLabel = isPvc ? 'Tramos' : 'Circuitos';
+  const materialPattern = section.pattern;
+  const itemLabel = section.itemLabel;
   const activeFilterCount = [selectedTipoCable, selectedWbs, selectedSistema, detailFilter].filter(Boolean).length;
 
   const getCleanMaterialType = useCallback((material = '') => {
-    return cleanPatMaterialType(material, isPvc);
-  }, [isPvc]);
+    return section.isUnit ? String(material || '').trim().toUpperCase() : cleanPatMaterialType(material, isPvc);
+  }, [isPvc, section.isUnit]);
 
   // Mobile layout state
   const [activeMobileTab, setActiveMobileTab] = useState('tipo');
@@ -466,18 +473,30 @@ export default function PatDashboard() {
       className="tab-content active pat-dashboard"
       onClick={handleDashboardBackgroundClick}
     >
-      <div className="pat-section-switcher" style={{ display: 'flex', gap: 8, marginBottom: 16, padding: 4, width: 'fit-content', borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+      <div className="pat-section-switcher" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16, padding: 4, width: 'fit-content', maxWidth: '100%', borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
         <button
-          className={`btn btn-sm ${!isPvc ? 'btn-primary' : 'btn-secondary'}`}
+          className={`btn btn-sm ${activePatSection === 'conductores' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActivePatSection('conductores')}
         >
           Conductores PAT
         </button>
         <button
-          className={`btn btn-sm ${isPvc ? 'btn-primary' : 'btn-secondary'}`}
+          className={`btn btn-sm ${activePatSection === 'pvc' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActivePatSection('pvc')}
         >
           Tubería PVC
+        </button>
+        <button
+          className={`btn btn-sm ${activePatSection === 'soldaduras' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActivePatSection('soldaduras')}
+        >
+          Soldaduras
+        </button>
+        <button
+          className={`btn btn-sm ${activePatSection === 'pozos' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActivePatSection('pozos')}
+        >
+          Pozos a Tierra
         </button>
         <button
           className="btn btn-secondary btn-sm cable-mobile-filter-toggle"
@@ -500,7 +519,7 @@ export default function PatDashboard() {
             <button onClick={() => setShowMobileFilters(false)} aria-label="Cerrar filtros"><X size={20} /></button>
           </div>
           <CustomDropdown
-            label={isPvc ? 'Tipo de Tubería' : 'Tipo de Cable'}
+            label={section.typeLabel}
             value={selectedTipoCable}
             options={filteredTipos}
             onChange={(value) => { setSelectedTipoCable(value); setDetailFilter(null); }}
@@ -549,7 +568,7 @@ export default function PatDashboard() {
         >
           <div className="kpi-card-front">
             <span className="cable-kpi-value accent">{formatNumber(kpis.longitudTotal)}</span>
-            <span className="cable-kpi-label">Longitud Total (m)</span>
+            <span className="cable-kpi-label">{section.metricLabel} Total ({section.isUnit ? 'UND' : 'm'})</span>
             <div className="cable-kpi-sub" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px' }}>
               <span className="cable-kpi-sub-value">{kpis.circuitosTotales.toLocaleString()}</span>
               <span className="cable-kpi-sub-label">{itemLabel} Totales (und)</span>
@@ -573,7 +592,7 @@ export default function PatDashboard() {
           </div>
         </div>
 
-        <div
+        {!section.isUnit && <div
           className={`cable-kpi-card dashboard-drilldown-target ${detailFilter?.dimension === null && detailFilter?.condition === 'dispatched' ? 'active' : ''}`}
           onClick={() => activateDetailFilter({ source: 'kpi', dimension: null, value: null, label: 'Despachados', condition: 'dispatched' })}
           onKeyDown={(event) => activateDetailFilterFromKeyboard(event, { source: 'kpi', dimension: null, value: null, label: 'Despachados', condition: 'dispatched' })}
@@ -586,7 +605,7 @@ export default function PatDashboard() {
             <span className="cable-kpi-sub-value" style={{ color: '#3b82f6' }}>{kpis.circuitosDespachados.toLocaleString()}</span>
             <span className="cable-kpi-sub-label">{itemLabel} Despachados (und)</span>
           </div>
-        </div>
+        </div>}
 
         <div
           className={`cable-kpi-card dashboard-drilldown-target ${detailFilter?.dimension === null && detailFilter?.condition === 'advance' ? 'active' : ''}`}
@@ -596,7 +615,7 @@ export default function PatDashboard() {
           tabIndex={0}
         >
           <span className="cable-kpi-value" style={{ color: '#10b981' }}>{formatNumber(kpis.longitudTendida)}</span>
-          <span className="cable-kpi-label">Longitud Ejecutada (m)</span>
+          <span className="cable-kpi-label">{section.metricLabel} Ejecutada ({section.isUnit ? 'UND' : 'm'})</span>
           <div className="cable-kpi-sub" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px' }}>
             <span className="cable-kpi-sub-value" style={{ color: '#10b981' }}>{kpis.circuitosEjecutados.toLocaleString()}</span>
             <span className="cable-kpi-sub-label">{itemLabel} con Avance (und)</span>
@@ -611,7 +630,7 @@ export default function PatDashboard() {
           tabIndex={0}
         >
           <span className="cable-kpi-value warning">{formatNumber(kpis.longitudPendiente)}</span>
-          <span className="cable-kpi-label">Longitud Pendiente (m)</span>
+          <span className="cable-kpi-label">{section.metricLabel} Pendiente ({section.isUnit ? 'UND' : 'm'})</span>
           <div className="cable-kpi-sub" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px' }}>
             <span className="cable-kpi-sub-value">{kpis.circuitosPendientes.toLocaleString()}</span>
             <span className="cable-kpi-sub-label">{itemLabel} Pendientes (und)</span>
@@ -620,8 +639,9 @@ export default function PatDashboard() {
 
         <div
           className={`cable-kpi-card highlight progress-gauge-card ${showMobileDispatch ? 'mobile-show-dispatched' : ''}`}
-          onClick={toggleMobileGauge}
+          onClick={section.isUnit ? undefined : toggleMobileGauge}
           onKeyDown={(event) => {
+            if (section.isUnit) return;
             if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault();
               setShowMobileDispatch(current => !current);
@@ -629,13 +649,13 @@ export default function PatDashboard() {
           }}
           role="button"
           tabIndex={0}
-          aria-label={showMobileDispatch ? 'Mostrar avance tendido' : 'Mostrar avance despachado'}
+          aria-label={section.isUnit ? `Mostrar avance ${section.gaugeLabel.toLowerCase()}` : (showMobileDispatch ? 'Mostrar avance tendido' : 'Mostrar avance despachado')}
         >
           <div style={{ position: 'relative', width: 110, height: 110, flexShrink: 0 }}>
             <div className="kpi-card-front" style={{ position: 'absolute', inset: 0 }}>
               <CableGauge
                 value={kpis.tendidoPct}
-                label={isPvc ? 'INSTALADO' : 'TENDIDO'}
+                label={section.gaugeLabel}
                 size={110}
                 strokeWidth={8}
                 color="#f59e0b"
@@ -643,7 +663,7 @@ export default function PatDashboard() {
                 type="donut"
               />
             </div>
-            <div className="kpi-card-back" style={{ inset: 0, padding: 0, alignItems: 'center', justifyContent: 'center', background: 'transparent' }}>
+            {!section.isUnit && <div className="kpi-card-back" style={{ inset: 0, padding: 0, alignItems: 'center', justifyContent: 'center', background: 'transparent' }}>
               <CableGauge
                 value={kpis.despachadoPct}
                 label="DESPACHADO"
@@ -653,11 +673,11 @@ export default function PatDashboard() {
                 bgColor="rgba(255,255,255,0.08)"
                 type="donut"
               />
-            </div>
+            </div>}
           </div>
         </div>
 
-        <div
+        {!section.isUnit && <div
           className={`cable-kpi-card cable-mobile-hide dashboard-drilldown-target ${detailFilter?.dimension === null && detailFilter?.condition === 'deviation' ? 'active' : ''}`}
           onClick={() => activateDetailFilter({ source: 'kpi', dimension: null, value: null, label: 'Desviación de almacén', condition: 'deviation' })}
           onKeyDown={(event) => activateDetailFilterFromKeyboard(event, { source: 'kpi', dimension: null, value: null, label: 'Desviación de almacén', condition: 'deviation' })}
@@ -670,7 +690,7 @@ export default function PatDashboard() {
             <span className="cable-kpi-sub-value">{kpis.circuitosDesviados.toLocaleString()}</span>
             <span className="cable-kpi-sub-label">{itemLabel} Desviados (und)</span>
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* ── Mobile Chart Tabs ── */}
@@ -700,28 +720,37 @@ export default function PatDashboard() {
         <div className={`cable-chart-col ${activeMobileTab === 'tipo' ? 'mobile-active' : ''}`}>
           <CableBarChart
             data={tipoBars}
-            title={`Longitud de ${isPvc ? 'Tubería PVC' : 'Cable'} (m) según Tipo`}
+            title={`${section.metricLabel} de ${section.chartSubject} (${section.isUnit ? 'UND' : 'm'}) según Tipo`}
             dimension="tipo"
             onSegmentClick={activateDetailFilter}
             activeSelection={detailFilter}
+            completedLabel={section.isUnit ? 'Ejecutado' : 'Tendido'}
+            pendingLabel={section.isUnit ? 'Pendiente' : 'Por Tender'}
+            unitLabel={section.isUnit ? 'UND' : 'm'}
           />
         </div>
         <div className={`cable-chart-col ${activeMobileTab === 'wbs' ? 'mobile-active' : ''}`}>
           <CableBarChart
             data={wbsBars}
-            title={`Longitud de ${isPvc ? 'Tubería PVC' : 'Cable'} (m) según WBS`}
+            title={`${section.metricLabel} de ${section.chartSubject} (${section.isUnit ? 'UND' : 'm'}) según WBS`}
             dimension="wbs"
             onSegmentClick={activateDetailFilter}
             activeSelection={detailFilter}
+            completedLabel={section.isUnit ? 'Ejecutado' : 'Tendido'}
+            pendingLabel={section.isUnit ? 'Pendiente' : 'Por Tender'}
+            unitLabel={section.isUnit ? 'UND' : 'm'}
           />
         </div>
         <div className={`cable-chart-col ${activeMobileTab === 'sistema' ? 'mobile-active' : ''}`}>
           <CableBarChart
             data={sistemaBars}
-            title={`Longitud de ${isPvc ? 'Tubería PVC' : 'Cable'} (m) según Sistema`}
+            title={`${section.metricLabel} de ${section.chartSubject} (${section.isUnit ? 'UND' : 'm'}) según Sistema`}
             dimension="sistema"
             onSegmentClick={activateDetailFilter}
             activeSelection={detailFilter}
+            completedLabel={section.isUnit ? 'Ejecutado' : 'Tendido'}
+            pendingLabel={section.isUnit ? 'Pendiente' : 'Por Tender'}
+            unitLabel={section.isUnit ? 'UND' : 'm'}
           />
         </div>
       </div>
@@ -738,6 +767,9 @@ export default function PatDashboard() {
 
       <ProductionTimeline
         rows={timelineRows}
+        unitLabel={section.isUnit ? 'UND' : 'm'}
+        itemLabel={itemLabel.toLowerCase()}
+        subtitle={section.isUnit ? 'Unidades ejecutadas por período y avance acumulado' : 'Metros instalados por período y avance acumulado'}
         activeFilter={detailFilter}
         onPeriodClick={activateDetailFilter}
       />
@@ -800,7 +832,10 @@ export default function PatDashboard() {
             filterSistema={selectedSistema}
             filterCleanTipo={selectedTipoCable}
             filterTipoCable="PAT"
-            filterMaterialPrefix={isPvc ? 'TUBERIA PVC SCH' : 'CABLE'}
+            filterMaterialPrefix={section.prefix}
+            metricUnit={section.isUnit ? 'UND' : 'm'}
+            itemLabelOverride={itemLabel.toLowerCase()}
+            materialLabelOverride={section.isUnit ? `Descripción de ${activePatSection === 'soldaduras' ? 'Soldadura' : 'Pozo'}` : ''}
             sourceData={processedSourceRows}
             dashboardFilter={detailFilter}
             onDataChanged={async () => {

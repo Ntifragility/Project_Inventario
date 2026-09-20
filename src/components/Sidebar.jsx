@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
 import {
   BarChart2,
   PlusCircle,
@@ -7,7 +7,6 @@ import {
   FileText,
   Settings,
   User,
-  LogOut,
   Sun,
   Moon,
   Package,
@@ -24,19 +23,6 @@ import {
 } from 'lucide-react';
 
 export default function Sidebar({ activeModule, setActiveModule, activeTab, setActiveTab, user, onLogout, isDark, toggleTheme, isOpen, onClose }) {
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const sidebarUserSectionRef = useRef(null);
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (showProfileMenu && sidebarUserSectionRef.current && !sidebarUserSectionRef.current.contains(event.target)) {
-        setShowProfileMenu(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showProfileMenu]);
-
   const modules = [
     {
       id: 'material',
@@ -94,7 +80,7 @@ export default function Sidebar({ activeModule, setActiveModule, activeTab, setA
         </div>
 
         <div className="nav-modules">
-          {modules.filter(m => !activeModule || m.id === activeModule).map((mod) => {
+          {modules.map((mod) => {
             const isModuleActive = activeModule === mod.id;
             const ModuleIcon = mod.icon;
 
@@ -103,15 +89,9 @@ export default function Sidebar({ activeModule, setActiveModule, activeTab, setA
                 <div
                   className={`nav-module-header ${isModuleActive ? 'active' : ''}`}
                   onClick={() => {
-                    if (!isModuleActive) {
-                      setActiveModule(mod.id);
-                      if (mod.items.length > 0) {
-                        setActiveTab(mod.items[0].id);
-                      }
-                    } else {
-                      // Clicking the active header again goes back to main menu
-                      setActiveModule(null);
-                      setActiveTab(null);
+                    setActiveModule(mod.id);
+                    if (!isModuleActive && mod.items.length > 0) {
+                      setActiveTab(mod.items[0].id);
                     }
                   }}
                   style={{
@@ -143,6 +123,7 @@ export default function Sidebar({ activeModule, setActiveModule, activeTab, setA
                           <a
                             className={`nav-link ${isActive ? 'active' : ''}`}
                             onClick={() => {
+                              setActiveModule(mod.id);
                               setActiveTab(item.id);
                               if (onClose) onClose();
                             }}
@@ -164,26 +145,16 @@ export default function Sidebar({ activeModule, setActiveModule, activeTab, setA
       <div className="sidebar-footer">
 
         {user && (
-          <div className="sidebar-user-section" ref={sidebarUserSectionRef} style={{ position: 'relative', marginBottom: '12px' }}>
-            {showProfileMenu && (
-              <div className="sidebar-user-popover">
-                <div className="popover-email" title={user.email}>{user.email}</div>
-                <button onClick={onLogout} className="popover-logout-btn">
-                  <LogOut size={14} />
-                  <span>Cerrar Sesión</span>
-                </button>
-              </div>
-            )}
-            <button 
-              className={`sidebar-user-avatar-btn ${showProfileMenu ? 'active' : ''}`}
-              onClick={() => setShowProfileMenu(!showProfileMenu)}
+          <div className="sidebar-user-section" style={{ position: 'relative', marginBottom: '12px' }}>
+            <button
+              className={`sidebar-user-avatar-btn ${activeTab === 'my_account' ? 'active' : ''}`}
+              onClick={() => { setActiveModule('account'); setActiveTab('my_account'); if (onClose) onClose(); }}
               title="Mi Cuenta"
             >
               <div className="avatar-circle">
                 {user.email ? user.email.slice(0, 2).toUpperCase() : 'US'}
               </div>
               <span className="avatar-label">Mi Cuenta</span>
-              <ChevronDown size={14} className={`avatar-chevron ${showProfileMenu ? 'open' : ''}`} />
             </button>
           </div>
         )}

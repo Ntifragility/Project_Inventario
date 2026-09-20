@@ -3,14 +3,14 @@ import { supabase } from '../../supabase';
 import {
   Search, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   ArrowUpDown, Package, Filter, FilterX, Download, Pencil, Trash2,
-  Save, AlertCircle, History, X, Eye
+  Save, AlertCircle, History, X, Eye, CheckCircle2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { cleanPatMaterialType, deriveCableMetrics, matchesDashboardFilter } from './cableMetrics';
 import { useProjectArea } from '../../contexts/ProjectAreaContext';
 import CableDispatchModal from './CableDispatchModal';
 
-export default function CableTable({ filterArea = '', filterTipoServicio = '', filterTipoCable = '', filterWbs = '', filterSistema = '', filterCleanTipo = '', filterMaterialPrefix = 'CABLE', sourceData = null, dashboardFilter = null, onDataChanged = null }) {
+export default function CableTable({ filterArea = '', filterTipoServicio = '', filterTipoCable = '', filterWbs = '', filterSistema = '', filterCleanTipo = '', filterMaterialPrefix = 'CABLE', sourceData = null, dashboardFilter = null, onDataChanged = null, metricUnit = 'm', itemLabelOverride = '', materialLabelOverride = '' }) {
   const { activeAreaId, activeArea, role } = useProjectArea();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -42,13 +42,20 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
   const [historyError, setHistoryError] = useState('');
   const [exportPromptOpen, setExportPromptOpen] = useState(false);
   const [exportingDispatches, setExportingDispatches] = useState(false);
+  const [exportingSchedule, setExportingSchedule] = useState(false);
+  const [weldReportTarget, setWeldReportTarget] = useState(null);
+  const [weldReportDate, setWeldReportDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [weldReportComments, setWeldReportComments] = useState('');
+  const [weldReportSaving, setWeldReportSaving] = useState(false);
   
   // Excel-like filter state
   const [headerFilters, setHeaderFilters] = useState({});
   const [activeFilter, setActiveFilter] = useState(null);
 
   const isPvc = filterMaterialPrefix.toUpperCase().startsWith('TUBERIA PVC');
-  const itemLabel = isPvc ? 'tramos' : 'circuitos';
+  const isUnitTracking = metricUnit === 'UND';
+  const isWeldSection = isUnitTracking && filterMaterialPrefix.toUpperCase().startsWith('SOLDADURA');
+  const itemLabel = itemLabelOverride || (isPvc ? 'tramos' : 'circuitos');
   const canManageCables = role === 'admin' || role === 'supervisor';
   const canEditMetradoOt = role === 'admin' || role === 'supervisor';
   const canEditMetradoDespachado = ['admin', 'supervisor', 'user'].includes(role);
@@ -57,10 +64,10 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     { field: 'tag_unico', label: 'TAG UNICO', width: '144px' },
     { field: 'wbs', label: 'WBS', width: '60px' },
     { field: 'sistema', label: 'Sistema', width: '252px' },
-    { field: 'material', label: isPvc ? 'Descripción de Tubería' : 'Descripción de Cable', width: '200px' },
-    { field: 'total_estimado_m', label: 'Metrado\nOT (m)', width: '110px', align: 'right' },
-    { field: 'total_despachado_m', label: 'Metrado\nDespachado (m)', width: '130px', align: 'right' },
-    { field: 'metrado_reportado_campo', label: 'Metrado\nConstrucción (m)', width: '110px', align: 'right' },
+    { field: 'material', label: materialLabelOverride || (isPvc ? 'Descripción de Tubería' : 'Descripción de Cable'), width: '200px' },
+    { field: 'total_estimado_m', label: `${isUnitTracking ? 'Cantidad' : 'Metrado'}\nOT (${metricUnit})`, width: '110px', align: 'right' },
+    { field: 'total_despachado_m', label: `${isUnitTracking ? 'Cantidad' : 'Metrado'}\nDespachado (${metricUnit})`, width: '130px', align: 'right' },
+    { field: 'metrado_reportado_campo', label: `${isUnitTracking ? 'Cantidad' : 'Metrado'}\nConstrucción (${metricUnit})`, width: '110px', align: 'right' },
     { field: 'avance', label: '% Avance', width: '90px', align: 'center', computed: true },
     { field: 'fecha_tendido', label: 'F. Reporte\nConstrucción', width: '120px', align: 'center' },
   ] : [
@@ -391,6 +398,9 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
 
     if (!isOt) {
       const value = row.total_despachado_m;
+      if (isUnitTracking) {
+        return <span>{parseFloat(value || 0).toFixed(1)}</span>;
+      }
       return (
         <div className="cable-measurement-value" onClick={(event) => event.stopPropagation()}>
           <span>{parseFloat(value || 0).toFixed(1)}</span>
@@ -445,6 +455,53 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
           {parseFloat(value || 0).toFixed(1)}
         </span>
         {canEdit && <button onClick={() => startMeasurementEdit(row, field)} title="Editar METRADO OT"><Pencil size={11} /></button>}
+      </div>
+    );
+  };
+
+  const openWeldReport = (row) => {
+    setMutationError('');
+    setWeldReportTarget(row);
+    setWeldReportDate(new Date().toISOString().slice(0, 10));
+    setWeldReportComments('');
+  };
+
+  const saveWeldReport = async () => {
+    if (!weldReportTarget || !weldReportDate) return;
+    setWeldReportSaving(true);
+    setMutationError('');
+    try {
+      const { error } = await supabase.rpc('registrar_soldadura_pat', {
+        p_cable_schedule_id: weldReportTarget.id,
+        p_project_area_id: activeAreaId,
+        p_fecha_ejecucion: weldReportDate,
+        p_comentarios: weldReportComments.trim() || null,
+      });
+      if (error) throw error;
+      setWeldReportTarget(null);
+      await refreshAfterMutation();
+    } catch (error) {
+      setMutationError(error.message || 'No se pudo registrar la soldadura y sus consumos.');
+    } finally {
+      setWeldReportSaving(false);
+    }
+  };
+
+  const renderConstructionValue = (row) => {
+    const value = parseFloat(row.metrado_reportado_campo || 0);
+    const isWeld = isUnitTracking && String(row.material || '').trim().toUpperCase().startsWith('SOLDADURA');
+    if (!isWeld) return value.toFixed(1);
+
+    return (
+      <div className="cable-measurement-value" onClick={(event) => event.stopPropagation()}>
+        <span>{value.toFixed(1)}</span>
+        {value >= 1 ? (
+          <CheckCircle2 size={13} style={{ color: '#10b981' }} aria-label="Soldadura reportada" />
+        ) : (
+          <button type="button" onClick={() => openWeldReport(row)} title="Reportar soldadura y registrar insumos usados">
+            <Pencil size={11} />
+          </button>
+        )}
       </div>
     );
   };
@@ -554,6 +611,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
             fecha_entrega,
             solicitado_por,
             observaciones,
+            created_by,
             created_at,
             cable_schedule!cable_despachos_schedule_id_fkey!inner (
               project_area_id,
@@ -615,12 +673,87 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
       // paths. TAG UNICO is globally unique, so membership identifies its area.
       allDespachos = allDespachos.filter(item => areaTagSet.has(item.tag_unico));
 
+      const { data: creatorRows, error: creatorError } = await supabase.rpc('get_cable_dispatch_creators', {
+        p_project_area_id: activeAreaId,
+        p_cable_schedule_id: null,
+      });
+      if (creatorError) throw creatorError;
+      const creatorMap = new Map((creatorRows || []).map(item => [item.dispatch_id, item.created_by_name]));
+
       if (allDespachos.length === 0) {
         alert('No se encontraron registros de despachos de cable para exportar.');
         return;
       }
 
-      const detailRows = allDespachos.map((item, idx) => {
+      const sortedDispatches = [...allDespachos].sort((a, b) => {
+        const tagOrder = String(a.tag_unico || '').localeCompare(String(b.tag_unico || ''), 'es');
+        if (tagOrder !== 0) return tagOrder;
+        const dateOrder = String(a.fecha_entrega || '').localeCompare(String(b.fecha_entrega || ''));
+        if (dateOrder !== 0) return dateOrder;
+        const createdOrder = String(a.created_at || '').localeCompare(String(b.created_at || ''));
+        if (createdOrder !== 0) return createdOrder;
+        return Number(a.id || 0) - Number(b.id || 0);
+      });
+
+      const dispatchesByTag = new Map();
+      sortedDispatches.forEach(item => {
+        const tag = item.tag_unico || '';
+        if (!dispatchesByTag.has(tag)) dispatchesByTag.set(tag, []);
+        dispatchesByTag.get(tag).push(item);
+      });
+
+      const overLimitTag = [...dispatchesByTag.entries()].find(([, deliveries]) => deliveries.length > 3);
+      if (overLimitTag) {
+        throw new Error(`El TAG ${overLimitTag[0]} tiene más de 3 despachos. Revise los registros antes de exportar.`);
+      }
+
+      const groupedRows = [...dispatchesByTag.entries()].map(([tag, deliveries], idx) => {
+        const fallbackCable = cableMap.get(tag) || {};
+        const firstRelated = Array.isArray(deliveries[0]?.cable_schedule)
+          ? deliveries[0].cable_schedule[0]
+          : deliveries[0]?.cable_schedule;
+        const scheduleInfo = firstRelated || fallbackCable;
+        const row = {
+          'N°': idx + 1,
+          'TAG UNICO': tag || '—',
+          'WBS': scheduleInfo.wbs || fallbackCable.wbs || '—',
+          'SISTEMA': scheduleInfo.sistema || fallbackCable.sistema || '—',
+          'MATERIAL / TIPO': scheduleInfo.material || fallbackCable.material || fallbackCable.tipo_cable || '—',
+          'TIPO DE SERVICIO': scheduleInfo.tipo_servicio || fallbackCable.tipo_servicio || '—',
+          'TOTAL DESPACHADO (m)': deliveries.reduce(
+            (sum, item) => sum + (parseFloat(item.longitud_despachada_m) || 0),
+            0
+          ),
+          'N° ENTREGAS': deliveries.length,
+        };
+
+        for (let index = 0; index < 3; index += 1) {
+          const delivery = deliveries[index];
+          const number = index + 1;
+          row[`METRADO DESPACHADO ${number} (m)`] = delivery
+            ? parseFloat(delivery.longitud_despachada_m || 0)
+            : '';
+          row[`VALE ${number} (N° Vale Almacén)`] = delivery?.vale_almacen || '';
+          row[`FECHA DE DESPACHO ${number}`] = delivery?.fecha_entrega
+            ? String(delivery.fecha_entrega).slice(0, 10)
+            : '';
+        }
+
+        return row;
+      });
+
+      const summaryRows = groupedRows.map(row => ({
+        'N°': row['N°'],
+        'TAG UNICO': row['TAG UNICO'],
+        'WBS': row.WBS,
+        'SISTEMA': row.SISTEMA,
+        'MATERIAL / TIPO': row['MATERIAL / TIPO'],
+        'TIPO DE SERVICIO': row['TIPO DE SERVICIO'],
+        'TOTAL DESPACHADO (m)': row['TOTAL DESPACHADO (m)'],
+        'N° ENTREGAS': row['N° ENTREGAS'],
+      }));
+
+      const auditRows = sortedDispatches.map((item, idx) => {
         const fallbackCable = cableMap.get(item.tag_unico) || {};
         const relatedSchedule = Array.isArray(item.cable_schedule)
           ? item.cable_schedule[0]
@@ -639,12 +772,13 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
           'FECHA DE DESPACHO': item.fecha_entrega ? String(item.fecha_entrega).slice(0, 10) : '—',
           'RECIBIDO POR': item.solicitado_por || '—',
           'OBSERVACIONES': item.observaciones || '',
+          'REGISTRADO POR': creatorMap.get(item.id) || (item.created_by ? String(item.created_by) : 'Registro anterior'),
           'FECHA DE REGISTRO': item.created_at ? new Date(item.created_at).toLocaleString('es-PE', { timeZone: 'America/Lima' }) : '—',
         };
       });
 
-      const worksheet = XLSX.utils.json_to_sheet(detailRows);
-      worksheet['!cols'] = [
+      const summarySheet = XLSX.utils.json_to_sheet(summaryRows);
+      summarySheet['!cols'] = [
         { wch: 6 },
         { wch: 24 },
         { wch: 16 },
@@ -652,15 +786,26 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
         { wch: 32 },
         { wch: 18 },
         { wch: 24 },
-        { wch: 22 },
-        { wch: 20 },
-        { wch: 26 },
-        { wch: 24 },
-        { wch: 22 }
+        { wch: 12 },
+      ];
+
+      const groupedSheet = XLSX.utils.json_to_sheet(groupedRows);
+      groupedSheet['!cols'] = [
+        { wch: 6 }, { wch: 24 }, { wch: 16 }, { wch: 28 }, { wch: 32 }, { wch: 18 },
+        { wch: 24 }, { wch: 12 },
+        ...Array.from({ length: 3 }).flatMap(() => [{ wch: 25 }, { wch: 24 }, { wch: 22 }]),
+      ];
+
+      const auditSheet = XLSX.utils.json_to_sheet(auditRows);
+      auditSheet['!cols'] = [
+        { wch: 6 }, { wch: 24 }, { wch: 16 }, { wch: 28 }, { wch: 32 }, { wch: 18 },
+        { wch: 24 }, { wch: 22 }, { wch: 20 }, { wch: 26 }, { wch: 24 }, { wch: 38 }, { wch: 22 },
       ];
 
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Historial Despachos');
+      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Resumen por TAG');
+      XLSX.utils.book_append_sheet(workbook, groupedSheet, 'Entregas por TAG');
+      XLSX.utils.book_append_sheet(workbook, auditSheet, 'Auditoria Entregas');
       const areaCode = activeArea?.code || 'AREA';
       const today = new Date().toISOString().slice(0, 10);
       XLSX.writeFile(workbook, `Historial_Despachos_Cables_${areaCode}_${today}.xlsx`);
@@ -782,7 +927,97 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     });
   });
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
+    setExportingSchedule(true);
+    try {
+      if (isWeldSection) {
+        const visibleCableIds = new Set(filteredData.map(row => Number(row.id)));
+        const activeReports = [];
+        const consumptions = [];
+        const batchSize = 1000;
+
+        for (let start = 0; ; start += batchSize) {
+          const { data: batch, error } = await supabase
+            .from('pat_soldadura_reportes')
+            .select('id, cable_schedule_id, fecha_ejecucion, comentarios, created_at')
+            .eq('project_area_id', activeAreaId)
+            .is('reversed_at', null)
+            .range(start, start + batchSize - 1);
+          if (error) throw error;
+          activeReports.push(...(batch || []).filter(report => visibleCableIds.has(Number(report.cable_schedule_id))));
+          if (!batch || batch.length < batchSize) break;
+        }
+
+        const reportIds = new Set(activeReports.map(report => report.id));
+        if (reportIds.size > 0) {
+          for (let start = 0; ; start += batchSize) {
+            const { data: batch, error } = await supabase
+              .from('pat_soldadura_consumos')
+              .select('reporte_id, componente_tipo, componente_descripcion, cantidad, unidad, fecha_consumo')
+              .eq('project_area_id', activeAreaId)
+              .order('componente_tipo', { ascending: true })
+              .range(start, start + batchSize - 1);
+            if (error) throw error;
+            consumptions.push(...(batch || []).filter(item => reportIds.has(item.reporte_id)));
+            if (!batch || batch.length < batchSize) break;
+          }
+        }
+
+        const reportByCable = new Map(activeReports.map(report => [Number(report.cable_schedule_id), report]));
+        const consumptionsByReport = new Map();
+        consumptions.forEach(item => {
+          if (!consumptionsByReport.has(item.reporte_id)) consumptionsByReport.set(item.reporte_id, []);
+          consumptionsByReport.get(item.reporte_id).push(item);
+        });
+
+        const hierarchicalRows = [];
+        filteredData.forEach((row, index) => {
+          const report = reportByCable.get(Number(row.id));
+          const total = parseFloat(row.total_estimado_m) || 0;
+          const installed = parseFloat(row.metrado_reportado_campo) || 0;
+          hierarchicalRows.push({
+            'N°': index + 1,
+            'TIPO DE REGISTRO': 'SOLDADURA',
+            'TAG UNICO': row.tag_unico || '—',
+            'WBS': row.wbs || '—',
+            'SISTEMA': row.sistema || '—',
+            'DESCRIPCIÓN': row.material || '—',
+            'CANTIDAD OT (UND)': total,
+            'CANTIDAD CONSTRUCCIÓN (UND)': installed,
+            '% AVANCE': total <= 0 ? '0%' : `${Math.min(100, Math.round((installed / total) * 100))}%`,
+            'FECHA DE EJECUCIÓN': report?.fecha_ejecucion || row.fecha_tendido || '',
+            'COMENTARIOS': report?.comentarios || '',
+          });
+
+          (consumptionsByReport.get(report?.id) || []).forEach(component => {
+            hierarchicalRows.push({
+              'N°': '',
+              'TIPO DE REGISTRO': `↳ ${component.componente_tipo}`,
+              'TAG UNICO': row.tag_unico || '—',
+              'WBS': '',
+              'SISTEMA': '',
+              'DESCRIPCIÓN': component.componente_descripcion,
+              'CANTIDAD OT (UND)': '',
+              'CANTIDAD CONSTRUCCIÓN (UND)': Number(component.cantidad),
+              '% AVANCE': '',
+              'FECHA DE EJECUCIÓN': component.fecha_consumo || report?.fecha_ejecucion || '',
+              'COMENTARIOS': '',
+            });
+          });
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(hierarchicalRows);
+        worksheet['!cols'] = [
+          { wch: 6 }, { wch: 20 }, { wch: 24 }, { wch: 16 }, { wch: 34 },
+          { wch: 30 }, { wch: 21 }, { wch: 30 }, { wch: 12 }, { wch: 21 }, { wch: 42 },
+        ];
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Soldaduras e Insumos');
+        const areaCode = activeArea?.code || 'AREA';
+        XLSX.writeFile(workbook, `Soldaduras_PAT_${areaCode}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        return;
+      }
+
     const sheetData = filteredData.map(row => {
       const obj = {};
       COLUMNS.forEach(col => {
@@ -808,7 +1043,13 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
     const cleanTipoStr = filterCleanTipo ? `_${filterCleanTipo.slice(0, 15)}` : '';
     const filename = `CableSchedule_${filterTipoCable === 'PAT' ? 'PAT' : 'Circuitos'}${wbsStr}${sistemaStr}${cleanTipoStr}.xlsx`;
     
-    XLSX.writeFile(workbook, filename);
+      XLSX.writeFile(workbook, filename);
+    } catch (error) {
+      console.error('Error al exportar la planilla:', error);
+      alert(`No se pudo exportar la planilla: ${error.message || 'Error desconocido'}`);
+    } finally {
+      setExportingSchedule(false);
+    }
   };
 
   return (
@@ -1149,7 +1390,7 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                           <td>{row.material || '—'}</td>
                           <td style={{ textAlign: 'right' }}>{renderMeasurementValue(row, 'METRADO_OT')}</td>
                           <td style={{ textAlign: 'right' }}>{renderMeasurementValue(row, 'METRADO_DESPACHADO')}</td>
-                          <td style={{ textAlign: 'right' }}>{parseFloat(row.metrado_reportado_campo || 0).toFixed(1)}</td>
+                          <td style={{ textAlign: 'right' }}>{renderConstructionValue(row)}</td>
                           <td style={{ textAlign: 'center' }}>
                             <div className="cable-avance-bar">
                               <div
@@ -1249,6 +1490,45 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
         </table>
       </div>
 
+      {weldReportTarget && (
+        <div className="dialog-overlay" onClick={() => !weldReportSaving && setWeldReportTarget(null)}>
+          <div className="dialog-card" onClick={(event) => event.stopPropagation()} style={{ width: 'min(520px, calc(100vw - 32px))' }}>
+            <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <strong>Reportar Soldadura PAT</strong>
+                <div className="text-muted" style={{ fontSize: 12, marginTop: 3 }}>{weldReportTarget.tag_unico}</div>
+              </div>
+              <button className="btn btn-secondary btn-sm" onClick={() => setWeldReportTarget(null)} disabled={weldReportSaving} title="Cerrar"><X size={15} /></button>
+            </div>
+            <div className="card-body">
+              <div className="message warning" style={{ marginBottom: 16 }}>
+                Se registrará 1 UND ejecutada y el uso de su CARGA y MOLDE. Este registro todavía no afectará el inventario de PRODUCTOS.
+              </div>
+              {mutationError && <div className="message danger" style={{ marginBottom: 16 }}><AlertCircle size={16} /><span>{mutationError}</span></div>}
+              <div className="form-group">
+                <label>TIPO DE SOLDADURA</label>
+                <input value={weldReportTarget.material || ''} disabled />
+              </div>
+              <div className="form-group">
+                <label>FECHA DE EJECUCIÓN <span className="required-marker">*</span></label>
+                <input type="date" required value={weldReportDate} onChange={(event) => setWeldReportDate(event.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>COMENTARIOS</label>
+                <textarea maxLength={500} rows={3} value={weldReportComments} onChange={(event) => setWeldReportComments(event.target.value)} placeholder="Observación opcional" />
+                <div className="text-muted" style={{ textAlign: 'right', fontSize: 11 }}>{weldReportComments.length}/500</div>
+              </div>
+              <div className="dialog-actions">
+                <button className="btn btn-secondary" onClick={() => setWeldReportTarget(null)} disabled={weldReportSaving}>Cancelar</button>
+                <button className="btn btn-primary" onClick={saveWeldReport} disabled={weldReportSaving || !weldReportDate}>
+                  {weldReportSaving ? 'Registrando…' : 'Registrar 1 Soldadura'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {historyDialogOpen && (
         <div className="dialog-overlay">
           <div className="dialog-card cable-history-dialog">
@@ -1301,8 +1581,8 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
             </div>
             <div className="card-body" style={{ padding: '20px 24px' }}>
               <div className="cable-export-grid">
-                {/* Option 1: Historial de Despachos */}
-                <div
+                {/* Option 1: Historial de Despachos (not applicable to Soldaduras) */}
+                {!isWeldSection && <div
                   className="cable-export-card"
                   onClick={async () => {
                     if (exportingDispatches) return;
@@ -1324,14 +1604,14 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                   >
                     {exportingDispatches ? 'Descargando...' : 'Descargar Despachos'}
                   </button>
-                </div>
+                </div>}
 
                 {/* Option 2: Planilla Completa */}
                 <div
                   className="cable-export-card"
-                  onClick={() => {
-                    if (filteredData.length === 0 || exportingDispatches) return;
-                    handleExportExcel();
+                  onClick={async () => {
+                    if (filteredData.length === 0 || exportingDispatches || exportingSchedule) return;
+                    await handleExportExcel();
                     setExportPromptOpen(false);
                   }}
                   style={{ opacity: filteredData.length === 0 ? 0.5 : 1, cursor: filteredData.length === 0 ? 'not-allowed' : 'pointer' }}
@@ -1339,16 +1619,18 @@ export default function CableTable({ filterArea = '', filterTipoServicio = '', f
                   <div className="cable-export-card-icon" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10b981' }}>
                     <Download size={22} />
                   </div>
-                  <h4 className="cable-export-card-title">Planilla Completa</h4>
+                  <h4 className="cable-export-card-title">{isWeldSection ? 'Soldaduras e Insumos' : 'Planilla Completa'}</h4>
                   <p className="cable-export-card-desc">
-                    Schedule completo de circuitos filtrados con metrado OT, despachado, tendido y % de avance.
+                    {isWeldSection
+                      ? 'Cada Soldadura aparecerá seguida por las filas de sus insumos relacionados.'
+                      : 'Schedule completo de circuitos filtrados con metrado OT, despachado, tendido y % de avance.'}
                   </p>
                   <button
                     type="button"
                     className="btn btn-secondary cable-export-card-btn"
-                    disabled={filteredData.length === 0 || exportingDispatches}
+                    disabled={filteredData.length === 0 || exportingDispatches || exportingSchedule}
                   >
-                    Descargar Planilla
+                    {exportingSchedule ? 'Preparando...' : 'Descargar Planilla'}
                   </button>
                 </div>
               </div>

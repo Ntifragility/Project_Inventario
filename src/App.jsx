@@ -15,6 +15,8 @@ import { Clock, Menu } from 'lucide-react';
 import MainMenu from './components/MainMenu';
 import { ProjectAreaProvider } from './contexts/ProjectAreaContext';
 import ProjectAreaSelector from './components/ProjectAreaSelector';
+import MyAccount from './components/MyAccount';
+import AdminAccountRequestsButton from './components/AdminAccountRequestsButton';
 
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 const WARNING_BEFORE_MS = 60 * 1000; // Show warning 1 minute before logout
@@ -26,6 +28,7 @@ export default function App() {
   const [initializing, setInitializing] = useState(true);
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [passwordRecovery, setPasswordRecovery] = useState(() => window.location.hash.includes('type=recovery'));
 
   const [activeModule, setActiveModule] = useState(null);
   const inactivityTimer = useRef(null);
@@ -78,7 +81,8 @@ export default function App() {
       setInitializing(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true);
       setSession(session);
     });
 
@@ -135,8 +139,8 @@ export default function App() {
     );
   }
 
-  if (!session) {
-    return <Login />;
+  if (!session || passwordRecovery) {
+    return <Login passwordRecovery={passwordRecovery} onPasswordRecoveryComplete={() => setPasswordRecovery(false)} />;
   }
 
   // Render view router based on tab selections
@@ -174,6 +178,11 @@ export default function App() {
         return <Config user={session.user} mode="material" />;
       case 'system_config':
         return <Config user={session.user} mode="system" />;
+      case 'my_account':
+        return <MyAccount user={session.user} onManageAccountRequests={() => {
+          setActiveModule('system_config');
+          setActiveTab('system_config');
+        }} />;
       default:
         return <Dashboard />;
     }
@@ -191,6 +200,7 @@ export default function App() {
       case 'recetas': return 'Gestor de Ensambles (BOM)';
       case 'material_config': return 'Configuración de Materiales';
       case 'system_config': return 'Configuración del Sistema';
+      case 'my_account': return 'Mi Cuenta';
       default: return 'Sistema de Inventario';
     }
   };
@@ -232,6 +242,12 @@ export default function App() {
                 <Menu size={20} />
               </button>
               <h2>{getTabTitle()}</h2>
+              {activeTab === 'my_account' && (
+                <AdminAccountRequestsButton onManage={() => {
+                  setActiveModule('system_config');
+                  setActiveTab('system_config');
+                }} />
+              )}
             </div>
             <ProjectAreaSelector compact onAreaChange={handleAreaChange} />
           </header>

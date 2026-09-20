@@ -65,14 +65,25 @@ export default function CableDispatchModal({
 
       const { data, error: fetchErr } = await query;
       if (fetchErr) throw fetchErr;
-      setDespachos(data || []);
+
+      const { data: creators, error: creatorsError } = await supabase.rpc('get_cable_dispatch_creators', {
+        p_project_area_id: activeAreaId,
+        p_cable_schedule_id: cable.id,
+      });
+      if (creatorsError) console.warn('Could not load dispatch creators:', creatorsError);
+      const creatorMap = new Map((creators || []).map(item => [item.dispatch_id, item.created_by_name]));
+
+      setDespachos((data || []).map(item => ({
+        ...item,
+        created_by_name: creatorMap.get(item.id) || (item.created_by ? String(item.created_by) : 'Registro anterior'),
+      })));
     } catch (err) {
       console.error('Error fetching despachos:', err);
       setError('Error al cargar el historial de despachos.');
     } finally {
       setLoading(false);
     }
-  }, [cable?.tag_unico]);
+  }, [activeAreaId, cable?.id, cable?.tag_unico]);
 
   useEffect(() => {
     if (open && cable?.tag_unico) {
@@ -216,6 +227,7 @@ export default function CableDispatchModal({
         'METRADO DESPACHADO (m)': parseFloat(item.longitud_despachada_m || 0),
         'RECIBIDO POR': item.solicitado_por || '—',
         'COMENTARIOS': item.observaciones || '—',
+        'REGISTRADO POR': item.created_by_name || 'Registro anterior',
         'FECHA DE REGISTRO': item.created_at ? new Date(item.created_at).toLocaleString('es-PE', { timeZone: 'America/Lima' }) : '—'
       }));
 
@@ -228,6 +240,7 @@ export default function CableDispatchModal({
         { wch: 24 },
         { wch: 26 },
         { wch: 42 },
+        { wch: 26 },
         { wch: 22 }
       ];
       const workbook = XLSX.utils.book_new();
@@ -463,6 +476,7 @@ export default function CableDispatchModal({
                       <th style={{ width: '95px', textAlign: 'right' }}>Metrado (m)</th>
                       <th>Recibido Por</th>
                       <th className="dispatch-comments-column">Comentarios</th>
+                      <th style={{ minWidth: '150px' }}>Registrado Por</th>
                       {canManage && <th style={{ width: '120px', textAlign: 'center' }}>Acciones</th>}
                     </tr>
                   </thead>
@@ -485,6 +499,7 @@ export default function CableDispatchModal({
                           </td>
                           <td>{item.solicitado_por || '—'}</td>
                           <td className="dispatch-comments-cell">{item.observaciones || '—'}</td>
+                          <td>{item.created_by_name || 'Registro anterior'}</td>
                           {canManage && (
                             <td style={{ textAlign: 'center' }}>
                               {isDeleting ? (
@@ -537,7 +552,7 @@ export default function CableDispatchModal({
                       <td style={{ textAlign: 'right', fontWeight: 'bold', color: 'var(--primary)' }}>
                         {totalCalculated.toFixed(1)} m
                       </td>
-                      <td colSpan={canManage ? 3 : 2}></td>
+                      <td colSpan={canManage ? 4 : 3}></td>
                     </tr>
                   </tfoot>
                 </table>

@@ -516,6 +516,7 @@ body {
   min-height: 190px;
 }
 
+
 @media (min-width: 1200px) and (min-height: 760px) {
   .pat-dashboard .cable-bar-chart-card {
     min-height: 190px;
@@ -1463,7 +1464,7 @@ tr.status-zero td {
 
 .login-header {
   text-align: center;
-  margin-bottom: 28px;
+  margin-bottom: 32px;
 }
 
 .login-header h2 {
@@ -1473,20 +1474,250 @@ tr.status-zero td {
   margin-bottom: 4px;
 }
 
+.content-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-notification-button {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.admin-notification-button:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.admin-notification-button.with-label {
+  width: auto;
+  padding: 0 14px;
+  gap: 8px;
+}
+
+.admin-notification-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--danger);
+  color: #fff;
+  border: 2px solid var(--bg-card);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.admin-notification-dialog {
+  width: min(620px, calc(100vw - 32px));
+  max-height: min(720px, calc(100vh - 40px));
+}
+
+.admin-notification-header,
+.admin-notification-header > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.admin-notification-list {
+  max-height: min(520px, calc(100vh - 190px));
+  overflow-y: auto;
+}
+
+.admin-notification-footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.my-account-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.my-account-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.my-account-section {
+  overflow: hidden;
+}
+
+.my-account-profile-card {
+  order: 1;
+}
+
+.my-account-notifications-card {
+  order: 2;
+}
+
+.my-account-notifications {
+  min-height: 96px;
+}
+
+.my-account-activity-card {
+  order: 3;
+}
+
+.my-account-page .card-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+}
+
+.my-account-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.my-account-details > div:not(.message) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.my-account-details > .btn {
+  width: fit-content;
+  align-self: end;
+}
+
+.my-account-details > .my-account-password-form,
+.my-account-details > .message {
+  grid-column: 1 / -1;
+}
+
+.my-account-details > div > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.my-account-details small {
+  color: var(--text-secondary);
+}
+
+.my-account-password-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-card-header);
+}
+
+.my-account-password-form .form-group {
+  margin: 0;
+}
+
+.my-account-password-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.my-account-notifications p {
+  color: var(--text-secondary);
+  margin: 0 0 16px;
+}
+
+.my-account-activity-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.my-account-activity-item {
+  display: grid;
+  grid-template-columns: 170px minmax(220px, 1fr) minmax(140px, 0.6fr);
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.my-account-activity-item span,
+.my-account-activity-item code {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 800px) {
+  .my-account-details {
+    grid-template-columns: 1fr;
+  }
+
+  .my-account-password-form,
+  .my-account-activity-item {
+    grid-template-columns: 1fr;
+  }
+}
+
 .login-header p {
   color: #94a3b8;
   font-size: 0.875rem;
+  margin: 4px 0 0;
 }
 
 /* Specific overrides for login card context to ensure contrast & glass aesthetics */
 .login-card label {
   color: #e2e8f0 !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.login-card input {
-  background: #ef4444;
+.login-card label svg {
+  color: var(--primary);
+}
+
+.login-card input,
+.login-card select,
+.login-card textarea {
+  background: rgba(255, 255, 255, 0.055);
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: #ffffff;
+}
+
+.login-card input::placeholder,
+.login-card textarea::placeholder {
+  color: #64748b;
+}
+
+.login-card select option {
+  background: #171717;
+  color: #ffffff;
+}
+
+.login-character-count {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.72rem;
+  text-align: right;
 }
 
 .login-card input:focus {
@@ -5429,6 +5660,131 @@ tr:hover .row-actions-hover {
 .dispatch-form-input:disabled {
   opacity: 0.65;
   cursor: not-allowed;
+}
+
+.login-card .message.success {
+  margin-top: 18px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.login-form-group {
+  margin-bottom: 20px;
+}
+
+.login-spinner {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+  margin-bottom: 0;
+}
+
+.login-links {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.login-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #93c5fd;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.login-link:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.account-request-badge {
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--danger);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.account-requests-dialog {
+  width: min(760px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 48px));
+}
+
+.account-requests-list {
+  overflow-y: auto;
+  max-height: calc(100vh - 160px);
+}
+
+.account-requests-empty {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 32px 16px;
+}
+
+.account-request-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.account-request-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.account-request-main span {
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+}
+
+.account-request-main p {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.account-request-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 600px) {
+  .account-request-item {
+    flex-direction: column;
+  }
+
+  .account-request-actions {
+    align-self: stretch;
+  }
+
+  .account-request-actions .btn {
+    flex: 1;
+  }
 }
 
 .dispatch-form-comments {

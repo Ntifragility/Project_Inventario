@@ -9,7 +9,10 @@ import React from 'react';
  * - title: string
  * - maxItems: number (default 10, limits display for readability)
  */
-export default function CableBarChart({ data = [], title = '', maxItems = 10, dimension = null, onSegmentClick, activeSelection = null }) {
+export default function CableBarChart({
+  data = [], title = '', maxItems = 10, dimension = null, onSegmentClick,
+  activeSelection = null, completedLabel = 'Tendido', pendingLabel = 'Por Tender', unitLabel = 'm'
+}) {
   if (!data.length) {
     return (
       <div className="cable-bar-chart-card">
@@ -33,11 +36,11 @@ export default function CableBarChart({ data = [], title = '', maxItems = 10, di
           <div className="cable-bar-legend">
             <span className="cable-bar-legend-item">
               <span className="cable-bar-dot" style={{ background: '#10b981' }} />
-              Tendido
+              {completedLabel}
             </span>
             <span className="cable-bar-legend-item">
               <span className="cable-bar-dot" style={{ background: '#ef4444' }} />
-              Por Tender
+              {pendingLabel}
             </span>
           </div>
         </div>
@@ -70,7 +73,7 @@ export default function CableBarChart({ data = [], title = '', maxItems = 10, di
           };
 
           return (
-            <div className="cable-bar-row" key={i} title={`${item.name} — Tendido: ${item.tendido.toLocaleString()} m, Por Tender: ${item.porTender.toLocaleString()} m (Total: ${item.total.toLocaleString()} m)`}>
+            <div className="cable-bar-row" key={i} title={`${item.name} — ${completedLabel}: ${item.tendido.toLocaleString()} ${unitLabel}, ${pendingLabel}: ${item.porTender.toLocaleString()} ${unitLabel} (Total: ${item.total.toLocaleString()} ${unitLabel})`}>
               <div className="cable-bar-label" title={item.name}>
                 {item.name}
               </div>

@@ -68,6 +68,19 @@ export const CABLE_PAT_COLUMNS = {
   vale:                    { label: 'VALE',                    required: false, type: 'text' },
 };
 
+// ─── Unit-based execution modules ───────────────────────────────────────────
+// Soldaduras and Pozos use the same source schedule layout as PAT. Their
+// quantity is not read from a metre column: every accepted row represents 1 UND.
+export const WORK_ITEM_COLUMNS = {
+  wbs:                     { label: 'WBS',                     required: true,  type: 'text' },
+  sistema:                 { label: 'SISTEMA',                 required: true,  type: 'text' },
+  tag_unico:               { label: 'TAG UNICO',               required: true,  type: 'text' },
+  material:                { label: 'DESCRIPCION DE MATERIAL', required: true,  type: 'text' },
+  plano:                   { label: 'PLANO',                   required: false, type: 'text' },
+  metrado_reportado_campo: { label: 'METRADO CONSTRUCCION',    required: false, type: 'number' },
+  fecha_tendido:           { label: 'F. REPORTE CONSTRUCCION', required: false, type: 'date' },
+};
+
 export const CABLE_PAT_SIGNATURES = [
   'WBS',
   'METRADO DESPACHADO',

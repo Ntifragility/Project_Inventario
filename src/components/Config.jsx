@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { supabase } from '../supabase';
 import { createClient } from '@supabase/supabase-js';
-import { Settings, ShieldAlert, CheckCircle2, AlertCircle, X, HelpCircle, UserPlus, Shield, Mail, KeyRound, Trash2, ShieldCheck, User, UserMinus, Download, Database, Pencil, Upload } from 'lucide-react';
+import { Settings, ShieldAlert, CheckCircle2, AlertCircle, X, HelpCircle, UserPlus, Shield, Mail, KeyRound, Trash2, ShieldCheck, User, UserMinus, Download, Database, Pencil, Upload, Bell } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useProjectArea } from '../contexts/ProjectAreaContext';
 
@@ -34,6 +34,10 @@ export default function Config({ user, mode = 'system' }) {
   const [usersList, setUsersList] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [accountRequests, setAccountRequests] = useState([]);
+  const [loadingAccountRequests, setLoadingAccountRequests] = useState(false);
+  const [showAccountRequests, setShowAccountRequests] = useState(false);
+  const [selectedAccountRequestId, setSelectedAccountRequestId] = useState(null);
   const [promotingUser, setPromotingUser] = useState(null);
   const [promoDni, setPromoDni] = useState('');
   const [promoNombre, setPromoNombre] = useState('');
@@ -954,6 +958,49 @@ export default function Config({ user, mode = 'system' }) {
     }
   };
 
+  const fetchAccountRequests = async () => {
+    setLoadingAccountRequests(true);
+    try {
+      const { data, error } = await supabase.rpc('list_account_requests', { p_status: 'pending' });
+      if (error) throw error;
+      setAccountRequests(data || []);
+    } catch (err) {
+      console.error('Error fetching account requests:', err);
+    } finally {
+      setLoadingAccountRequests(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (!isAdminUser || mode !== 'system') return undefined;
+    const refreshTimer = window.setInterval(fetchAccountRequests, 60000);
+    return () => window.clearInterval(refreshTimer);
+  }, [isAdminUser, mode]);
+
+  const openAccountRequestForCreation = (request) => {
+    setNewUserEmail(request.email || '');
+    setNewUserAreaCode(request.requested_area_code || '');
+    setSelectedAccountRequestId(request.id);
+    setMakeAdmin(false);
+    setShowAccountRequests(false);
+    setShowCreateForm(true);
+    setUserMsg({ text: `Atendiendo solicitud de ${request.full_name}. Defina una contraseña temporal para crear la cuenta.`, type: 'success' });
+  };
+
+  const rejectAccountRequest = async (requestId) => {
+    try {
+      const { error } = await supabase.rpc('resolve_account_request', {
+        p_request_id: requestId,
+        p_status: 'rejected',
+      });
+      if (error) throw error;
+      await fetchAccountRequests();
+    } catch (err) {
+      console.error('Error rejecting account request:', err);
+      alert('No se pudo rechazar la solicitud: ' + err.message);
+    }
+  };
+
   const fetchProjectAreas = async () => {
     try {
       const { data, error } = await supabase.rpc('listar_areas_asignables');
@@ -1090,6 +1137,7 @@ export default function Config({ user, mode = 'system' }) {
           setIsAdminUser(true);
           setUserAdminDni(adminDni);
           fetchUsers();
+          fetchAccountRequests();
           fetchProjectAreas();
           fetchAuditLogs();
           fetchBackups();
@@ -1194,6 +1242,16 @@ export default function Config({ user, mode = 'system' }) {
 
       if (assignmentError) throw assignmentError;
 
+      if (selectedAccountRequestId) {
+        const { error: requestError } = await supabase.rpc('resolve_account_request', {
+          p_request_id: selectedAccountRequestId,
+          p_status: 'approved',
+        });
+        if (requestError) {
+          console.error('User created but account request could not be resolved:', requestError);
+        }
+      }
+
       setUserMsg({
         text: `Usuario ${email} registrado con éxito.${makeAdmin ? ' Registrado como administrador.' : ''}`,
         type: 'success'
@@ -1210,6 +1268,8 @@ export default function Config({ user, mode = 'system' }) {
       setMakeAdmin(false);
       setNewAdminDni('');
       setNewAdminNombre('');
+      setSelectedAccountRequestId(null);
+      fetchAccountRequests();
     } catch (err) {
       console.error('Error creating user:', err);
 
@@ -1805,16 +1865,29 @@ export default function Config({ user, mode = 'system' }) {
               <UserPlus size={18} />
               <span>Gestión de Usuarios</span>
             </div>
-            <button 
-              className="btn btn-primary" 
-              style={{ padding: '6px 12px', fontSize: '0.85rem' }}
-              onClick={() => {
-                setShowCreateForm(!showCreateForm);
-                setUserMsg({ text: '', type: '' });
-              }}
-            >
-              {showCreateForm ? 'Ver Lista de Usuarios' : 'Registrar Nuevo Usuario'}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button
+                className="btn btn-secondary"
+                style={{ padding: '6px 10px', fontSize: '0.85rem', position: 'relative' }}
+                onClick={() => { setShowAccountRequests(true); fetchAccountRequests(); }}
+                title="Solicitudes de cuenta pendientes"
+              >
+                <Bell size={16} />
+                <span>Solicitudes</span>
+                {accountRequests.length > 0 && <span className="account-request-badge">{accountRequests.length}</span>}
+              </button>
+              <button
+                className="btn btn-primary"
+                style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                onClick={() => {
+                  setShowCreateForm(!showCreateForm);
+                  setSelectedAccountRequestId(null);
+                  setUserMsg({ text: '', type: '' });
+                }}
+              >
+                {showCreateForm ? 'Ver Lista de Usuarios' : 'Registrar Nuevo Usuario'}
+              </button>
+            </div>
           </div>
           <div className="card-body">
             
@@ -2120,6 +2193,40 @@ export default function Config({ user, mode = 'system' }) {
             )}
           </div>
         </div>
+
+        {showAccountRequests && (
+          <div className="dialog-overlay" onClick={() => setShowAccountRequests(false)}>
+            <div className="dialog-card account-requests-dialog" onClick={(event) => event.stopPropagation()}>
+              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Bell size={18} />
+                  <strong>Solicitudes de Cuenta</strong>
+                </div>
+                <button className="btn btn-secondary btn-sm" onClick={() => setShowAccountRequests(false)}><X size={15} /></button>
+              </div>
+              <div className="card-body account-requests-list">
+                {loadingAccountRequests ? (
+                  <div className="account-requests-empty"><span className="spinner" /> Cargando solicitudes...</div>
+                ) : accountRequests.length === 0 ? (
+                  <div className="account-requests-empty">No hay solicitudes pendientes.</div>
+                ) : accountRequests.map((request) => (
+                  <div className="account-request-item" key={request.id}>
+                    <div className="account-request-main">
+                      <strong>{request.full_name}</strong>
+                      <span>{request.email}</span>
+                      <span>{request.requested_area_code === 'HUMEDA' ? 'Área Húmeda' : 'Área Seca'} · {new Date(request.created_at).toLocaleString('es-PE')}</span>
+                      {request.message && <p>{request.message}</p>}
+                    </div>
+                    <div className="account-request-actions">
+                      <button className="btn btn-primary btn-sm" onClick={() => openAccountRequestForCreation(request)}>Crear Cuenta</button>
+                      <button className="btn btn-danger btn-sm" onClick={() => rejectAccountRequest(request.id)}>Rechazar</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Audit Log Card */}
         <div className="card" style={{ marginTop: '24px' }}>

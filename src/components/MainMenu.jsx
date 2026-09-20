@@ -51,6 +51,10 @@ export default function MainMenu({ onSelectModule, user, onLogout, isDark, toggl
         <div className="main-menu-user-actions">
           <ProjectAreaSelector onAreaChange={() => setShowCableSubmenu(false)} />
 
+          <button onClick={() => onSelectModule('account', 'my_account')} className="theme-toggle-btn" title="Mi Cuenta">
+            <User size={18} />
+          </button>
+
           <button onClick={toggleTheme} className="theme-toggle-btn" title={isDark ? "Modo Claro" : "Modo Oscuro"}>
             {isDark ? <Sun size={18} /> : <Moon size={18} />}
           </button>

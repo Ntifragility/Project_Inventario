@@ -6,7 +6,7 @@ import {
   ArrowRight, ArrowLeft, X, Loader2, Zap, ChevronDown, ChevronUp
 } from 'lucide-react';
 import {
-  CABLE_SCHEDULE_COLUMNS, CABLE_DESPACHO_COLUMNS, CABLE_PAT_COLUMNS,
+  CABLE_SCHEDULE_COLUMNS, CABLE_DESPACHO_COLUMNS, CABLE_PAT_COLUMNS, WORK_ITEM_COLUMNS,
   CABLE_SCHEDULE_SIGNATURES, CABLE_DESPACHO_SIGNATURES, CABLE_PAT_SIGNATURES,
   detectImportType, autoMapColumns, transformRow, normalizeImportText
 } from './cableParserConfig';
@@ -70,8 +70,10 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
     { label: 'Importar', icon: Zap },
   ];
 
+  const isWorkItemImport = importType === 'soldaduras' || importType === 'pozos_tierra';
   const columnDefs = importType === 'schedule' ? CABLE_SCHEDULE_COLUMNS :
-    importType === 'pat' ? CABLE_PAT_COLUMNS : CABLE_DESPACHO_COLUMNS;
+    importType === 'pat' ? CABLE_PAT_COLUMNS :
+      isWorkItemImport ? WORK_ITEM_COLUMNS : CABLE_DESPACHO_COLUMNS;
 
   // ══════════════════════════════════════════════════════════════
   // STEP 1: FILE UPLOAD & SHEET PARSING
@@ -159,7 +161,8 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
     if (detected) {
       setImportType(detected);
       const defs = detected === 'schedule' ? CABLE_SCHEDULE_COLUMNS :
-        detected === 'pat' ? CABLE_PAT_COLUMNS : CABLE_DESPACHO_COLUMNS;
+        detected === 'pat' ? CABLE_PAT_COLUMNS :
+          (detected === 'soldaduras' || detected === 'pozos_tierra') ? WORK_ITEM_COLUMNS : CABLE_DESPACHO_COLUMNS;
 
       const matchedProfile = findMatchingProfileByHeaders(headers, profiles, detected);
 
@@ -232,7 +235,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
   const buildPreview = useCallback(() => {
     const errors = [];
     const parsedRows = [];
-    const summary = { conductores: 0, pvc: 0, unsupported: 0, missingTag: 0 };
+    const summary = { conductores: 0, pvc: 0, soldaduras: 0, pozos: 0, unsupported: 0, missingTag: 0, accepted: 0 };
 
     rawRows.forEach((row, i) => {
       const obj = transformRow(row, mapping, columnDefs);
@@ -261,11 +264,33 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
           summary.conductores++;
         } else if (desc.startsWith('TUBERIA PVC SCH')) {
           summary.pvc++;
+        } else if (/^SOLDADURA\s+(T\s*4\/0\s*-\s*2\/0|T\s*4\/0|GT|X\s*4\/0)$/.test(desc)) {
+          // Each weld schedule row represents exactly one unit, never metres.
+          summary.soldaduras++;
+          obj.total_estimado_m = 1;
+          obj.metrado_reportado_campo = Number(obj.metrado_reportado_campo) > 0 ? 1 : 0;
+        } else if (/^POZO\b/.test(desc)) {
+          // Each well schedule row represents exactly one unit, never metres.
+          summary.pozos++;
+          obj.total_estimado_m = 1;
+          obj.metrado_reportado_campo = Number(obj.metrado_reportado_campo) > 0 ? 1 : 0;
         } else {
           summary.unsupported++;
           return;
         }
         obj.material = desc;
+      }
+
+      if (isWorkItemImport) {
+        const isSupported = importType === 'soldaduras'
+          ? /^SOLDADURA\s+(T\s*4\/0\s*-\s*2\/0|T\s*4\/0|GT|X\s*4\/0)$/.test(desc)
+          : /^POZO\b/.test(desc);
+        if (!isSupported) {
+          summary.unsupported++;
+          return;
+        }
+        obj.material = desc;
+        summary.accepted++;
       }
 
       // Validate required fields
@@ -282,7 +307,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
     setPreviewSummary(summary);
     setValidationErrors(errors.slice(0, 50)); // Cap at 50 errors
     setPreviewPage(1);
-  }, [rawRows, mapping, columnDefs, importType]);
+  }, [rawRows, mapping, columnDefs, importType, isWorkItemImport]);
 
   // ══════════════════════════════════════════════════════════════
   // STEP 4: IMPORT TO SUPABASE
@@ -321,11 +346,57 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
       for (let i = 0; i < previewData.length; i += BATCH_SIZE) {
         const batch = previewData.slice(i, i + BATCH_SIZE);
 
-        if (importType === 'schedule' || importType === 'pat') {
+        if (isWorkItemImport) {
+          const targetTable = importType === 'soldaduras' ? 'soldaduras' : 'pozos_tierra';
+          const targetEventTable = importType === 'soldaduras' ? 'soldaduras_avances' : 'pozos_tierra_avances';
+          const parentField = importType === 'soldaduras' ? 'soldadura_id' : 'pozo_tierra_id';
+          const batchCodes = batch.map((row) => row.tag_unico).filter(Boolean);
+          const { data: existingRows, error: existingErr } = await supabase
+            .from(targetTable)
+            .select('id, codigo_unico')
+            .eq('project_area_id', activeAreaId)
+            .in('codigo_unico', batchCodes);
+          if (existingErr) throw existingErr;
+          const existingCodes = new Set((existingRows || []).map((row) => row.codigo_unico));
+          const { error: masterError } = await supabase
+            .from(targetTable)
+            .upsert(batch.map((row) => ({
+              project_area_id: activeAreaId,
+              codigo_unico: row.tag_unico,
+              wbs: row.wbs,
+              sistema: row.sistema,
+              plano: row.plano || null,
+              tipo: row.material,
+              cantidad_ot: 1,
+            })), { onConflict: 'project_area_id,codigo_unico', ignoreDuplicates: false });
+          if (masterError) throw masterError;
+
+          const { data: importedRows, error: importedError } = await supabase
+            .from(targetTable)
+            .select('id, codigo_unico')
+            .eq('project_area_id', activeAreaId)
+            .in('codigo_unico', batchCodes);
+          if (importedError) throw importedError;
+          const idByCode = new Map((importedRows || []).map((row) => [row.codigo_unico, row.id]));
+          const initialEvents = batch
+            .filter((row) => !existingCodes.has(row.tag_unico) && Number(row.metrado_reportado_campo) > 0)
+            .map((row) => ({
+              [parentField]: idByCode.get(row.tag_unico),
+              cantidad: 1,
+              fecha_avance: row.fecha_tendido || new Date().toISOString().slice(0, 10),
+              comentarios: 'Avance inicial importado desde el schedule.',
+            }));
+          if (initialEvents.length) {
+            const { error: eventError } = await supabase.from(targetEventTable).insert(initialEvents);
+            if (eventError) throw eventError;
+          }
+          inserted += batchCodes.filter((code) => !existingCodes.has(code)).length;
+          updated += batchCodes.filter((code) => existingCodes.has(code)).length;
+        } else if (importType === 'schedule' || importType === 'pat') {
           const batchTags = batch.map(row => row.tag_unico).filter(Boolean);
           const { data: existingRows, error: existingErr } = await supabase
             .from('cable_schedule')
-            .select('tag_unico, project_area_id')
+            .select('tag_unico, project_area_id, metrado_reportado_campo')
             .in('tag_unico', batchTags);
 
           if (existingErr) throw existingErr;
@@ -339,11 +410,30 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
           const existingTags = new Set((existingRows || [])
             .filter(row => row.project_area_id === activeAreaId)
             .map(row => row.tag_unico));
+          const existingByTag = new Map((existingRows || [])
+            .filter(row => row.project_area_id === activeAreaId)
+            .map(row => [row.tag_unico, row]));
+
+          const weldsToReport = batch.filter((row) => {
+            const material = normalizeImportText(row.material);
+            const currentValue = Number(existingByTag.get(row.tag_unico)?.metrado_reportado_campo) || 0;
+            return material.startsWith('SOLDADURA')
+              && Number(row.metrado_reportado_campo) > 0
+              && currentValue < 1;
+          });
 
           // Extract despachado if present
           const scheduleBatch = batch.map(row => {
             const copy = { ...row };
             delete copy.total_despachado_m;
+            const material = normalizeImportText(copy.material);
+            if (material.startsWith('SOLDADURA')) {
+              // Executed welds must go through registrar_soldadura_pat so their
+              // recipe consumption is created atomically. Preserve prior progress
+              // during a master-data re-import.
+              copy.metrado_reportado_campo = Number(existingByTag.get(row.tag_unico)?.metrado_reportado_campo) || 0;
+              if (copy.metrado_reportado_campo < 1) copy.fecha_tendido = null;
+            }
             return {
               ...copy,
               project_area_id: activeAreaId,
@@ -368,6 +458,16 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
             .in('tag_unico', batchTags);
           if (scheduleIdsError) throw scheduleIdsError;
           const scheduleIdByTag = new Map((scheduleIds || []).map(row => [row.tag_unico, row.id]));
+
+          for (const row of weldsToReport) {
+            const { error: reportError } = await supabase.rpc('registrar_soldadura_pat', {
+              p_cable_schedule_id: scheduleIdByTag.get(row.tag_unico),
+              p_project_area_id: activeAreaId,
+              p_fecha_ejecucion: row.fecha_tendido || new Date().toISOString().split('T')[0],
+              p_comentarios: 'Ejecución inicial importada desde Excel.',
+            });
+            if (reportError) throw reportError;
+          }
 
           // If there is total_despachado_m mapped, insert/upsert into cable_despachos
           const despachadoRows = batch
@@ -449,7 +549,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
     } finally {
       setIsImporting(false);
     }
-  }, [activeArea, activeAreaId, previewData, importType, mapping, rawHeaders]);
+  }, [activeArea, activeAreaId, previewData, importType, mapping, rawHeaders, isWorkItemImport]);
 
   // ══════════════════════════════════════════════════════════════
   // STEP NAVIGATION
@@ -500,7 +600,11 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
           <h3>
             {importType === 'despacho'
               ? '📦 Importar Despachos'
-              : 'Importar información de cableado'}
+              : importType === 'soldaduras'
+                ? 'Importar Soldaduras'
+                : importType === 'pozos_tierra'
+                  ? 'Importar Pozos a Tierra'
+                  : 'Importar información de cableado'}
           </h3>
           <button className="smart-wizard-close" onClick={handleClose}>
             <X size={18} />
@@ -702,6 +806,14 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
                     <div className="text-muted" style={{ fontSize: 12 }}>Tuberías PVC SCH</div>
                   </div>
                   <div className="cable-preview-stat" style={{ padding: '10px 12px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+                    <strong>{previewSummary.soldaduras}</strong>
+                    <div className="text-muted" style={{ fontSize: 12 }}>Soldaduras (1 UND)</div>
+                  </div>
+                  <div className="cable-preview-stat" style={{ padding: '10px 12px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+                    <strong>{previewSummary.pozos}</strong>
+                    <div className="text-muted" style={{ fontSize: 12 }}>Pozos a Tierra (1 UND)</div>
+                  </div>
+                  <div className="cable-preview-stat" style={{ padding: '10px 12px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
                     <strong>{previewSummary.unsupported + previewSummary.missingTag}</strong>
                     <div className="text-muted" style={{ fontSize: 12 }}>Filas omitidas</div>
                   </div>
@@ -710,7 +822,7 @@ export default function CableImportWizard({ onClose, onImportComplete, forceType
                   <div className="message warning" style={{ marginBottom: 16 }}>
                     <AlertCircle size={16} />
                     <span>
-                      Se omitieron {previewSummary.unsupported} filas porque el material no empieza con CABLE o TUBERIA PVC SCH
+                      Se omitieron {previewSummary.unsupported} filas porque la descripción de material no corresponde a una categoría PAT admitida
                       {previewSummary.missingTag > 0 ? `, y ${previewSummary.missingTag} filas sin TAG UNICO` : ''}.
                     </span>
                   </div>
